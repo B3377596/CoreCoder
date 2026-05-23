@@ -10,40 +10,76 @@ CoreCoder implements the same idea in 3 layers:
   Layer 1 (tool_snip)   - replace verbose tool results with truncated versions
   Layer 2 (summarize)   - LLM-powered summary of old conversation
   Layer 3 (hard_collapse) - last resort: drop everything except summary + recent
+
+Token counting uses ``tiktoken`` when available for accurate counts,
+falling back to a character-based estimate.
 """
 
 from __future__ import annotations
+
+import logging
+import re
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .llm import LLM
 
+logger = logging.getLogger("corecoder.context")
 
-def _approx_tokens(text: str) -> int:
-    """Rough token count. ~3.5 chars/token for mixed en/zh content."""
+# ------------------------------------------------------------------
+# token counting
+# ------------------------------------------------------------------
+
+_tiktoken_enc = None
+
+
+def _get_encoder():
+    """Lazy-load tiktoken cl100k_base encoder (covers GPT-4, Claude, most models)."""
+    global _tiktoken_enc
+    if _tiktoken_enc is None:
+        try:
+            import tiktoken
+            _tiktoken_enc = tiktoken.get_encoding("cl100k_base")
+        except ImportError:
+            _tiktoken_enc = False  # sentinel: tiktoken unavailable
+    return _tiktoken_enc if _tiktoken_enc is not False else None
+
+
+def count_tokens(text: str) -> int:
+    """Count tokens accurately with tiktoken, or fall back to estimate."""
+    enc = _get_encoder()
+    if enc:
+        return len(enc.encode(text))
+    # rough fallback: ~3.5 chars/token for mixed en/zh content
     return len(text) // 3
 
 
 def estimate_tokens(messages: list[dict]) -> int:
+    """Count total tokens across all messages."""
     total = 0
     for m in messages:
         if m.get("content"):
-            total += _approx_tokens(m["content"])
+            total += count_tokens(m["content"])
         if m.get("tool_calls"):
-            total += _approx_tokens(str(m["tool_calls"]))
+            total += count_tokens(str(m["tool_calls"]))
     return total
+
+
+# ------------------------------------------------------------------
+# context manager
+# ------------------------------------------------------------------
 
 
 class ContextManager:
     def __init__(self, max_tokens: int = 128_000):
         self.max_tokens = max_tokens
         # layer thresholds (fraction of max_tokens)
-        self._snip_at = int(max_tokens * 0.50)    # 50% -> snip tool outputs
-        self._summarize_at = int(max_tokens * 0.70)  # 70% -> LLM summarize
-        self._collapse_at = int(max_tokens * 0.90)   # 90% -> hard collapse
+        self._snip_at = int(max_tokens * 0.50)
+        self._summarize_at = int(max_tokens * 0.70)
+        self._collapse_at = int(max_tokens * 0.90)
 
-    def maybe_compress(self, messages: list[dict], llm: LLM | None = None) -> bool:
-        """Apply compression layers as needed. Returns True if any compression happened."""
+    async def maybe_compress(self, messages: list[dict], llm: LLM | None = None) -> bool:
+        """Apply compression layers as needed. Returns True if compression happened."""
         current = estimate_tokens(messages)
         compressed = False
 
@@ -52,27 +88,26 @@ class ContextManager:
             if self._snip_tool_outputs(messages):
                 compressed = True
                 current = estimate_tokens(messages)
+                logger.debug("Layer 1 (snip) applied: %d tokens", current)
 
         # Layer 2: LLM-powered summarization of old turns
         if current > self._summarize_at and len(messages) > 10:
-            if self._summarize_old(messages, llm, keep_recent=8):
+            if await self._summarize_old(messages, llm, keep_recent=8):
                 compressed = True
                 current = estimate_tokens(messages)
+                logger.debug("Layer 2 (summarize) applied: %d tokens", current)
 
         # Layer 3: hard collapse - last resort
         if current > self._collapse_at and len(messages) > 4:
-            self._hard_collapse(messages, llm)
+            await self._hard_collapse(messages, llm)
             compressed = True
+            logger.debug("Layer 3 (hard collapse) applied: %d tokens", estimate_tokens(messages))
 
         return compressed
 
     @staticmethod
     def _snip_tool_outputs(messages: list[dict]) -> bool:
-        """Layer 1: Truncate tool results over 1500 chars to their first/last lines.
-
-        This mirrors Claude Code's HISTORY_SNIP which replaces old tool outputs
-        with a one-line summary to reclaim context space.
-        """
+        """Layer 1: Truncate tool results over 1500 chars to first/last lines."""
         changed = False
         for m in messages:
             if m.get("role") != "tool":
@@ -83,7 +118,6 @@ class ContextManager:
             lines = content.splitlines()
             if len(lines) <= 6:
                 continue
-            # keep first 3 + last 3 lines
             snipped = (
                 "\n".join(lines[:3])
                 + f"\n... ({len(lines)} lines, snipped to save context) ...\n"
@@ -93,8 +127,8 @@ class ContextManager:
             changed = True
         return changed
 
-    def _summarize_old(self, messages: list[dict], llm: LLM | None,
-                       keep_recent: int = 8) -> bool:
+    async def _summarize_old(self, messages: list[dict], llm: LLM | None,
+                             keep_recent: int = 8) -> bool:
         """Layer 2: Summarize old conversation, keep recent messages intact."""
         if len(messages) <= keep_recent:
             return False
@@ -102,7 +136,7 @@ class ContextManager:
         old = messages[:-keep_recent]
         tail = messages[-keep_recent:]
 
-        summary = self._get_summary(old, llm)
+        summary = await self._get_summary(old, llm)
 
         messages.clear()
         messages.append({
@@ -116,10 +150,10 @@ class ContextManager:
         messages.extend(tail)
         return True
 
-    def _hard_collapse(self, messages: list[dict], llm: LLM | None):
+    async def _hard_collapse(self, messages: list[dict], llm: LLM | None):
         """Layer 3: Emergency compression. Keep only last 4 messages + summary."""
         tail = messages[-4:] if len(messages) > 4 else messages[-2:]
-        summary = self._get_summary(messages[:-len(tail)], llm)
+        summary = await self._get_summary(messages[:-len(tail)], llm)
 
         messages.clear()
         messages.append({
@@ -132,13 +166,13 @@ class ContextManager:
         })
         messages.extend(tail)
 
-    def _get_summary(self, messages: list[dict], llm: LLM | None) -> str:
+    async def _get_summary(self, messages: list[dict], llm: LLM | None) -> str:
         """Generate summary via LLM or fallback to extraction."""
         flat = self._flatten(messages)
 
         if llm:
             try:
-                resp = llm.chat(
+                resp = await llm.chat(
                     messages=[
                         {
                             "role": "system",
@@ -154,10 +188,9 @@ class ContextManager:
                     ],
                 )
                 return resp.content
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("LLM summarization failed, using fallback: %s", e)
 
-        # fallback: extract key lines
         return self._extract_key_info(messages)
 
     @staticmethod
@@ -173,22 +206,18 @@ class ContextManager:
     @staticmethod
     def _extract_key_info(messages: list[dict]) -> str:
         """Fallback: extract file paths, errors, and decisions without LLM."""
-        import re
-        files_seen = set()
-        errors = []
-        decisions = []
+        files_seen: set[str] = set()
+        errors: list[str] = []
 
         for m in messages:
             text = m.get("content", "") or ""
-            # extract file paths
             for match in re.finditer(r'[\w./\-]+\.\w{1,5}', text):
                 files_seen.add(match.group())
-            # extract error lines
             for line in text.splitlines():
                 if 'error' in line.lower() or 'Error' in line:
                     errors.append(line.strip()[:150])
 
-        parts = []
+        parts: list[str] = []
         if files_seen:
             parts.append(f"Files touched: {', '.join(sorted(files_seen)[:20])}")
         if errors:

@@ -8,7 +8,10 @@ its own context window.
 The sub-agent runs to completion and returns a text summary.
 """
 
+import logging
 from .base import Tool
+
+logger = logging.getLogger("corecoder.tools.agent")
 
 
 class AgentTool(Tool):
@@ -33,26 +36,27 @@ class AgentTool(Tool):
     # set by Agent.__init__ after construction
     _parent_agent = None
 
-    def execute(self, task: str) -> str:
+    async def execute(self, task: str) -> str:
         if self._parent_agent is None:
             return "Error: agent tool not initialized (no parent agent)"
 
-        # import here to avoid circular dep
         from ..agent import Agent
 
         parent = self._parent_agent
         sub = Agent(
             llm=parent.llm,
-            tools=[t for t in parent.tools if t.name != "agent"],  # no recursive agents
+            tools=[t for t in parent.tools if t.name != "agent"],
             max_context_tokens=parent.context.max_tokens,
             max_rounds=20,
         )
 
         try:
-            result = sub.chat(task)
-            # trim long results to avoid blowing up parent's context
+            logger.info("Sub-agent starting: %s", task[:80])
+            result = await sub.chat(task)
             if len(result) > 5000:
                 result = result[:4500] + "\n... (sub-agent output truncated)"
+            logger.info("Sub-agent completed: %d chars", len(result))
             return f"[Sub-agent completed]\n{result}"
         except Exception as e:
+            logger.warning("Sub-agent error: %s", e)
             return f"Sub-agent error: {e}"

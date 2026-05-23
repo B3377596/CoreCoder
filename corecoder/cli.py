@@ -1,12 +1,17 @@
 """Interactive REPL - the user-facing terminal interface."""
 
-import sys
-import os
+from __future__ import annotations
+
 import argparse
+import asyncio
+import logging
+import os
+import sys
 
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
+from rich.logging import RichHandler
 from prompt_toolkit import prompt as pt_prompt
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding import KeyBindings
@@ -14,10 +19,18 @@ from prompt_toolkit.key_binding import KeyBindings
 from .agent import Agent
 from .llm import LLM, LiteLLM
 from .config import Config
+from .mcp import MCPClient
+from .prompt import system_prompt
 from .session import save_session, load_session, list_sessions
 from . import __version__
 
 console = Console()
+logger = logging.getLogger("corecoder")
+
+
+# ------------------------------------------------------------------
+# argument parsing
+# ------------------------------------------------------------------
 
 
 def _parse_args():
@@ -31,20 +44,48 @@ def _parse_args():
     p.add_argument("-p", "--prompt", help="One-shot prompt (non-interactive mode)")
     p.add_argument("-r", "--resume", metavar="ID", help="Resume a saved session")
     p.add_argument("-v", "--version", action="version", version=f"%(prog)s {__version__}")
+    p.add_argument("--debug", action="store_true", help="Enable debug logging")
     return p.parse_args()
 
 
+# ------------------------------------------------------------------
+# logging setup
+# ------------------------------------------------------------------
+
+
+def setup_logging(debug: bool):
+    level = logging.DEBUG if debug else logging.WARNING
+    handler = RichHandler(console=console, rich_tracebacks=True, show_time=True)
+    handler.setLevel(level)
+    # also configure root logger for library noise
+    logging.basicConfig(level=logging.WARNING, handlers=[handler])
+    # our own loggers at requested level
+    for name in ("corecoder", "corecoder.agent", "corecoder.context",
+                 "corecoder.tools", "corecoder.mcp"):
+        lg = logging.getLogger(name)
+        lg.setLevel(level)
+        lg.handlers = [handler]
+        lg.propagate = False
+
+
+# ------------------------------------------------------------------
+# entry point
+# ------------------------------------------------------------------
+
+
 def main():
+    """Sync entry point for console_scripts."""
     args = _parse_args()
     config = Config.from_env()
 
-    # CLI args override env vars
     if args.model:
         config.model = args.model
     if args.base_url:
         config.base_url = args.base_url
     if args.api_key:
         config.api_key = args.api_key
+
+    setup_logging(args.debug)
 
     if not config.api_key:
         console.print("[red bold]No API key found.[/]")
@@ -72,42 +113,67 @@ def main():
     )
     agent = Agent(llm=llm, max_context_tokens=config.max_context_tokens)
 
-    # resume saved session
-    if args.resume:
-        loaded = load_session(args.resume)
-        if loaded:
-            agent.messages, loaded_model = loaded
-            # restore the model from the saved session unless overridden by CLI
-            if not args.model:
-                agent.llm.model = loaded_model
-                config.model = loaded_model
-            console.print(f"[green]Resumed session: {args.resume} (model: {agent.llm.model})[/green]")
+    asyncio.run(_async_main(agent, config, args))
+
+
+async def _async_main(agent: Agent, config: Config, args):
+    """Async body - runs inside asyncio.run()."""
+
+    # --- MCP: start servers and register their tools ---
+    mcp_client = MCPClient.from_config()
+    await mcp_client.start_all()
+    mcp_tools = mcp_client.all_tools()
+    if mcp_tools:
+        agent.tools.extend(mcp_tools)
+        agent._system = system_prompt(agent.tools)
+        console.print(f"[dim]MCP: {len(mcp_tools)} tools from {len(mcp_client.servers)} server(s)[/]")
+
+    try:
+        # resume saved session
+        if args.resume:
+            loaded = load_session(args.resume)
+            if loaded:
+                agent.messages, loaded_model = loaded
+                if not args.model:
+                    agent.llm.model = loaded_model
+                    config.model = loaded_model
+                console.print(f"[green]Resumed session: {args.resume} (model: {agent.llm.model})[/]")
+            else:
+                console.print(f"[red]Session '{args.resume}' not found.[/]")
+                sys.exit(1)
+
+        if args.prompt:
+            await _run_once(agent, args.prompt)
         else:
-            console.print(f"[red]Session '{args.resume}' not found.[/red]")
-            sys.exit(1)
-
-    # one-shot mode
-    if args.prompt:
-        _run_once(agent, args.prompt)
-        return
-
-    # interactive REPL
-    _repl(agent, config)
+            await _repl(agent, config)
+    finally:
+        await mcp_client.close_all()
 
 
-def _run_once(agent: Agent, prompt: str):
+# ------------------------------------------------------------------
+# one-shot mode
+# ------------------------------------------------------------------
+
+
+async def _run_once(agent: Agent, prompt: str):
     """Non-interactive: run one prompt and exit."""
+
     def on_token(tok):
         print(tok, end="", flush=True)
 
     def on_tool(name, kwargs):
         console.print(f"\n[dim]> {name}({_brief(kwargs)})[/dim]")
 
-    agent.chat(prompt, on_token=on_token, on_tool=on_tool)
+    await agent.chat(prompt, on_token=on_token, on_tool=on_tool)
     print()
 
 
-def _repl(agent: Agent, config: Config):
+# ------------------------------------------------------------------
+# REPL
+# ------------------------------------------------------------------
+
+
+async def _repl(agent: Agent, config: Config):
     """Interactive read-eval-print loop."""
     console.print(Panel(
         f"[bold]CoreCoder[/bold] v{__version__}\n"
@@ -120,7 +186,6 @@ def _repl(agent: Agent, config: Config):
     hist_path = os.path.expanduser("~/.corecoder_history")
     history = FileHistory(hist_path)
 
-    # Enter submits, Escape+Enter inserts a newline (for pasting code blocks etc.)
     kb = KeyBindings()
 
     @kb.add("enter")
@@ -147,7 +212,7 @@ def _repl(agent: Agent, config: Config):
         if not user_input:
             continue
 
-        # built-in commands
+        # built-in slash commands
         if user_input.lower() in ("quit", "exit", "/quit", "/exit"):
             break
         if user_input == "/help":
@@ -155,12 +220,19 @@ def _repl(agent: Agent, config: Config):
             continue
         if user_input == "/reset":
             agent.reset()
-            console.print("[yellow]Conversation reset.[/yellow]")
+            console.print("[yellow]Conversation reset.[/]")
+            continue
+        if user_input == "/undo":
+            desc = agent.undo()
+            if desc:
+                console.print(f"[yellow]Undone: {desc} ({len(agent.messages)} messages remaining)[/]")
+            else:
+                console.print("[dim]Nothing to undo.[/]")
             continue
         if user_input == "/tokens":
             p = agent.llm.total_prompt_tokens
             c = agent.llm.total_completion_tokens
-            line = f"Tokens: [cyan]{p}[/cyan] prompt + [cyan]{c}[/cyan] completion = [bold]{p+c}[/bold] total"
+            line = f"Tokens: [cyan]{p}[/] prompt + [cyan]{c}[/] completion = [bold]{p+c}[/] total"
             cost = agent.llm.estimated_cost
             if cost is not None:
                 line += f"  (~${cost:.4f})"
@@ -171,41 +243,41 @@ def _repl(agent: Agent, config: Config):
             if new_model:
                 agent.llm.model = new_model
                 config.model = new_model
-                console.print(f"Switched to [cyan]{new_model}[/cyan]")
+                console.print(f"Switched to [cyan]{new_model}[/]")
             else:
-                console.print(f"Current model: [cyan]{config.model}[/cyan]")
+                console.print(f"Current model: [cyan]{config.model}[/]")
             continue
         if user_input == "/compact":
             from .context import estimate_tokens
             before = estimate_tokens(agent.messages)
-            compressed = agent.context.maybe_compress(agent.messages, agent.llm)
+            compressed = await agent.context.maybe_compress(agent.messages, agent.llm)
             after = estimate_tokens(agent.messages)
             if compressed:
-                console.print(f"[green]Compressed: {before} → {after} tokens ({len(agent.messages)} messages)[/green]")
+                console.print(f"[green]Compressed: {before} → {after} tokens ({len(agent.messages)} messages)[/]")
             else:
-                console.print(f"[dim]Nothing to compress ({before} tokens, {len(agent.messages)} messages)[/dim]")
+                console.print(f"[dim]Nothing to compress ({before} tokens, {len(agent.messages)} messages)[/]")
             continue
         if user_input == "/save":
             sid = save_session(agent.messages, config.model)
-            console.print(f"[green]Session saved: {sid}[/green]")
+            console.print(f"[green]Session saved: {sid}[/]")
             console.print(f"Resume with: corecoder -r {sid}")
             continue
         if user_input == "/diff":
             from .tools.edit import _changed_files
             if not _changed_files:
-                console.print("[dim]No files modified this session.[/dim]")
+                console.print("[dim]No files modified this session.[/]")
             else:
-                console.print(f"[bold]Files modified this session ({len(_changed_files)}):[/bold]")
+                console.print(f"[bold]Files modified this session ({len(_changed_files)}):[/]")
                 for f in sorted(_changed_files):
-                    console.print(f"  [cyan]{f}[/cyan]")
+                    console.print(f"  [cyan]{f}[/]")
             continue
         if user_input == "/sessions":
             sessions = list_sessions()
             if not sessions:
-                console.print("[dim]No saved sessions.[/dim]")
+                console.print("[dim]No saved sessions.[/]")
             else:
                 for s in sessions:
-                    console.print(f"  [cyan]{s['id']}[/cyan] ({s['model']}, {s['saved_at']}) {s['preview']}")
+                    console.print(f"  [cyan]{s['id']}[/] ({s['model']}, {s['saved_at']}) {s['preview']}")
             continue
 
         # call the agent
@@ -219,23 +291,29 @@ def _repl(agent: Agent, config: Config):
             console.print(f"\n[dim]> {name}({_brief(kwargs)})[/dim]")
 
         try:
-            response = agent.chat(user_input, on_token=on_token, on_tool=on_tool)
+            response = await agent.chat(user_input, on_token=on_token, on_tool=on_tool)
             if streamed:
-                print()  # newline after streamed tokens
+                print()
             else:
-                # response wasn't streamed (came after tool calls)
                 console.print(Markdown(response))
         except KeyboardInterrupt:
-            console.print("\n[yellow]Interrupted.[/yellow]")
+            console.print("\n[yellow]Interrupted.[/]")
         except Exception as e:
-            console.print(f"\n[red]Error: {e}[/red]")
+            logger.exception("Error in agent loop")
+            console.print(f"\n[red]Error: {e}[/]")
+
+
+# ------------------------------------------------------------------
+# helpers
+# ------------------------------------------------------------------
 
 
 def _show_help():
     console.print(Panel(
-        "[bold]Commands:[/bold]\n"
+        "[bold]Commands:[/]\n"
         "  /help          Show this help\n"
         "  /reset         Clear conversation history\n"
+        "  /undo          Undo last user turn\n"
         "  /model         Show current model\n"
         "  /model <name>  Switch model mid-conversation\n"
         "  /tokens        Show token usage\n"
@@ -245,7 +323,7 @@ def _show_help():
         "  /sessions      List saved sessions\n"
         "  quit           Exit CoreCoder\n"
         "\n"
-        "[bold]Input:[/bold]\n"
+        "[bold]Input:[/]\n"
         "  Enter          Submit message\n"
         "  Esc+Enter      Insert newline (for pasting code)",
         title="CoreCoder Help",

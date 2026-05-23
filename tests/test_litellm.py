@@ -1,4 +1,4 @@
-"""Tests for the LiteLLM backend."""
+"""Tests for the LiteLLM backend (async)."""
 
 import json
 import types as builtin_types
@@ -11,7 +11,7 @@ from corecoder.config import Config
 
 
 # ---------------------------------------------------------------------------
-# Fake streaming response (matches OpenAI stream chunk format)
+# Fake async streaming
 # ---------------------------------------------------------------------------
 
 
@@ -38,14 +38,18 @@ class _Chunk:
         self.usage = usage
 
 
-def _make_stream(contents, usage=None):
-    """Create a fake stream from a list of content strings."""
+def _make_async_stream(contents, usage=None):
+    """Create an async iterable from a list of content strings."""
     chunks = [_Chunk(content=c) for c in contents]
     if usage:
         chunks.append(_Chunk(usage=usage))
     else:
         chunks.append(_Chunk(usage=_Usage()))
-    return iter(chunks)
+
+    async def gen():
+        for c in chunks:
+            yield c
+    return gen()
 
 
 # ---------------------------------------------------------------------------
@@ -59,8 +63,8 @@ def _install_fake_litellm(stream_contents=None):
     fake = builtin_types.ModuleType("litellm")
     if stream_contents is None:
         stream_contents = ["hello", " world"]
-    fake.completion = mock.MagicMock(
-        return_value=_make_stream(stream_contents)
+    fake.acompletion = mock.AsyncMock(
+        return_value=_make_async_stream(stream_contents)
     )
     sys.modules["litellm"] = fake
     return fake
@@ -68,7 +72,6 @@ def _install_fake_litellm(stream_contents=None):
 
 def _uninstall_fake_litellm():
     import sys
-
     sys.modules.pop("litellm", None)
 
 
@@ -108,46 +111,40 @@ class TestLiteLLMClass:
 
 
 # ---------------------------------------------------------------------------
-# _call_with_retry
+# _build_params
 # ---------------------------------------------------------------------------
 
 
-class TestCallWithRetry:
-    def setup_method(self):
-        self.fake = _install_fake_litellm()
-
-    def teardown_method(self):
-        _uninstall_fake_litellm()
-
-    def test_passes_drop_params(self):
+class TestBuildParams:
+    def test_includes_drop_params(self):
         llm = LiteLLM(model="openai/gpt-4o")
-        llm._call_with_retry({"model": "openai/gpt-4o", "messages": [], "stream": True})
-        call_kwargs = self.fake.completion.call_args[1]
-        assert call_kwargs["drop_params"] is True
+        params = llm._build_params([{"role": "user", "content": "hi"}], None)
+        assert params["drop_params"] is True
 
     def test_forwards_api_key(self):
         llm = LiteLLM(model="x", api_key="sk-test")
-        llm._call_with_retry({"model": "x", "messages": [], "stream": True})
-        call_kwargs = self.fake.completion.call_args[1]
-        assert call_kwargs["api_key"] == "sk-test"
+        params = llm._build_params([{"role": "user", "content": "hi"}], None)
+        assert params["api_key"] == "sk-test"
 
     def test_omits_api_key_when_none(self):
         llm = LiteLLM(model="x")
-        llm._call_with_retry({"model": "x", "messages": [], "stream": True})
-        call_kwargs = self.fake.completion.call_args[1]
-        assert "api_key" not in call_kwargs
+        params = llm._build_params([{"role": "user", "content": "hi"}], None)
+        assert "api_key" not in params
 
     def test_forwards_api_base(self):
         llm = LiteLLM(model="x", base_url="http://proxy:4000")
-        llm._call_with_retry({"model": "x", "messages": [], "stream": True})
-        call_kwargs = self.fake.completion.call_args[1]
-        assert call_kwargs["api_base"] == "http://proxy:4000"
+        params = llm._build_params([{"role": "user", "content": "hi"}], None)
+        assert params["api_base"] == "http://proxy:4000"
 
     def test_omits_api_base_when_none(self):
         llm = LiteLLM(model="x")
-        llm._call_with_retry({"model": "x", "messages": [], "stream": True})
-        call_kwargs = self.fake.completion.call_args[1]
-        assert "api_base" not in call_kwargs
+        params = llm._build_params([{"role": "user", "content": "hi"}], None)
+        assert "api_base" not in params
+
+    def test_model_in_params(self):
+        llm = LiteLLM(model="anthropic/claude-3-haiku")
+        params = llm._build_params([{"role": "user", "content": "hi"}], None)
+        assert params["model"] == "anthropic/claude-3-haiku"
 
 
 # ---------------------------------------------------------------------------
@@ -162,33 +159,37 @@ class TestChat:
     def teardown_method(self):
         _uninstall_fake_litellm()
 
-    def test_returns_llm_response(self):
+    @pytest.mark.asyncio
+    async def test_returns_llm_response(self):
         llm = LiteLLM(model="openai/gpt-4o")
-        result = llm.chat(messages=[{"role": "user", "content": "hi"}])
+        result = await llm.chat(messages=[{"role": "user", "content": "hi"}])
         assert isinstance(result, LLMResponse)
         assert result.content == "part1part2"
 
-    def test_tracks_token_usage(self):
+    @pytest.mark.asyncio
+    async def test_tracks_token_usage(self):
         llm = LiteLLM(model="openai/gpt-4o")
-        result = llm.chat(messages=[{"role": "user", "content": "hi"}])
+        result = await llm.chat(messages=[{"role": "user", "content": "hi"}])
         assert result.prompt_tokens == 10
         assert result.completion_tokens == 5
         assert llm.total_prompt_tokens == 10
         assert llm.total_completion_tokens == 5
 
-    def test_on_token_callback(self):
+    @pytest.mark.asyncio
+    async def test_on_token_callback(self):
         llm = LiteLLM(model="openai/gpt-4o")
         tokens = []
-        llm.chat(
+        await llm.chat(
             messages=[{"role": "user", "content": "hi"}],
             on_token=lambda t: tokens.append(t),
         )
         assert tokens == ["part1", "part2"]
 
-    def test_model_forwarded(self):
+    @pytest.mark.asyncio
+    async def test_model_forwarded(self):
         llm = LiteLLM(model="anthropic/claude-3-haiku")
-        llm.chat(messages=[{"role": "user", "content": "hi"}])
-        call_kwargs = self.fake.completion.call_args[1]
+        await llm.chat(messages=[{"role": "user", "content": "hi"}])
+        call_kwargs = self.fake.acompletion.call_args[1]
         assert call_kwargs["model"] == "anthropic/claude-3-haiku"
 
 
@@ -208,7 +209,6 @@ class TestConfigProvider:
             assert config.provider == "litellm"
 
     def test_cli_picks_litellm_class(self):
-        from corecoder.llm import LiteLLM
         config = Config(provider="litellm", model="anthropic/claude-3-haiku", api_key="k")
         llm_cls = LiteLLM if config.provider == "litellm" else LLM
         assert llm_cls is LiteLLM
@@ -226,6 +226,7 @@ class TestMultiProvider:
     def teardown_method(self):
         _uninstall_fake_litellm()
 
+    @pytest.mark.asyncio
     @pytest.mark.parametrize(
         "model",
         [
@@ -238,8 +239,31 @@ class TestMultiProvider:
             "azure/gpt-4o",
         ],
     )
-    def test_model_string_forwarded(self, model):
+    async def test_model_string_forwarded(self, model):
         llm = LiteLLM(model=model)
-        llm.chat(messages=[{"role": "user", "content": "hi"}])
-        call_kwargs = self.fake.completion.call_args[1]
+        await llm.chat(messages=[{"role": "user", "content": "hi"}])
+        call_kwargs = self.fake.acompletion.call_args[1]
         assert call_kwargs["model"] == model
+
+
+# ---------------------------------------------------------------------------
+# LLMResponse / ToolCall dataclass
+# ---------------------------------------------------------------------------
+
+
+class TestLLMResponse:
+    def test_message_format_no_tool_calls(self):
+        resp = LLMResponse(content="hello")
+        msg = resp.message
+        assert msg == {"role": "assistant", "content": "hello"}
+
+    def test_message_format_with_tool_calls(self):
+        tc = ToolCall(id="call_1", name="bash", arguments={"command": "ls"})
+        resp = LLMResponse(content="", tool_calls=[tc])
+        msg = resp.message
+        assert msg["role"] == "assistant"
+        assert msg["content"] is None
+        assert len(msg["tool_calls"]) == 1
+        assert msg["tool_calls"][0]["id"] == "call_1"
+        assert msg["tool_calls"][0]["function"]["name"] == "bash"
+        assert json.loads(msg["tool_calls"][0]["function"]["arguments"]) == {"command": "ls"}

@@ -39,7 +39,8 @@ packages = ["corecoder"]
 
 [project.optional-dependencies]
 litellm = ["litellm>=1.60.0,<2.0.0"]
-dev = ["pytest>=7.0"]
+tiktoken = ["tiktoken>=0.5.0"]
+dev = ["pytest>=7.0", "pytest-asyncio>=0.24"]
 
 [project.scripts]
 corecoder = "corecoder.cli:main"

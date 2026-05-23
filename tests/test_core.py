@@ -3,6 +3,8 @@
 import os
 import pathlib
 
+import pytest
+
 from corecoder import Agent, LLM, Config, ALL_TOOLS, __version__
 from corecoder.context import ContextManager, estimate_tokens
 from corecoder.session import save_session, load_session, list_sessions
@@ -63,14 +65,15 @@ def test_context_snip():
     assert after < before
 
 
-def test_context_compress():
+@pytest.mark.asyncio
+async def test_context_compress():
     ctx = ContextManager(max_tokens=2000)
     msgs = []
     for i in range(20):
         msgs.append({"role": "user", "content": f"msg {i} " + "a" * 200})
         msgs.append({"role": "tool", "tool_call_id": f"t{i}", "content": "b" * 2000})
     before = estimate_tokens(msgs)
-    ctx.maybe_compress(msgs, None)
+    await ctx.maybe_compress(msgs, None)
     after = estimate_tokens(msgs)
     assert after < before
     assert len(msgs) < 40  # should be compressed

@@ -34,6 +34,7 @@ class Config:
     temperature: float = 0.0
     max_context_tokens: int = 128_000
     provider: str = "openai"
+    debug: bool = False
 
     @classmethod
     def from_env(cls) -> "Config":
