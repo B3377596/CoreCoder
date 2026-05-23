@@ -33,9 +33,11 @@ from typing import TYPE_CHECKING
 from .tools import ALL_TOOLS, get_tool
 from .tools.base import Tool
 from .tools.agent import AgentTool
+from .tools.repo_info import RepoInfoTool
 from .prompt import system_prompt
 from .context import ContextManager
 from .shadow import ShadowGit
+from .repo_index import RepoIndex
 
 if TYPE_CHECKING:
     from .llm import LLM
@@ -56,7 +58,17 @@ class Agent:
         self.messages: list[dict] = []
         self.context = ContextManager(max_tokens=max_context_tokens)
         self.max_rounds = max_rounds
-        self._system = system_prompt(self.tools)
+
+        # repository index — structured codebase memory (~/.corecoder/)
+        self.repo_index = RepoIndex(os.getcwd())
+        if self.repo_index.needs_rebuild() or not self.repo_index.load():
+            self.repo_index.build()
+            self.repo_index.save_stamp()
+        else:
+            self.repo_index.load()
+
+        self._system = system_prompt(self.tools, self.repo_index.summary)
+
         # checkpoint: (messages_length, description, git_commit_hash)
         self._checkpoints: list[tuple[int, str, str | None]] = []
 
@@ -65,10 +77,12 @@ class Agent:
         self.shadow.init()
         self.shadow.tag_session_start()
 
-        # wire up sub-agent capability
+        # wire up tools that need Agent references
         for t in self.tools:
             if isinstance(t, AgentTool):
                 t._parent_agent = self
+            if isinstance(t, RepoInfoTool):
+                t._repo_index = self.repo_index
 
     # ------------------------------------------------------------------
     # public API

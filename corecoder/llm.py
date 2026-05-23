@@ -35,7 +35,7 @@ class ToolCall:
 @dataclass
 class LLMResponse:
     content: str = ""
-    reasoning_content: str = ""  # DeepSeek / o1 thinking tokens
+    reasoning_content: str = ""  #thinking tokens
     tool_calls: list[ToolCall] = field(default_factory=list)
     prompt_tokens: int = 0
     completion_tokens: int = 0

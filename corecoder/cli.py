@@ -78,6 +78,16 @@ def setup_logging(debug: bool):
 def main():
     """Sync entry point for console_scripts."""
     nest_asyncio.apply()
+
+    # Suppress noisy "Task exception was never retrieved" for
+    # KeyboardInterrupt inside prompt_toolkit's nested event loop.
+    def _exc_handler(loop, context):
+        exc = context.get("exception")
+        if isinstance(exc, KeyboardInterrupt):
+            return
+        loop.default_exception_handler(context)
+    asyncio.get_event_loop().set_exception_handler(_exc_handler)
+
     args = _parse_args()
     config = Config.from_env()
 
@@ -128,7 +138,7 @@ async def _async_main(agent: Agent, config: Config, args):
     mcp_tools = mcp_client.all_tools()
     if mcp_tools:
         agent.tools.extend(mcp_tools)
-        agent._system = system_prompt(agent.tools)
+        agent._system = system_prompt(agent.tools, agent.repo_index.summary)
         console.print(f"[dim]MCP: {len(mcp_tools)} tools from {len(mcp_client.servers)} server(s)[/]")
 
     try:
@@ -341,6 +351,6 @@ def _show_help():
     ))
 
 
-def _brief(kwargs: dict, maxlen: int = 80) -> str:
-    s = ", ".join(f"{k}={repr(v)[:40]}" for k, v in kwargs.items())
+def _brief(kwargs: dict, maxlen: int = 200) -> str:
+    s = ", ".join(f"{k}={repr(v)}" for k, v in kwargs.items())
     return s[:maxlen] + ("..." if len(s) > maxlen else "")
