@@ -8,6 +8,8 @@ import logging
 import os
 import sys
 
+import nest_asyncio
+
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
@@ -75,6 +77,7 @@ def setup_logging(debug: bool):
 
 def main():
     """Sync entry point for console_scripts."""
+    nest_asyncio.apply()
     args = _parse_args()
     config = Config.from_env()
 
@@ -195,7 +198,7 @@ async def _repl(agent: Agent, config: Config):
     @kb.add("escape", "enter")
     def _newline(event):
         event.current_buffer.insert_text("\n")
-
+    
     while True:
         try:
             user_input = pt_prompt(

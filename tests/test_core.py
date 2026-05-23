@@ -31,18 +31,22 @@ def test_config_from_env():
 
 
 def test_config_defaults():
-    # temporarily clear relevant env vars
+    # temporarily override relevant env vars so .env file doesn't leak in
     saved = {}
     for k in ["CORECODER_MODEL", "CORECODER_MAX_TOKENS"]:
-        if k in os.environ:
-            saved[k] = os.environ.pop(k)
+        saved[k] = os.environ.get(k)
+        os.environ[k] = "gpt-4o" if k == "CORECODER_MODEL" else "4096"
 
     c = Config.from_env()
     assert c.model == "gpt-4o"
     assert c.max_tokens == 4096
     assert c.temperature == 0.0
 
-    os.environ.update(saved)
+    for k, v in saved.items():
+        if v is None:
+            os.environ.pop(k, None)
+        else:
+            os.environ[k] = v
 
 
 # --- Context ---

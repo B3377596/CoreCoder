@@ -35,6 +35,7 @@ class ToolCall:
 @dataclass
 class LLMResponse:
     content: str = ""
+    reasoning_content: str = ""  # DeepSeek / o1 thinking tokens
     tool_calls: list[ToolCall] = field(default_factory=list)
     prompt_tokens: int = 0
     completion_tokens: int = 0
@@ -43,6 +44,10 @@ class LLMResponse:
     def message(self) -> dict:
         """Convert to OpenAI message format for appending to history."""
         msg: dict = {"role": "assistant", "content": self.content or None}
+        # DeepSeek requires reasoning_content to be passed back in subsequent
+        # messages, otherwise it returns a 400 error.
+        if self.reasoning_content:
+            msg["reasoning_content"] = self.reasoning_content
         if self.tool_calls:
             msg["tool_calls"] = [
                 {
@@ -182,6 +187,7 @@ class LLM:
         same structural conventions for choices/delta/tool_calls/usage).
         """
         content_parts: list[str] = []
+        reasoning_parts: list[str] = []
         tc_map: dict[int, dict] = {}  # index -> {id, name, args}
         prompt_tok = 0
         completion_tok = 0
@@ -200,6 +206,11 @@ class LLM:
             if not chunk.choices:
                 continue
             delta = chunk.choices[0].delta
+
+            # DeepSeek / o1 reasoning tokens — must be passed back to API
+            reasoning = getattr(delta, "reasoning_content", None)
+            if reasoning:
+                reasoning_parts.append(reasoning)
 
             # accumulate text
             if delta.content:
@@ -238,6 +249,7 @@ class LLM:
 
         return LLMResponse(
             content="".join(content_parts),
+            reasoning_content="".join(reasoning_parts),
             tool_calls=parsed,
             prompt_tokens=prompt_tok,
             completion_tokens=completion_tok,
