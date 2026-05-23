@@ -15,6 +15,11 @@ StreamingToolExecutor pattern.
 
 Sync tools (bash, file I/O) run via ``asyncio.to_thread`` so they never
 stall the event loop.  Async tools (sub-agent) run directly on the loop.
+
+File changes are tracked via a shadow git repository (``ShadowGit``) so
+checkpoint / undo / diff use real git snapshots rather than ad-hoc file
+backups.  The shadow repo lives under ``~/.corecoder/shadow/`` and does
+not touch the user's ``.git``.
 """
 
 from __future__ import annotations
@@ -22,6 +27,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import logging
+import os
 from typing import TYPE_CHECKING
 
 from .tools import ALL_TOOLS, get_tool
@@ -29,6 +35,7 @@ from .tools.base import Tool
 from .tools.agent import AgentTool
 from .prompt import system_prompt
 from .context import ContextManager
+from .shadow import ShadowGit
 
 if TYPE_CHECKING:
     from .llm import LLM
@@ -50,8 +57,13 @@ class Agent:
         self.context = ContextManager(max_tokens=max_context_tokens)
         self.max_rounds = max_rounds
         self._system = system_prompt(self.tools)
-        # checkpoint stack: (messages_length, description)
-        self._checkpoints: list[tuple[int, str]] = []
+        # checkpoint: (messages_length, description, git_commit_hash)
+        self._checkpoints: list[tuple[int, str, str | None]] = []
+
+        # shadow git for file-level checkpoint / undo / diff
+        self.shadow = ShadowGit(os.getcwd())
+        self.shadow.init()
+        self.shadow.tag_session_start()
 
         # wire up sub-agent capability
         for t in self.tools:
@@ -64,7 +76,11 @@ class Agent:
 
     async def chat(self, user_input: str, on_token=None, on_tool=None) -> str:
         """Process one user message. May involve multiple LLM/tool rounds."""
-        self._checkpoint(f"user: {user_input[:60]}")
+        # git snapshot before this turn (lightweight: only commits if dirty)
+        self.shadow.snapshot(f"checkpoint: {user_input[:60]}")
+        # record head commit so undo can find the right ref
+        head = self._shadow_head()
+        self._checkpoints.append((len(self.messages), f"user: {user_input[:60]}", head))
 
         self.messages.append({"role": "user", "content": user_input})
         await self.context.maybe_compress(self.messages, self.llm)
@@ -114,23 +130,42 @@ class Agent:
     # checkpoint / undo
     # ------------------------------------------------------------------
 
-    def _checkpoint(self, description: str = ""):
-        self._checkpoints.append((len(self.messages), description))
-
     def undo(self) -> str | None:
-        """Restore to before the last user turn. Returns the undone description."""
+        """Restore files and conversation to before the last user turn."""
         if not self._checkpoints:
             return None
 
-        self._checkpoints.pop()  # discard current state
+        _, desc, commit = self._checkpoints.pop()
 
         if not self._checkpoints:
             self.messages.clear()
             return "(returned to initial state)"
 
-        target_len, desc = self._checkpoints[-1]
+        # git reset to the pre-turn commit
+        n_files = len(self.changed_files)
+        if commit:
+            try:
+                self.shadow.checkout(commit)
+            except Exception as e:
+                logger.warning("Shadow checkout failed: %s", e)
+
+        target_len, _, _ = self._checkpoints[-1]
         self.messages = self.messages[:target_len]
-        return desc
+
+        suffix = f" — restored {n_files} file(s)" if n_files else ""
+        return desc + suffix
+
+    # ------------------------------------------------------------------
+    # diff helpers (used by CLI /diff)
+    # ------------------------------------------------------------------
+
+    @property
+    def changed_files(self) -> list[str]:
+        return self.shadow.changed_files()
+
+    @property
+    def last_diff(self) -> str:
+        return self.shadow.last_diff()
 
     @property
     def checkpoint_count(self) -> int:
@@ -141,8 +176,6 @@ class Agent:
     # ------------------------------------------------------------------
 
     async def _call_tool(self, tc) -> str:
-        """Execute a single tool call. Routes sync tools to a thread pool
-        and runs async tools directly on the event loop."""
         tool = get_tool(tc.name)
         if tool is None:
             logger.warning("Unknown tool requested: %s", tc.name)
@@ -150,12 +183,6 @@ class Agent:
         return await self._invoke(tool, tc.arguments)
 
     async def _call_tools_parallel(self, tool_calls, on_tool=None) -> list[str]:
-        """Execute multiple tool calls concurrently.
-
-        Each sync tool runs in its own thread (via ``asyncio.to_thread``)
-        so they execute in parallel without blocking the event loop.
-        Async tools run directly on the loop.
-        """
         for tc in tool_calls:
             if on_tool:
                 on_tool(tc.name, tc.arguments)
@@ -170,7 +197,6 @@ class Agent:
 
     @staticmethod
     async def _invoke(tool: Tool, kwargs: dict) -> str:
-        """Invoke a tool, handling both sync and async implementations."""
         try:
             if inspect.iscoroutinefunction(tool.execute):
                 return await tool.execute(**kwargs)
@@ -192,3 +218,16 @@ class Agent:
 
     def _tool_schemas(self) -> list[dict]:
         return [t.schema() for t in self.tools]
+
+    @staticmethod
+    def _shadow_head() -> str | None:
+        """Return the current shadow repo HEAD commit hash, or None."""
+        try:
+            import subprocess
+            r = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                capture_output=True, encoding="utf-8", errors="replace", timeout=5,
+            )
+            return r.stdout.strip() if r.returncode == 0 else None
+        except Exception:
+            return None

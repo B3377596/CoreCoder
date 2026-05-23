@@ -16,3 +16,10 @@ venv/
 dist/
 .pytest_cache/
 .tmp/
+
+# CoreCoder shadow
+.git/
+.corecoder/
+node_modules/
+.tox/
+*.pyc

@@ -4,6 +4,9 @@ The core idea: instead of sending whole-file rewrites or line-number patches,
 the LLM specifies an *exact* substring to find and its replacement. The
 substring must appear exactly once in the file, which eliminates ambiguity
 and makes edits safe and reviewable.
+
+File-level checkpoint / undo / diff is handled by the shadow git repository
+(see ``corecoder.shadow``).  Tools only track which files were touched.
 """
 
 import difflib
@@ -66,7 +69,6 @@ class EditFileTool(Tool):
             p.write_text(new_content)
             _changed_files.add(str(p))
 
-            # generate a unified diff so the user/LLM can see exactly what changed
             diff = _unified_diff(content, new_content, str(p))
             return f"Edited {file_path}\n{diff}"
         except Exception as e:
@@ -83,7 +85,6 @@ def _unified_diff(old: str, new: str, filename: str, context: int = 3) -> str:
         n=context,
     )
     result = "".join(diff)
-    # truncate enormous diffs
     if len(result) > 3000:
         result = result[:2500] + "\n... (diff truncated)\n"
     return result

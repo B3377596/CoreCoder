@@ -160,15 +160,18 @@ async def _async_main(agent: Agent, config: Config, args):
 
 async def _run_once(agent: Agent, prompt: str):
     """Non-interactive: run one prompt and exit."""
+    streamed: list[str] = []
 
     def on_token(tok):
-        print(tok, end="", flush=True)
+        streamed.append(tok)
 
     def on_tool(name, kwargs):
-        console.print(f"\n[dim]> {name}({_brief(kwargs)})[/dim]")
+        console.print(f"[dim]> {name}({_brief(kwargs)})[/dim]")
 
-    await agent.chat(prompt, on_token=on_token, on_tool=on_tool)
-    print()
+    response = await agent.chat(prompt, on_token=on_token, on_tool=on_tool)
+    output = "".join(streamed) or response
+    if output:
+        console.print(Markdown(output))
 
 
 # ------------------------------------------------------------------
@@ -266,13 +269,16 @@ async def _repl(agent: Agent, config: Config):
             console.print(f"Resume with: corecoder -r {sid}")
             continue
         if user_input == "/diff":
-            from .tools.edit import _changed_files
-            if not _changed_files:
-                console.print("[dim]No files modified this session.[/]")
+            files = agent.changed_files
+            if not files:
+                console.print("[dim]No files modified this turn.[/]")
             else:
-                console.print(f"[bold]Files modified this session ({len(_changed_files)}):[/]")
-                for f in sorted(_changed_files):
+                console.print(f"[bold]Files modified this turn ({len(files)}):[/]")
+                for f in sorted(files):
                     console.print(f"  [cyan]{f}[/]")
+                diff = agent.last_diff
+                if diff and diff != "(no diff available)":
+                    console.print(f"\n[dim]{diff[:2000]}[/]")
             continue
         if user_input == "/sessions":
             sessions = list_sessions()
@@ -288,17 +294,18 @@ async def _repl(agent: Agent, config: Config):
 
         def on_token(tok):
             streamed.append(tok)
-            print(tok, end="", flush=True)
 
         def on_tool(name, kwargs):
-            console.print(f"\n[dim]> {name}({_brief(kwargs)})[/dim]")
+            console.print(f"[dim]> {name}({_brief(kwargs)})[/dim]")
 
         try:
             response = await agent.chat(user_input, on_token=on_token, on_tool=on_tool)
-            if streamed:
-                print()
-            else:
-                console.print(Markdown(response))
+            # render the complete response with proper markdown formatting
+            output = "".join(streamed) or response
+            if output:
+                console.print(Markdown(output))
+            elif not streamed and not response:
+                pass  # nothing to show
         except KeyboardInterrupt:
             console.print("\n[yellow]Interrupted.[/]")
         except Exception as e:
