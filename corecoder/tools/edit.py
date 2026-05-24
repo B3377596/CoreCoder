@@ -9,6 +9,8 @@ File-level checkpoint / undo / diff is handled by the shadow git repository
 (see ``corecoder.shadow``).  Tools only track which files were touched.
 """
 
+from __future__ import annotations
+
 import difflib
 from pathlib import Path
 

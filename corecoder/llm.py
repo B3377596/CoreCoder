@@ -16,13 +16,20 @@ import inspect
 import json
 from dataclasses import dataclass, field
 
-from openai import (
-    AsyncOpenAI,
-    APIError,
-    RateLimitError,
-    APITimeoutError,
-    APIConnectionError,
-)
+try:
+    from openai import (
+        AsyncOpenAI,
+        APIError,
+        RateLimitError,
+        APITimeoutError,
+        APIConnectionError,
+    )
+except Exception:  # openai may not be installed in test env; import lazily
+    AsyncOpenAI = None
+    APIError = Exception
+    RateLimitError = Exception
+    APITimeoutError = Exception
+    APIConnectionError = Exception
 
 
 @dataclass

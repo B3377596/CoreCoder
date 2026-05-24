@@ -7,6 +7,8 @@ Claude Code's BashTool is 1,143 lines. This is the distilled version:
 - Working directory tracking (cd awareness)
 """
 
+from __future__ import annotations
+
 import os
 import re
 import subprocess
