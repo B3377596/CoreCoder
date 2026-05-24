@@ -376,17 +376,20 @@ async def _run_plan(agent: Agent, goal: str):
     console.print()
 
     # ---- Phase 3: Execute with progress ----
-    # Per-task tool-call counter: track rounds for display
-    tool_counts: dict[str, int] = {}
+    # Track which task is currently executing (for tool call context in parallel mode)
+    _current_task_title: str = ""
 
     def on_tool(name: str, kwargs: dict):
-        """Print each tool invocation in dim text so the user can follow along."""
-        tool_counts[name] = tool_counts.get(name, 0) + 1
+        """Print each tool invocation with the task context."""
         brief = _brief(kwargs, 120)
-        console.print(f"    [dim]> {name}({brief})[/dim]")
+        prefix = f"    [{_current_task_title[:20]}]" if _current_task_title else "    "
+        console.print(f"{prefix} [dim]> {name}({brief})[/dim]")
 
     def on_progress(task_node, event: str):
         """Print task status transitions with timing."""
+        nonlocal _current_task_title
+        if event == "running":
+            _current_task_title = task_node.title
         icon = status_icon(task_node)
         color_map = {
             "running": "bold yellow",
@@ -417,12 +420,14 @@ async def _run_plan(agent: Agent, goal: str):
         goal=goal,
         continue_on_failure=True,
         auto_persist=True,
-        max_rounds_per_task=15,  # each orchestrated task is focused — 15 rounds is plenty
+        max_rounds_per_task=15,  # each orchestrated task is focused
+        parallel=True,           # run independent tasks concurrently
+        max_parallel=4,
         on_tool_callback=on_tool,
     )
     orch = Orchestrator(orch_config)
     orch.set_planner(planner)
-    orch.set_agent(agent.chat)
+    orch.set_agent(agent.chat, agent_instance=agent)  # pass full Agent for cloning
     orch.on_progress(on_progress)
 
     console.print("[bold]Executing plan...[/]\n")

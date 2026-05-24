@@ -70,6 +70,10 @@ class SchedulerConfig:
     # Optional tool-call callback for UI observability
     on_tool_callback: Callable[[str, dict], None] | None = None
 
+    # Parallel execution: run independent tasks concurrently
+    parallel: bool = False
+    max_parallel: int = 4
+
     # Goal string for context injection
     goal: str = ""
 
@@ -178,24 +182,52 @@ class Scheduler:
                 # In sequential mode, this shouldn't happen
                 break
 
-            # 2. Pick the highest-priority task
-            task = ready[0]  # Already sorted by priority desc in get_ready_tasks()
-            self.olog.emit(EventType.SCHEDULE_PICK,
-                           task_id=task.id,
-                           task_title=task.title,
-                           priority=task.priority)
+            # 2. Pick task(s) to execute
+            if self.config.parallel and len(ready) > 1:
+                # Parallel mode: execute all independent ready tasks concurrently.
+                # Each task gets its own Agent via the factory, so conversation
+                # state is isolated — no message interleaving.
+                batch = ready[:self.config.max_parallel]
+                for t in batch:
+                    self.olog.emit(EventType.SCHEDULE_PICK,
+                                   task_id=t.id,
+                                   task_title=t.title,
+                                   priority=t.priority)
 
-            # 3. Execute the task
-            decision = await self._execute_single(task)
+                decisions = await asyncio.gather(
+                    *[self._execute_single(t) for t in batch],
+                    return_exceptions=True,
+                )
 
-            # 4. Check decision
-            if decision == SchedulingDecision.ABORT:
-                return decision
-            if decision == SchedulingDecision.REPLAN:
-                return decision
+                for t, decision in zip(batch, decisions):
+                    if isinstance(decision, Exception):
+                        self.olog.emit(EventType.EXECUTION_ERROR,
+                                       task_id=t.id,
+                                       error=str(decision))
+                        continue
+                    if decision == SchedulingDecision.ABORT:
+                        return decision
+                    if decision == SchedulingDecision.REPLAN:
+                        return decision
+                    self._tasks_run += 1
+                    self._completed_tasks.append(t.id)
+            else:
+                # Sequential mode: pick the highest-priority ready task.
+                task = ready[0]
+                self.olog.emit(EventType.SCHEDULE_PICK,
+                               task_id=task.id,
+                               task_title=task.title,
+                               priority=task.priority)
 
-            self._tasks_run += 1
-            self._completed_tasks.append(task.id)
+                decision = await self._execute_single(task)
+
+                if decision == SchedulingDecision.ABORT:
+                    return decision
+                if decision == SchedulingDecision.REPLAN:
+                    return decision
+
+                self._tasks_run += 1
+                self._completed_tasks.append(task.id)
 
             # 5. Persist state
             if self.config.auto_persist and self._persist_callback:

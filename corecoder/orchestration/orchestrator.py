@@ -78,6 +78,10 @@ class OrchestratorConfig:
     task_timeout_ms: float = 300_000.0
     max_rounds_per_task: int = 20
 
+    # Parallel execution: run independent tasks concurrently
+    parallel: bool = False
+    max_parallel: int = 4
+
     # Tool-call callback for CLI observability
     on_tool_callback: Callable[[str, dict], None] | None = None
 
@@ -118,6 +122,7 @@ class Orchestrator:
         self._planner: BasePlanner | None = None
         self._storage: BaseStorage | None = None
         self._agent_chat_fn: Callable[..., Awaitable[str]] | None = None
+        self._agent_instance: Any = None  # full Agent object for cloning in parallel mode
 
         # Replan hooks
         self._replan_hooks: list[Callable[[PlanResult, dict[str, Any]], PlanResult]] = []
@@ -133,13 +138,15 @@ class Orchestrator:
     # configuration
     # ------------------------------------------------------------------
 
-    def set_agent(self, agent_chat_fn: Callable[..., Awaitable[str]]) -> None:
+    def set_agent(self, agent_chat_fn: Callable[..., Awaitable[str]], agent_instance: Any = None) -> None:
         """Inject the agent's chat method for task execution.
 
-        This is the bridge between the orchestration layer and the
-        existing ReAct agent loop.
+        Optionally pass the full Agent instance for parallel mode,
+        where each task needs a fresh Agent clone.
         """
         self._agent_chat_fn = agent_chat_fn
+        if agent_instance is not None:
+            self._agent_instance = agent_instance
 
     def set_planner(self, planner: BasePlanner) -> None:
         self._planner = planner
@@ -335,7 +342,26 @@ class Orchestrator:
     ) -> SchedulingDecision:
         """Build and run the scheduler for a given graph."""
         # Build subcomponents
-        executor = Executor(agent_chat_fn=self._agent_chat_fn)
+        executor = Executor(
+            agent_chat_fn=self._agent_chat_fn,
+            max_rounds_per_task=self.config.max_rounds_per_task,
+        )
+
+        # In parallel mode, each task gets a fresh Agent clone to prevent
+        # conversation interleaving.  The factory uses the same LLM client
+        # and tools as the main agent but starts with clean messages.
+        if self.config.parallel and self._agent_instance is not None:
+            main = self._agent_instance
+            def _agent_factory():
+                from corecoder.agent import Agent as AgentCls
+                return AgentCls(
+                    llm=main.llm,
+                    tools=[t for t in main.tools if t.name != "agent"],
+                    max_context_tokens=main.context.max_tokens,
+                    max_rounds=self.config.max_rounds_per_task,
+                )
+            executor.set_agent_factory(_agent_factory)
+
         recovery = RecoveryManager(
             retry_policy=DefaultRetryPolicy(max_retries=3),
             max_consecutive_failures=self.config.max_consecutive_failures,
@@ -350,6 +376,8 @@ class Orchestrator:
             continue_on_failure=self.config.continue_on_failure,
             task_timeout_ms=self.config.task_timeout_ms,
             max_rounds_per_task=self.config.max_rounds_per_task,
+            parallel=self.config.parallel,
+            max_parallel=self.config.max_parallel,
             on_tool_callback=self.config.on_tool_callback,
             goal=goal,
         )
