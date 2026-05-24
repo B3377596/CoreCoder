@@ -50,7 +50,7 @@ class EditFileTool(Tool):
             if not p.exists():
                 return f"Error: {file_path} not found"
 
-            content = p.read_text()
+            content = p.read_text(encoding="utf-8")
             occurrences = content.count(old_string)
 
             if occurrences == 0:

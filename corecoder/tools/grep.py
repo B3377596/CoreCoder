@@ -51,7 +51,7 @@ class GrepTool(Tool):
         matches = []
         for fp in files:
             try:
-                text = fp.read_text(errors="ignore")
+                text = fp.read_text(encoding="utf-8", errors="ignore")
             except OSError:
                 continue
             for lineno, line in enumerate(text.splitlines(), 1):

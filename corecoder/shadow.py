@@ -113,18 +113,18 @@ class ShadowGit:
     # query
     # ------------------------------------------------------------------
 
-    def changed_files(self, since: str = "HEAD~1") -> list[str]:
-        """Files changed in the most recent commit (relative paths)."""
+    def changed_files(self) -> list[str]:
+        """Files modified in the working tree since the last snapshot (HEAD)."""
         try:
-            out = self._git("diff", "--name-only", since, "HEAD")
+            out = self._git("diff", "--name-only", "HEAD")
             return [f for f in out.split("\n") if f]
         except Exception:
             return []
 
     def last_diff(self) -> str:
-        """Unified diff of the most recent commit."""
+        """Unified diff of working tree vs last snapshot (HEAD)."""
         try:
-            return self._git("diff", "HEAD~1", "HEAD")
+            return self._git("diff", "HEAD")
         except Exception:
             return "(no diff available)"
 

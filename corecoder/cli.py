@@ -1,4 +1,4 @@
-"""Interactive REPL - the user-facing terminal interface."""
+﻿"""Interactive REPL - the user-facing terminal interface."""
 
 from __future__ import annotations
 
@@ -269,7 +269,7 @@ async def _repl(agent: Agent, config: Config):
             compressed = await agent.context.maybe_compress(agent.messages, agent.llm)
             after = estimate_tokens(agent.messages)
             if compressed:
-                console.print(f"[green]Compressed: {before} → {after} tokens ({len(agent.messages)} messages)[/]")
+                console.print(f"[green]Compressed: {before} 鈫?{after} tokens ({len(agent.messages)} messages)[/]")
             else:
                 console.print(f"[dim]Nothing to compress ({before} tokens, {len(agent.messages)} messages)[/]")
             continue

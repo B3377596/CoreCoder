@@ -151,17 +151,25 @@ class Agent:
 
         _, desc, commit = self._checkpoints.pop()
 
+        # count changed files in working tree before resetting
+        n_files = len(self.changed_files)
+
         if not self._checkpoints:
             self.messages.clear()
-            return "(returned to initial state)"
+            # restore working tree to HEAD (pre-turn snapshot)
+            if commit:
+                try:
+                    self.shadow._git("reset", "--hard", commit)
+                except Exception as e:
+                    logger.warning("Shadow reset failed: %s", e)
+            return f"(returned to initial state){' — restored ' + str(n_files) + ' file(s)' if n_files else ''}"
 
         # git reset to the pre-turn commit
-        n_files = len(self.changed_files)
         if commit:
             try:
-                self.shadow.checkout(commit)
+                self.shadow._git("reset", "--hard", commit)
             except Exception as e:
-                logger.warning("Shadow checkout failed: %s", e)
+                logger.warning("Shadow reset failed: %s", e)
 
         target_len, _, _ = self._checkpoints[-1]
         self.messages = self.messages[:target_len]
@@ -233,15 +241,9 @@ class Agent:
     def _tool_schemas(self) -> list[dict]:
         return [t.schema() for t in self.tools]
 
-    @staticmethod
-    def _shadow_head() -> str | None:
+    def _shadow_head(self) -> str | None:
         """Return the current shadow repo HEAD commit hash, or None."""
         try:
-            import subprocess
-            r = subprocess.run(
-                ["git", "rev-parse", "HEAD"],
-                capture_output=True, encoding="utf-8", errors="replace", timeout=5,
-            )
-            return r.stdout.strip() if r.returncode == 0 else None
+            return self.shadow._git("rev-parse", "HEAD")
         except Exception:
             return None

@@ -37,7 +37,7 @@ class ReadFileTool(Tool):
             if not p.is_file():
                 return f"Error: {file_path} is a directory, not a file"
 
-            text = p.read_text(errors="replace")
+            text = p.read_text(encoding="utf-8", errors="replace")
             lines = text.splitlines()
             total = len(lines)
 
