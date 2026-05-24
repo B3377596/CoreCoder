@@ -19,12 +19,15 @@ from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding import KeyBindings
 
 from .agent import Agent
-from .llm import LLM, LiteLLM
+from .llm import LLM, LiteLLM, LLMResponse
 from .config import Config
 from .mcp import MCPClient
 from .prompt import system_prompt
 from .session import save_session, load_session, list_sessions
 from . import __version__
+from .orchestration.viz import render_graph_rich, status_icon
+from .orchestration.orchestrator import Orchestrator, OrchestratorConfig
+from .orchestration.planner import LLMPlanner
 
 console = Console()
 logger = logging.getLogger("corecoder")
@@ -44,6 +47,7 @@ def _parse_args():
     p.add_argument("--base-url", help="API base URL (default: $OPENAI_BASE_URL)")
     p.add_argument("--api-key", help="API key (default: $OPENAI_API_KEY)")
     p.add_argument("-p", "--prompt", help="One-shot prompt (non-interactive mode)")
+    p.add_argument("-P", "--plan", metavar="GOAL", help="One-shot orchestrated plan mode")
     p.add_argument("-r", "--resume", metavar="ID", help="Resume a saved session")
     p.add_argument("-v", "--version", action="version", version=f"%(prog)s {__version__}")
     p.add_argument("--debug", action="store_true", help="Enable debug logging")
@@ -157,6 +161,8 @@ async def _async_main(agent: Agent, config: Config, args):
 
         if args.prompt:
             await _run_once(agent, args.prompt)
+        elif args.plan:
+            await _run_plan(agent, args.plan)
         else:
             await _repl(agent, config)
     finally:
@@ -298,6 +304,13 @@ async def _repl(agent: Agent, config: Config):
                 for s in sessions:
                     console.print(f"  [cyan]{s['id']}[/] ({s['model']}, {s['saved_at']}) {s['preview']}")
             continue
+        if user_input.startswith("/plan "):
+            goal = user_input[6:].strip()
+            if goal:
+                await _run_plan(agent, goal)
+            else:
+                console.print("[yellow]Usage: /plan <goal description>[/]")
+            continue
 
         # call the agent
         streamed: list[str] = []
@@ -324,6 +337,121 @@ async def _repl(agent: Agent, config: Config):
 
 
 # ------------------------------------------------------------------
+# plan mode (orchestrated DAG execution)
+# ------------------------------------------------------------------
+
+
+async def _run_plan(agent: Agent, goal: str):
+    """Execute a goal through the DAG orchestration pipeline.
+
+    1. LLMPlanner decomposes the goal into a task graph
+    2. The graph is displayed to the user
+    3. Each task executes via the agent's ReAct loop
+    4. Progress is shown in real-time
+    """
+    from .orchestration.orchestrator import Orchestrator, OrchestratorConfig
+    from .orchestration.planner import LLMPlanner
+    from .orchestration.viz import render_graph_rich
+
+    console.print(f"\n[bold blue]Planning:[/] {goal}\n")
+
+    # ---- Phase 1: Plan (LLM decomposes goal into task graph) ----
+    # Wrap agent.chat as the LLM call for the planner
+    async def llm_call(messages: list[dict]) -> LLMResponse:
+        return await agent.llm.chat(messages=messages, tools=None)
+
+    planner = LLMPlanner(llm_call=llm_call, model=agent.llm.model)
+    plan = await planner.aplan(goal)
+
+    if plan.graph.node_count == 0:
+        console.print("[yellow]Planner produced an empty plan.  Falling back to direct execution.[/]\n")
+        # Fall back to normal agent execution
+        await _run_once(agent, goal)
+        return
+
+    console.print(f"[dim]Planner produced {plan.graph.node_count} tasks.[/]")
+
+    # ---- Phase 2: Show the plan ----
+    console.print(render_graph_rich(plan.graph, goal))
+    console.print()
+
+    # ---- Phase 3: Execute with progress ----
+    # Per-task tool-call counter: track rounds for display
+    tool_counts: dict[str, int] = {}
+
+    def on_tool(name: str, kwargs: dict):
+        """Print each tool invocation in dim text so the user can follow along."""
+        tool_counts[name] = tool_counts.get(name, 0) + 1
+        brief = _brief(kwargs, 120)
+        console.print(f"    [dim]> {name}({brief})[/dim]")
+
+    def on_progress(task_node, event: str):
+        """Print task status transitions with timing."""
+        icon = status_icon(task_node)
+        color_map = {
+            "running": "bold yellow",
+            "success": "green",
+            "retry": "yellow",
+            "skipped": "red",
+        }
+        color = color_map.get(event, "")
+        msg = f"  {icon} {task_node.title}"
+        if task_node.result and task_node.result.duration_ms > 0:
+            ms = task_node.result.duration_ms
+            if ms < 1000:
+                msg += f" [{ms:.0f}ms]"
+            else:
+                msg += f" [{ms / 1000:.1f}s]"
+            if task_node.result.tool_calls_made > 0:
+                msg += f" ({task_node.result.tool_calls_made} tools)"
+        if event == "retry":
+            msg += f" (retry {task_node.retry_count}/{task_node.retry_policy.max_retries})"
+        if color:
+            console.print(f"[{color}]{msg}[/{color}]")
+        else:
+            console.print(msg)
+        # Flush to ensure users can see progress immediately
+        sys.stdout.flush()
+
+    orch_config = OrchestratorConfig(
+        goal=goal,
+        continue_on_failure=True,
+        auto_persist=True,
+        max_rounds_per_task=15,  # each orchestrated task is focused — 15 rounds is plenty
+        on_tool_callback=on_tool,
+    )
+    orch = Orchestrator(orch_config)
+    orch.set_planner(planner)
+    orch.set_agent(agent.chat)
+    orch.on_progress(on_progress)
+
+    console.print("[bold]Executing plan...[/]\n")
+    result = await orch.run(goal, plan=plan)
+
+    # ---- Phase 4: Report ----
+    console.print()
+    if result.success:
+        console.print(
+            f"[bold green]Plan completed:[/] "
+            f"{result.tasks_succeeded}/{result.tasks_total} tasks succeeded "
+            f"in {result.total_duration_ms:.0f}ms"
+        )
+    else:
+        console.print(
+            f"[bold red]Plan finished with failures:[/] "
+            f"{result.tasks_succeeded} succeeded, {result.tasks_failed} failed, "
+            f"{result.tasks_skipped} skipped"
+        )
+    if result.replans_used:
+        console.print(f"[yellow]Replans used: {result.replans_used}[/]")
+
+    # Show final graph state
+    if result.graph:
+        console.print()
+        console.print(render_graph_rich(result.graph, goal))
+
+
+# ------------------------------------------------------------------
 # helpers
 # ------------------------------------------------------------------
 
@@ -332,6 +460,8 @@ def _show_help():
     console.print(Panel(
         "[bold]Commands:[/]\n"
         "  /help          Show this help\n"
+        "  /plan <goal>   Execute a goal through DAG orchestration\n"
+        "                 (LLM plans → shows task graph → executes with progress)\n"
         "  /reset         Clear conversation history\n"
         "  /undo          Undo last user turn\n"
         "  /model         Show current model\n"
