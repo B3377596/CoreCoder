@@ -89,7 +89,12 @@ class Agent:
     # ------------------------------------------------------------------
 
     async def chat(self, user_input: str, on_token=None, on_tool=None) -> str:
-        """Process one user message. May involve multiple LLM/tool rounds."""
+        """Process one user message. May involve multiple LLM/tool rounds.
+
+        Uses SSE streaming when tools are available: tool calls are detected
+        and executed as soon as their arguments form valid JSON, without
+        waiting for the full LLM response.
+        """
         # git snapshot before this turn (lightweight: only commits if dirty)
         self.shadow.snapshot(f"checkpoint: {user_input[:60]}")
         # record head commit so undo can find the right ref
@@ -100,36 +105,39 @@ class Agent:
         await self.context.maybe_compress(self.messages, self.llm)
 
         for _ in range(self.max_rounds):
-            resp = await self.llm.chat(
-                messages=self._full_messages(),
-                tools=self._tool_schemas(),
-                on_token=on_token,
-            )
-
-            if not resp.tool_calls:
-                self.messages.append(resp.message)
-                return resp.content
-
-            self.messages.append(resp.message)
-
-            if len(resp.tool_calls) == 1:
-                tc = resp.tool_calls[0]
-                if on_tool:
-                    on_tool(tc.name, tc.arguments)
-                result = await self._call_tool(tc)
-                self.messages.append({
-                    "role": "tool",
-                    "tool_call_id": tc.id,
-                    "content": result,
-                })
+            if self.tools:
+                # SSE mode: tools execute as soon as their args arrive.
+                # _execute_turn_sse handles the full turn — streaming,
+                # tool execution, and appending to self.messages.
+                # Returns text content if LLM responded without tools.
+                text = await self._execute_turn_sse(on_token, on_tool)
+                if text is not None:
+                    return text
             else:
-                results = await self._call_tools_parallel(resp.tool_calls, on_tool)
-                for tc, result in zip(resp.tool_calls, results):
+                resp = await self.llm.chat(
+                    messages=self._full_messages(),
+                    tools=None,
+                    on_token=on_token,
+                )
+                if not resp.tool_calls:
+                    self.messages.append(resp.message)
+                    return resp.content
+
+                self.messages.append(resp.message)
+                if len(resp.tool_calls) == 1:
+                    tc = resp.tool_calls[0]
+                    if on_tool:
+                        on_tool(tc.name, tc.arguments)
+                    result = await self._call_tool(tc)
                     self.messages.append({
-                        "role": "tool",
-                        "tool_call_id": tc.id,
-                        "content": result,
+                        "role": "tool", "tool_call_id": tc.id, "content": result,
                     })
+                else:
+                    results = await self._call_tools_parallel(resp.tool_calls, on_tool)
+                    for tc, result in zip(resp.tool_calls, results):
+                        self.messages.append({
+                            "role": "tool", "tool_call_id": tc.id, "content": result,
+                        })
 
             await self.context.maybe_compress(self.messages, self.llm)
 
@@ -230,6 +238,100 @@ class Agent:
         except Exception as e:
             logger.warning("Error executing %s: %s", tool.name, e)
             return f"Error executing {tool.name}: {e}"
+
+    # ------------------------------------------------------------------
+    # SSE execution — start tools immediately as they arrive
+    # ------------------------------------------------------------------
+
+    async def _execute_turn_sse(self, on_token=None, on_tool=None) -> str | None:
+        """Execute one ReAct turn using SSE streaming.
+
+        Opens an SSE stream from the LLM.  As soon as each tool call's
+        arguments form valid JSON, execution starts via asyncio.create_task
+        while the stream continues.  This overlaps tool execution with
+        LLM response streaming.
+
+        Returns:
+            Text content if the LLM responded without tool calls.
+            None if tool calls were executed (results appended to messages).
+        """
+        from .llm import LLMResponse, ToolCall as LlmToolCall
+
+        content_parts: list[str] = []
+        reasoning_parts: list[str] = []
+        tool_calls: list[LlmToolCall] = []
+        # (tool_call, future) — started immediately when tool_call event arrives
+        pending: list[tuple[LlmToolCall, asyncio.Task]] = []
+        prompt_tok = 0
+        completion_tok = 0
+
+        async for event in self.llm.chat_sse(
+            messages=self._full_messages(),
+            tools=self._tool_schemas(),
+        ):
+            if event.type == "text":
+                content_parts.append(event.token or "")
+                if on_token:
+                    ret = on_token(event.token)
+                    if inspect.isawaitable(ret):
+                        await ret
+
+            elif event.type == "reasoning":
+                reasoning_parts.append(event.token or "")
+
+            elif event.type == "tool_call" and event.tool_call:
+                tc = event.tool_call
+                tool_calls.append(tc)
+                if on_tool:
+                    on_tool(tc.name, tc.arguments)
+                # Fire-and-continue: tool executes in background while
+                # the LLM stream produces more events
+                task = asyncio.create_task(self._call_tool(tc))
+                pending.append((tc, task))
+
+            elif event.type == "done":
+                if event.usage:
+                    prompt_tok = event.usage.get("prompt_tokens", 0)
+                    completion_tok = event.usage.get("completion_tokens", 0)
+
+            elif event.type == "error":
+                logger.warning("SSE error: %s", event.error)
+
+        # No tool calls → LLM responded with text only
+        if not tool_calls:
+            resp = LLMResponse(
+                content="".join(content_parts),
+                reasoning_content="".join(reasoning_parts),
+                prompt_tokens=prompt_tok,
+                completion_tokens=completion_tok,
+            )
+            self.messages.append(resp.message)
+            return resp.content
+
+        # Build assistant message with all tool calls
+        resp = LLMResponse(
+            content="".join(content_parts) or None,
+            reasoning_content="".join(reasoning_parts),
+            tool_calls=tool_calls,
+            prompt_tokens=prompt_tok,
+            completion_tokens=completion_tok,
+        )
+        self.messages.append(resp.message)
+
+        # Collect results from background tool executions
+        for tc, task in pending:
+            try:
+                result = await task
+            except Exception as e:
+                logger.warning("Tool %s failed: %s", tc.name, e)
+                result = f"Error executing {tc.name}: {e}"
+            self.messages.append({
+                "role": "tool",
+                "tool_call_id": tc.id,
+                "content": result,
+            })
+
+        return None  # Signal: tool calls were executed
 
     # ------------------------------------------------------------------
     # helpers

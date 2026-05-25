@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import json
+from typing import AsyncGenerator, Literal
 from dataclasses import dataclass, field
 
 
@@ -32,6 +33,25 @@ class ToolCall:
     id: str
     name: str
     arguments: dict
+
+
+@dataclass
+class SSEEvent:
+    """A single event in the SSE (Server-Sent Events) stream.
+
+    Types:
+    - "text": a content token
+    - "reasoning": a reasoning token (DeepSeek/o1)
+    - "tool_call": a complete tool call (args parsed as valid JSON)
+    - "done": stream finished
+    - "error": stream error
+    """
+
+    type: str
+    token: str | None = None
+    tool_call: ToolCall | None = None
+    usage: dict | None = None
+    error: str | None = None
 
 
 @dataclass
@@ -147,6 +167,36 @@ class LLM:
 
         return await self._process_stream(stream, on_token)
 
+    async def chat_sse(
+        self,
+        messages: list[dict],
+        tools: list[dict] | None = None,
+    ) -> AsyncGenerator[SSEEvent, None]:
+        """Stream LLM response as SSE events.
+
+        Unlike chat() which waits for the full response, this yields events
+        as soon as they're available:
+        - "text" events for each content token (caller can render immediately)
+        - "reasoning" events for thinking tokens
+        - "tool_call" events as soon as each tool's arguments form valid JSON
+          (caller can start tool execution immediately, overlapping with
+          remaining stream processing)
+        - "done" event when the stream completes
+
+        This enables the agent to start executing tools before the LLM
+        finishes generating other tool calls or trailing text.
+        """
+        params = self._build_params(messages, tools)
+        try:
+            params["stream_options"] = {"include_usage": True}
+            stream = await self._create_stream_with_retry(params)
+        except Exception:
+            params.pop("stream_options", None)
+            stream = await self._create_stream_with_retry(params)
+
+        async for event in self._process_stream_sse(stream):
+            yield event
+
     # ------------------------------------------------------------------
     # stream creation (override point for LiteLLM)
     # ------------------------------------------------------------------
@@ -177,6 +227,116 @@ class LLM:
                     await asyncio.sleep(2 ** attempt)
                 else:
                     raise
+
+    # ------------------------------------------------------------------
+    # SSE stream processing — yields tool calls as soon as they're complete
+    # ------------------------------------------------------------------
+
+    async def _process_stream_sse(self, stream) -> AsyncGenerator[SSEEvent, None]:
+        """Process a stream incrementally, yielding SSE events as they arrive.
+
+        Tool calls are yielded as soon as their accumulated arguments parse
+        as valid JSON.  This lets the caller start executing a tool while
+        the LLM is still generating other tool calls in the same response.
+
+        Args passed across multiple chunks are accumulated; we try parsing
+        after each chunk.  Once a tool call parses successfully, it's marked
+        "yielded" and won't be re-emitted.
+        """
+        content_parts: list[str] = []
+        reasoning_parts: list[str] = []
+        tc_map: dict[int, dict] = {}  # index -> {id, name, args, yielded}
+        prompt_tok = 0
+        completion_tok = 0
+
+        async for chunk in stream:
+            # ---- usage info ----
+            usage = chunk.usage
+            if usage:
+                if isinstance(usage, dict):
+                    prompt_tok = usage.get("prompt_tokens", 0) or 0
+                    completion_tok = usage.get("completion_tokens", 0) or 0
+                else:
+                    prompt_tok = getattr(usage, "prompt_tokens", 0) or 0
+                    completion_tok = getattr(usage, "completion_tokens", 0) or 0
+
+            if not chunk.choices:
+                continue
+            delta = chunk.choices[0].delta
+
+            # ---- reasoning tokens ----
+            reasoning = getattr(delta, "reasoning_content", None)
+            if reasoning:
+                reasoning_parts.append(reasoning)
+                yield SSEEvent(type="reasoning", token=reasoning)
+
+            # ---- content tokens ----
+            if delta.content:
+                content_parts.append(delta.content)
+                yield SSEEvent(type="text", token=delta.content)
+
+            # ---- tool call deltas ----
+            if delta.tool_calls:
+                for tc_delta in delta.tool_calls:
+                    idx = tc_delta.index
+                    if idx not in tc_map:
+                        tc_map[idx] = {"id": "", "name": "", "args": "", "yielded": False}
+                    entry = tc_map[idx]
+                    if tc_delta.id:
+                        entry["id"] = tc_delta.id
+                    if tc_delta.function:
+                        if tc_delta.function.name:
+                            entry["name"] = tc_delta.function.name
+                        if tc_delta.function.arguments:
+                            entry["args"] += tc_delta.function.arguments
+
+                # After accumulating deltas for this chunk, check if any
+                # tool call's arguments now form valid JSON.  If so, that
+                # tool call is complete — yield it immediately.
+                for idx in sorted(tc_map):
+                    entry = tc_map[idx]
+                    if entry["yielded"] or not entry["name"] or not entry["args"]:
+                        continue
+                    try:
+                        args = json.loads(entry["args"])
+                    except json.JSONDecodeError:
+                        continue  # Still being built — wait for more chunks
+                    # Valid JSON → tool call is complete
+                    entry["yielded"] = True
+                    yield SSEEvent(
+                        type="tool_call",
+                        tool_call=ToolCall(
+                            id=entry["id"],
+                            name=entry["name"],
+                            arguments=args,
+                        ),
+                    )
+
+        # ---- stream complete ----
+        self.total_prompt_tokens += prompt_tok
+        self.total_completion_tokens += completion_tok
+
+        # Emit any tool calls that didn't parse (malformed JSON) as a
+        # best-effort fallback — use empty args
+        for idx in sorted(tc_map):
+            entry = tc_map[idx]
+            if not entry["yielded"] and entry["name"]:
+                yield SSEEvent(
+                    type="tool_call",
+                    tool_call=ToolCall(
+                        id=entry["id"],
+                        name=entry["name"],
+                        arguments={},
+                    ),
+                )
+
+        yield SSEEvent(
+            type="done",
+            usage={
+                "prompt_tokens": prompt_tok,
+                "completion_tokens": completion_tok,
+            },
+        )
 
     # ------------------------------------------------------------------
     # shared stream processing (used by both LLM and LiteLLM)
