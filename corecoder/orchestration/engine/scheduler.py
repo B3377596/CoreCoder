@@ -287,9 +287,12 @@ class Scheduler:
 
         # Verify
         self.olog.emit(EventType.VERIFY_START, task_id=task_id)
+        # Pass the nested "verification" sub-dict if present (from LLMPlanner),
+        # otherwise pass the full metadata for backward compatibility.
+        verify_meta = task.metadata.get("verification", task.metadata)
         verification = self.verifier.verify(
             result,
-            task_metadata=task.metadata,
+            task_metadata=verify_meta,
             working_dir=".",
         )
         task.verification = verification

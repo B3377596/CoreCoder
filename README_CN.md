@@ -1,3 +1,6 @@
+#UPDATE README_CN.md
+基于原nanocoder修改而来
+
 # CoreCoder
 
 > 原名 **NanoCoder**，为避免与 [Nano-Collective/nanocoder](https://github.com/Nano-Collective/nanocoder) 混淆而改名。旧链接自动跳转到这里。
@@ -94,21 +97,58 @@ corecoder -p "给 parse_config() 加上错误处理"
 
 ```
 corecoder/
-├── cli.py            REPL + 命令                   218 行
-├── agent.py          Agent 循环 + 并行执行          122 行
-├── llm.py            流式客户端 + 重试              156 行
-├── context.py        三层压缩                       196 行
-├── session.py        会话保存/恢复                   68 行
-├── prompt.py         系统提示词                      33 行
-├── config.py         环境变量配置                    55 行
-└── tools/
-    ├── bash.py       Shell + 安全 + cd 追踪         115 行
-    ├── edit.py       搜索替换 + diff                  85 行
-    ├── read.py       文件读取                         53 行
-    ├── write.py      文件写入                         36 行
-    ├── glob_tool.py  文件搜索                         47 行
-    ├── grep.py       内容搜索                         78 行
-    └── agent.py      子代理生成                       58 行
+├── __init__.py / __main__.py      # 包入口
+├── cli.py                          # CLI REPL
+├── agent.py                        # ReAct 循环
+├── config.py                       # 配置
+├── prompt.py                       # System prompt
+│
+├── llm/                            # LLM 接口
+│   ├── types.py                    # ToolCall, LLMResponse, SSEEvent
+│   └── client.py                   # LLM + LiteLLM
+│
+├── repo/                           # 仓库智能
+│   ├── index.py                    # RepoIndex 符号/依赖索引
+│   └── shadow.py                   # ShadowGit 影子仓库
+│
+├── mcp/                            # MCP 协议
+│   └── client.py                   # MCPClient 子进程管理
+│
+├── history/                        # 对话历史
+│   ├── compression.py              # ContextManager 3层压缩
+│   └── session.py                  # 会话存续
+│
+├── tools/                          # 工具实现
+│   ├── bash.py, read.py, write.py, edit.py, ...
+│   └── agent.py                    # 子Agent 工具
+│
+└── orchestration/                  # DAG 编排层
+    ├── orchestrator.py             # 顶层 Orchestrator
+    ├── viz.py                      # 图可视化
+    ├── storage.py                  # 持久化
+    ├── observability.py            # 结构化日志
+    │
+    ├── dag/                        # "跑什么" — 图结构与状态
+    │   ├── models.py               # TaskNode, ExecutionResult, ...
+    │   ├── graph.py                # TaskGraph DAG
+    │   ├── memory.py               # WorkingMemory + MemoryInjector
+    │   └── recovery.py             # RecoveryManager 重试/回滚
+    │
+    ├── engine/                     # "怎么跑" — 执行引擎
+    │   ├── scheduler.py            # Scheduler 依赖感知调度
+    │   ├── planner.py              # Planner (Static + LLM)
+    │   ├── executor.py             # Executor 包装 ReAct 循环
+    │   └── verifier.py             # Verifier 验证层
+    │
+    └── context/                    # "跑的时候看什么" — 上下文编排
+        ├── orchestrator.py         # ContextOrchestrator 主入口
+        ├── models.py               # ContextFragment, TokenBudget, ...
+        ├── layers.py               # 5 个上下文层
+        ├── pipeline.py             # 分阶段流水线
+        ├── ranker.py               # 多信号相关性排序
+        ├── retriever.py            # 图感知仓库检索
+        └── policies.py             # 7 种执行状态策略
+
 ```
 
 ## 当库用

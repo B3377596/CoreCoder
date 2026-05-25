@@ -217,8 +217,9 @@ Dependencies reference PREVIOUS indices.  Task 0 cannot have dependencies.
             "dependencies": [],        // indices of prerequisite tasks.  EMPTY for root tasks.
             "priority": 10,
             "verification": {{
-                "test_command": "pytest tests/ -x",
-                "expected_files": ["path/to/output.py"]
+                "expected_files": ["path/to/output.py"],
+                "required_patterns": ["SUCCESS", "completed", "created"],
+                "forbidden_patterns": ["ERROR", "FAILED"]
             }}
         }}
     ]
@@ -252,21 +253,21 @@ Output:
             "description": "Define Pydantic Todo model with id/title/done fields in models.py.",
             "dependencies": [0],
             "priority": 8,
-            "verification": {{"expected_files": ["models.py"]}}
+            "verification": {{"expected_files": ["models.py"], "required_patterns": ["class Todo"]}}
         }},
         {{
             "title": "Implement CRUD API routes",
             "description": "Create GET/POST/PUT/DELETE /todos endpoints in routes.py.",
             "dependencies": [0],
             "priority": 8,
-            "verification": {{"expected_files": ["routes.py"]}}
+            "verification": {{"expected_files": ["routes.py"], "required_patterns": ["@app"]}}
         }},
         {{
             "title": "Write model unit tests",
             "description": "Test Pydantic model validation and serialization.",
             "dependencies": [1],
             "priority": 3,
-            "verification": {{"test_command": "pytest tests/test_models.py -x", "expected_files": ["tests/test_models.py"]}}
+            "verification": {{"expected_files": ["tests/test_models.py"], "required_patterns": ["def test_"]}}
         }},
         {{
             "title": "Write API integration tests",

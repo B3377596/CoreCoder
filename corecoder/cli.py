@@ -28,7 +28,7 @@ from .history.session import save_session, load_session, list_sessions
 from . import __version__
 from .orchestration.viz import render_graph_rich, status_icon
 from .orchestration.orchestrator import Orchestrator, OrchestratorConfig
-from .orchestration.planner import LLMPlanner
+from .orchestration.engine.planner import LLMPlanner
 
 console = Console()
 logger = logging.getLogger("corecoder")
@@ -351,7 +351,7 @@ async def _run_plan(agent: Agent, goal: str):
     4. Progress is shown in real-time
     """
     from .orchestration.orchestrator import Orchestrator, OrchestratorConfig
-    from .orchestration.planner import LLMPlanner
+    from .orchestration.engine.planner import LLMPlanner
     from .orchestration.viz import render_graph_rich
 
     console.print(f"\n[bold blue]Planning:[/] {goal}\n")
