@@ -169,10 +169,25 @@ class Scheduler:
                     self.olog.emit(EventType.SCHEDULE_BLOCKED,
                                    message=f"Deadlock: {len(blocked)} tasks blocked",
                                    blocked_count=len(blocked))
-                    # Check if any blocked tasks are blocked by FAILED tasks
-                    # If so, this is a failure propagation, not a deadlock
+                    # Check if any blocked tasks are blocked by FAILED tasks.
+                    # If retries are exhausted and downstream tasks are stuck,
+                    # replan rather than just failing — the plan itself may need
+                    # restructuring (e.g., insert a fixup task).
                     failed_tasks = self.graph.get_failed_tasks()
                     if failed_tasks:
+                        # Check if any failed task has exhausted retries AND
+                        # has verifier that requested replan
+                        for ft in failed_tasks:
+                            if ft.verification and ft.verification.should_replan:
+                                return SchedulingDecision.REPLAN
+                        # If all retries exhausted and dependents are blocked,
+                        # replan is better than silent failure
+                        all_exhausted = all(
+                            ft.retry_count >= ft.retry_policy.max_retries
+                            for ft in failed_tasks
+                        )
+                        if all_exhausted and blocked:
+                            return SchedulingDecision.REPLAN
                         if self.config.continue_on_failure:
                             return SchedulingDecision.FAILED
                         return SchedulingDecision.REPLAN

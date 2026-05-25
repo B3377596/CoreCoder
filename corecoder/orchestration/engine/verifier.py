@@ -294,8 +294,13 @@ class FileExistsVerifier(BaseVerifier):
             passed=len(failures) == 0,
             checks_run=["file_exists"],
             failures=failures,
+            # Retry once or twice for transient file creation issues
             should_retry=len(failures) > 0,
-            replan_hint="Missing expected output files — may need to create them"
+            # If files are missing, the agent either wrote to wrong paths or
+            # the task spec is wrong.  After retries exhaust, replan is the
+            # right response — insert a fixup task or adjust the plan.
+            should_replan=len(failures) > 0,
+            replan_hint="Missing expected output files — may need to create them or adjust plan"
             if failures
             else "",
         )

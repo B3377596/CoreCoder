@@ -371,9 +371,76 @@ async def _run_plan(agent: Agent, goal: str):
 
     planner = LLMPlanner(llm_call=llm_call, model=agent.llm.model)
 
+    # Build a rich planning context from the repository index so the
+    # LLM can make informed decisions about task decomposition.
+    # Orchestrator.run() would do this internally, but since we pre-plan
+    # here (to show the graph before execution), we must build it ourselves.
+    cwd = os.getcwd()
+    planning_ctx = {"working_dir": cwd}
+
+    try:
+        ri = agent.repo_index
+        # 1. Repository structure overview (framework, entry points, conventions)
+        full_summary = ri.summary_full if hasattr(ri, 'summary_full') else ri.summary
+        if hasattr(ri, 'summary_full') and callable(ri.summary_full):
+            full_summary = ri.summary_full()
+        else:
+            full_summary = ri.summary
+        if full_summary:
+            planning_ctx["repo_summary"] = str(full_summary)[:2500]
+
+        # 2. Symbol index — key classes, functions, and where they live.
+        # This tells the planner what already exists so it doesn't plan
+        # to create things that are already there.
+        if hasattr(ri, '_symbols') and ri._symbols:
+            symbols_compact = {}
+            for filepath, syms in ri._symbols.items():
+                if isinstance(syms, dict):
+                    names = list(syms.keys())[:10]
+                elif isinstance(syms, list):
+                    names = [s.get("name", "?") if isinstance(s, dict) else str(s) for s in syms[:10]]
+                else:
+                    names = []
+                if names:
+                    rel = filepath
+                    symbols_compact[rel] = names
+            if symbols_compact:
+                # Limit to 20 files to keep tokens reasonable
+                top_symbols = dict(list(symbols_compact.items())[:20])
+                planning_ctx["top_symbols"] = top_symbols
+
+        # 3. Dependencies summary — declared packages and key imports
+        if hasattr(ri, '_deps') and ri._deps:
+            deps = ri._deps
+            deps_compact = {}
+            if isinstance(deps, dict):
+                declared = deps.get("declared", [])
+                if declared:
+                    deps_compact["declared_packages"] = declared[:20]
+                internal = deps.get("internal_imports", {})
+                if internal:
+                    deps_compact["internal_imports_count"] = len(internal)
+            if deps_compact:
+                planning_ctx["dependencies"] = deps_compact
+
+    except Exception:
+        pass
+
+    # 4. Top-level directory listing
+    try:
+        top_files = []
+        for entry in os.scandir(cwd):
+            if not entry.name.startswith("."):
+                suffix = "/" if entry.is_dir() else ""
+                top_files.append(entry.name + suffix)
+        if top_files:
+            planning_ctx["existing_files"] = sorted(top_files)[:60]
+    except Exception:
+        pass
+
     async def _plan_with_progress():
         nonlocal plan_result
-        plan_result = await planner.aplan(goal)
+        plan_result = await planner.aplan(goal, context=planning_ctx)
 
     plan_result = None
     plan_error: Exception | None = None
