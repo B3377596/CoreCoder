@@ -553,7 +553,7 @@ async def _run_plan(agent: Agent, goal: str):
         continue_on_failure=True,
         auto_persist=True,
         max_rounds_per_task=25,  # first tasks need exploration; code tasks need test cycles
-        parallel=True,           # run independent tasks concurrently
+        parallel=False,          # single agent, sequential execution
         max_parallel=4,
         on_tool_callback=on_tool,
         on_token_callback=on_token,

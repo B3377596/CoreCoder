@@ -244,16 +244,24 @@ class Executor:
                 "EMPTY PROJECT — no code, no venv, no config. Start from scratch."
             )
 
-        # Completed upstream work
+        # Completed upstream work — show as RUNTIME STATE so the agent
+        # knows what already exists and doesn't re-create it.
         if memory.completed_artifacts:
-            parts.append("\n## Completed Prerequisites")
+            parts.append("\n## Runtime State (already done by previous tasks)")
             for tid, art in memory.completed_artifacts.items():
                 desc = art.get("description", tid)
-                parts.append(f"- {desc}")
-                files = art.get("files", art.get("expected_files", []))
+                parts.append(f"- COMPLETED: {desc}")
+                files = (art.get("created_files", []) or
+                         art.get("all_changed", []) or
+                         art.get("agent_mentioned_files", []) or
+                         art.get("files", []) or
+                         art.get("expected_files", []))
                 if files:
-                    for f in files:
-                        parts.append(f"  - Created/modified: {f}")
+                    parts.append(f"  Existing: {', '.join(str(f) for f in files[:10])}")
+            parts.append(
+                "\nDO NOT re-create, re-initialize, or re-install anything "
+                "listed above.  It already exists."
+            )
 
         # Known constraints
         if memory.known_constraints:
@@ -286,62 +294,89 @@ class Executor:
         return "\n".join(parts)
 
     def _build_task_contract(self, ctx: TaskContext) -> str:
-        """Build the task contract — runtime policy that constrains agent behavior.
+        """Build the task contract — HARD execution boundaries.
 
-        This is the action gating layer.  Without it, the agent freely does
-        downstream work, runs redundant observations, and never knows when
-        to stop.
+        Without this, the agent treats task descriptions as suggestions and
+        freely does downstream work, runs redundant observations, and never
+        knows when to stop.  This contract is the runtime policy layer.
         """
         memory = ctx.memory
-        lines = ["## Runtime Policy (MUST follow)"]
+        lines = ["## EXECUTION CONTRACT — hard boundaries, not suggestions"]
 
-        # 1. Scope boundary — don't do work that belongs to downstream tasks
-        lines.append(
-            "- **SCOPE**: ONLY do the task described below.  Do NOT implement "
-            "work that belongs to later tasks.  If you finish early, STOP — "
-            "don't start the next task."
-        )
+        # ---- 1. Show what NOT to do (downstream tasks) ----
+        downstream = self._get_downstream_tasks(ctx)
+        if downstream:
+            lines.append("\n**DOWNSTREAM TASKS (do NOT do these):**")
+            for d in downstream:
+                lines.append(f"  - FORBIDDEN: {d}")
+            lines.append(
+                "\nIf you find yourself doing any of the above, STOP immediately. "
+                "Those belong to later tasks in the pipeline."
+            )
 
-        # 2. Anti-redundancy — don't verify what you already know
-        lines.append(
-            "- **NO REDUNDANCY**: After creating a file, do NOT immediately "
-            "read it back to confirm.  Trust your writes.  After deterministic "
-            "commands (uv init, npm init, mkdir), you KNOW what files exist — "
-            "do NOT glob/read to verify."
-        )
-
-        # 3. Completion criteria — explicit stop conditions
+        # ---- 2. What THIS task IS allowed to do ----
         title = memory.current_task_title.lower()
         desc = memory.current_task_description.lower()
+
+        allowed = []
+        forbidden = []
+        if any(kw in title + desc for kw in ("init", "venv", "virtual environment", "setup", "create project", "uv init")):
+            allowed = ["run 'uv init' or 'uv venv'", "create pyproject.toml or config files"]
+            forbidden = [
+                "write application code (calculator, business logic, etc.)",
+                "create test files or test directories",
+                "install testing packages (pytest, etc.)",
+                "run tests or verification commands",
+                "implement features or algorithms",
+            ]
+        elif any(kw in title + desc for kw in ("implement", "write", "create", "code", "logic", "function")):
+            allowed = ["write the specified code files", "run the code once with a basic input to check it works"]
+            forbidden = [
+                "initialize uv, npm, or other package managers",
+                "create virtual environments",
+                "create test files or test directories",
+                "install testing packages",
+                "run comprehensive tests or test suites",
+            ]
+        elif any(kw in title + desc for kw in ("ui", "interface", "cli", "command line", "entry point")):
+            allowed = ["create or modify the CLI/UI entry point", "wire together existing modules"]
+            forbidden = [
+                "re-initialize the project",
+                "re-create existing code files",
+                "create test files",
+            ]
+
+        if allowed:
+            lines.append(f"\n**ALLOWED**: {', '.join(allowed)}")
+        if forbidden:
+            lines.append(f"**FORBIDDEN**: {', '.join(forbidden)}")
+
+        # ---- 3. Stop conditions ----
         stop_hints = []
         if any(kw in title + desc for kw in ("init", "venv", "virtual environment", "setup", "create project")):
-            stop_hints.append("a .venv directory or pyproject.toml exists")
+            stop_hints.append(".venv/ or pyproject.toml exists")
         if any(kw in title + desc for kw in ("implement", "write", "create", "code", "logic")):
-            stop_hints.append("the code file exists and runs without errors on basic input")
-        if any(kw in title + desc for kw in ("test", "verify", "validate")):
-            stop_hints.append("tests pass or verification commands succeed")
+            stop_hints.append("the code file exists and runs correctly on one basic input")
         if any(kw in title + desc for kw in ("ui", "interface", "cli", "command line")):
-            stop_hints.append("the entry point accepts input and produces output")
-
+            stop_hints.append("the entry point works end-to-end")
         if stop_hints:
-            lines.append(
-                "- **STOP WHEN**: " + "; or ".join(stop_hints) + ".  "
-                "Do NOT add extra testing/verification beyond what the task requires."
-            )
-        else:
-            lines.append(
-                "- **STOP WHEN**: the task's stated objective is met.  "
-                "Do NOT add extra work."
-            )
+            lines.append(f"\n**STOP WHEN**: {'; or '.join(stop_hints)}. Then STOP. Do not do extra work.")
 
-        # 4. Efficiency — prefer direct action over exploration
+        # ---- 4. Anti-redundancy ----
         lines.append(
-            "- **EFFICIENCY**: If the task says 'create a venv', run 'uv venv' "
-            "directly.  Don't explore, list files, or read config first — just "
-            "do it.  The project state is already described above."
+            "\n**RULES**: (1) Do NOT read back files you just wrote. "
+            "(2) After deterministic commands like 'uv init', trust the output — "
+            "do not glob/read to verify. "
+            "(3) If a prerequisite task already initialized the project, "
+            "do NOT re-initialize it. "
+            "(4) Do NOT install tools or packages unless explicitly required by THIS task."
         )
 
         return "\n".join(lines)
+
+    def _get_downstream_tasks(self, ctx: TaskContext) -> list[str]:
+        """Get titles of downstream tasks that this task should NOT do."""
+        return getattr(ctx.memory, 'downstream_tasks', []) or []
 
     def _build_prompt_orchestrated(self, ctx: TaskContext) -> str:
         """Build the task prompt using the ContextOrchestrator.
@@ -365,7 +400,11 @@ class Executor:
         # Extract focus files from completed artifacts
         focus_files: list[str] = []
         for art in memory.completed_artifacts.values():
-            files = art.get("expected_files", art.get("files", []))
+            files = (art.get("created_files", []) or
+                     art.get("all_changed", []) or
+                     art.get("agent_mentioned_files", []) or
+                     art.get("expected_files", []) or
+                     art.get("files", []))
             focus_files.extend(files)
 
         # Build completed artifacts map
@@ -406,16 +445,11 @@ class Executor:
         return prompt
 
     def _extract_artifacts(self, ctx: TaskContext) -> dict[str, Any]:
-        """Extract artifact information from task metadata.
+        """Extract artifact information from what the agent actually produced.
 
-        This is a best-effort extraction — the real artifacts are the
-        file changes tracked by shadow git.  We store the expected files
-        list so downstream tasks know what to look for.
+        Reads file paths from the agent's output text — the natural language
+        summary the agent writes after completing the task.  This is a
+        best-effort extraction; the real ground truth comes from patch
+        analysis in the scheduler.
         """
-        artifacts: dict[str, Any] = {}
-        verification = ctx.task.metadata.get("verification", {})
-        if isinstance(verification, dict):
-            expected = verification.get("expected_files", [])
-            if expected:
-                artifacts["expected_files"] = expected
-        return artifacts
+        return {}

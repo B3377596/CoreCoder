@@ -51,6 +51,9 @@ class WorkingMemory:
     # Maps task_id -> {description, files, outputs, ...}
     completed_artifacts: dict[str, dict[str, Any]] = field(default_factory=dict)
 
+    # Downstream task titles — shown to agent so it knows what NOT to do
+    downstream_tasks: list[str] = field(default_factory=list)
+
     # Free-form notes the agent can read/write
     notes: str = ""
 
@@ -98,17 +101,25 @@ class WorkingMemory:
                 parts.append(f"- {a}")
 
         if self.completed_artifacts:
-            parts.append("\n## Completed Work (from dependencies)")
+            parts.append("\n## Completed Work (from dependencies) — already done, do NOT repeat")
             for tid, art in self.completed_artifacts.items():
                 desc = art.get("description", tid)
-                parts.append(f"- **{desc}**")
+                parts.append(f"- COMPLETED: **{desc}**")
+                # Show what files were created — this is the key working memory
+                created = (art.get("created_files", []) or
+                          art.get("all_changed", []) or
+                          art.get("agent_mentioned_files", []))
+                if created:
+                    parts.append(f"  Files: {', '.join(str(f) for f in created[:10])}")
+                # Other metadata
                 for key, value in art.items():
-                    if key == "description":
+                    if key in ("description", "created_files", "all_changed",
+                               "agent_mentioned_files", "modified_files", "deleted_files"):
                         continue
                     if isinstance(value, list):
-                        parts.append(f"  - {key}: {', '.join(str(v) for v in value)}")
-                    else:
-                        parts.append(f"  - {key}: {value}")
+                        parts.append(f"  {key}: {', '.join(str(v) for v in value)}")
+                    elif isinstance(value, (str, int, float)):
+                        parts.append(f"  {key}: {value}")
 
         if self.recent_failures:
             parts.append("\n## Previous Failures (do NOT repeat these approaches)")

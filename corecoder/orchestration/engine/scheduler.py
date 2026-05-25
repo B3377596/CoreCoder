@@ -297,6 +297,16 @@ class Scheduler:
             goal=self.config.goal,
             run_id=str(id(self.olog)),
         )
+        # Inject downstream task titles so the executor's task contract
+        # can show the agent what NOT to do.
+        downstream_ids = self.graph.get_dependents(task.id)
+        downstream_titles = []
+        for did in downstream_ids:
+            dn = self.graph.get_node(did)
+            if dn:
+                downstream_titles.append(dn.title)
+        if downstream_titles:
+            memory.downstream_tasks = downstream_titles
 
         # Execute
         self.olog.emit(EventType.EXECUTION_START, task_id=task_id, task_title=task_title)
@@ -323,8 +333,46 @@ class Scheduler:
             result,
             patch=patch,
             working_dir=".",
+            task_meta={"title": task.title, "description": task.description},
         )
         task.verification = verification
+
+        # Populate artifacts from RUNTIME FACTS (patch analysis), not planner.
+        # This is what gives downstream tasks their working memory about what
+        # was actually created/modified by this task.
+        if patch and patch.has_changes:
+            task.artifacts["created_files"] = list(patch.created_files)
+            task.artifacts["modified_files"] = list(patch.modified_files)
+            task.artifacts["all_changed"] = patch.all_changed
+        # Also extract file/dir paths from the agent's output text.
+        # Use a broader pattern that catches paths without extensions
+        # (like .venv/, venv/, node_modules/) and tool-specific outputs.
+        import re
+        mentioned = set()
+        for line in result.output.split("\n"):
+            # Pattern 1: "created X.py", "wrote src/app.py"
+            for m in re.finditer(
+                r'(?:created|modified|wrote|updated|changed|made|built)\s+[`"\']?([^\s`"\',;]+\.[\w]+)',
+                line, re.IGNORECASE,
+            ):
+                mentioned.add(m.group(1))
+            # Pattern 2: "created .venv/", "initialized project in X/"
+            for m in re.finditer(
+                r'(?:created|initialized|set up|made)\s+[`"\']?([^\s`"\',;]+/?)',
+                line, re.IGNORECASE,
+            ):
+                p = m.group(1).rstrip("/")
+                if p and len(p) > 2 and not p.startswith("the "):
+                    mentioned.add(p)
+            # Pattern 3: tool-specific — "uv venv" creates .venv/
+            if "uv venv" in line.lower():
+                mentioned.add(".venv")
+            if "uv init" in line.lower():
+                mentioned.add("pyproject.toml")
+            if "npm init" in line.lower():
+                mentioned.add("package.json")
+        if mentioned:
+            task.artifacts["agent_mentioned_files"] = sorted(mentioned)
 
         if verification.passed:
             self.olog.emit(EventType.VERIFY_PASS, task_id=task_id)

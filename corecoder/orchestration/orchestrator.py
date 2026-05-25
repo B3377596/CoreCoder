@@ -497,6 +497,6 @@ class _DynamicVerifier(BaseVerifier):
     def __init__(self, engine):
         self._engine = engine
 
-    def verify(self, result, patch=None, working_dir=None):
+    def verify(self, result, patch=None, working_dir=None, task_meta=None):
         composite = self._engine.build(patch)
-        return composite.verify(result, patch=patch, working_dir=working_dir)
+        return composite.verify(result, patch=patch, working_dir=working_dir, task_meta=task_meta)

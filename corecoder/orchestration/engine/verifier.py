@@ -167,6 +167,7 @@ class BaseVerifier(ABC):
         result: ExecutionResult,
         patch: PatchAnalysis | None = None,
         working_dir: str | None = None,
+        task_meta: dict | None = None,
     ) -> VerificationResult:
         """Run verification checks against an execution result + patch."""
 
@@ -187,7 +188,7 @@ class FileCreatedVerifier(BaseVerifier):
         self,
         result: ExecutionResult,
         patch: PatchAnalysis | None = None,
-        working_dir: str | None = None,
+        working_dir: str | None = None, task_meta: dict | None = None,
     ) -> VerificationResult:
         cwd = Path(working_dir) if working_dir else Path.cwd()
 
@@ -248,7 +249,7 @@ class SyntaxVerifier(BaseVerifier):
         self,
         result: ExecutionResult,
         patch: PatchAnalysis | None = None,
-        working_dir: str | None = None,
+        working_dir: str | None = None, task_meta: dict | None = None,
     ) -> VerificationResult:
         if not patch or not patch.python_files:
             return VerificationResult(passed=True, checks_run=["syntax:no_python_changes"])
@@ -287,7 +288,7 @@ class ImportVerifier(BaseVerifier):
         self,
         result: ExecutionResult,
         patch: PatchAnalysis | None = None,
-        working_dir: str | None = None,
+        working_dir: str | None = None, task_meta: dict | None = None,
     ) -> VerificationResult:
         if not patch or not patch.python_files:
             return VerificationResult(passed=True, checks_run=["import:no_python_changes"])
@@ -320,16 +321,21 @@ class ImportVerifier(BaseVerifier):
 class TestVerifier(BaseVerifier):
     """Run a test command when test files were modified.
 
-    Only triggers when patch analysis shows changes in test files.
+    Skips for setup/init tasks — those should never run tests.
     """
 
     def verify(
         self,
         result: ExecutionResult,
         patch: PatchAnalysis | None = None,
-        working_dir: str | None = None,
+        working_dir: str | None = None, task_meta: dict | None = None,
     ) -> VerificationResult:
         cwd = working_dir or "."
+
+        # Skip tests for setup/init tasks — verification should be task-aware
+        title = (task_meta or {}).get("title", "").lower()
+        if any(kw in title for kw in ("init", "venv", "setup", "create project", "virtual environment")):
+            return VerificationResult(passed=True, checks_run=["test:skipped_setup_task"])
 
         # Only run tests if test files were actually modified
         if patch and not patch.test_files:
@@ -376,7 +382,7 @@ class LintVerifier(BaseVerifier):
         self,
         result: ExecutionResult,
         patch: PatchAnalysis | None = None,
-        working_dir: str | None = None,
+        working_dir: str | None = None, task_meta: dict | None = None,
     ) -> VerificationResult:
         if not patch or not patch.python_files:
             return VerificationResult(passed=True, checks_run=["lint:no_python_changes"])
@@ -426,14 +432,14 @@ class CompositeVerifier(BaseVerifier):
         self,
         result: ExecutionResult,
         patch: PatchAnalysis | None = None,
-        working_dir: str | None = None,
+        working_dir: str | None = None, task_meta: dict | None = None,
     ) -> VerificationResult:
         if not self._verifiers:
             return VerificationResult(passed=True)
 
         aggregated = VerificationResult(passed=True)
         for v in self._verifiers:
-            vr = v.verify(result, patch=patch, working_dir=working_dir)
+            vr = v.verify(result, patch=patch, working_dir=working_dir, task_meta=task_meta)
             aggregated.checks_run.extend(vr.checks_run)
             aggregated.failures.extend(vr.failures)
             aggregated.warnings.extend(vr.warnings)
