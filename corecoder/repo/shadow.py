@@ -41,6 +41,21 @@ _ALWAYS_IGNORE = [
 ]
 
 
+def _extract_nested_path(error_msg: str) -> str | None:
+    """Extract the nested repo path from a git error message.
+
+    Git errors like:
+      error: 'simple_calculator/' does not have a commit checked out
+    contain the offending path in single quotes.
+    """
+    import re
+    m = re.search(r"'([^']+)'", error_msg)
+    if m:
+        path = m.group(1).rstrip("/")
+        return path
+    return None
+
+
 class ShadowGit:
     """Manages a shadow git repository for a specific working directory."""
 
@@ -90,9 +105,31 @@ class ShadowGit:
     # ------------------------------------------------------------------
 
     def snapshot(self, message: str = "checkpoint"):
-        """Commit the current working tree state. Fast no-op if clean."""
+        """Commit the current working tree state. Fast no-op if clean.
+
+        Handles nested git repositories (e.g., when the agent runs 'uv init'
+        in a subdirectory) by auto-adding them to .gitignore.
+        """
         self.init()
-        self._git("add", "-A")
+        try:
+            self._git("add", "-A")
+        except Exception as e:
+            err_msg = str(e)
+            # Nested git repo detected — add the offending path to .gitignore
+            # and retry.  This handles cases where the agent creates a
+            # subdirectory with its own .git/ (e.g., uv init).
+            if "does not have a commit checked out" in err_msg:
+                nested_path = _extract_nested_path(err_msg)
+                if nested_path:
+                    self._gitignore_nested(nested_path)
+                    try:
+                        self._git("add", "-A")
+                    except Exception:
+                        logger.debug("Shadow add still failed after gitignore fix: %s", e)
+                else:
+                    logger.debug("Shadow add failed (nested repo, could not extract path): %s", e)
+            else:
+                logger.debug("Shadow add failed: %s", e)
         # --allow-empty so we don't fail when nothing changed
         try:
             self._git("commit", "-m", message, "--allow-empty")
@@ -149,6 +186,16 @@ class ShadowGit:
     def checkout(self, ref: str = "HEAD"):
         """Checkout a specific ref (used for undo to specific checkpoint)."""
         self._git("checkout", ref)
+
+    def _gitignore_nested(self, nested_path: str) -> None:
+        """Add a nested subdirectory to .gitignore so git add doesn't choke."""
+        gitignore_path = Path(self.work_tree) / ".gitignore"
+        rule = f"{nested_path}/"
+        existing = gitignore_path.read_text().splitlines() if gitignore_path.exists() else []
+        if rule not in existing:
+            with open(gitignore_path, "a") as f:
+                f.write(f"\n{rule}\n")
+            logger.debug("Added %s to .gitignore (nested repo)", rule)
 
     # ------------------------------------------------------------------
     # internals

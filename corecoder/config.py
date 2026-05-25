@@ -1,4 +1,14 @@
-"""Configuration - env vars and defaults."""
+"""Configuration — env vars and defaults.
+
+Load order (later sources override earlier if not already set):
+1. Default values in Config dataclass
+2. ~/.corecoder/.env          (global user config)
+3. .env walking up from cwd   (project-specific, up to home dir)
+4. Environment variables       (always win — set in shell profile is safest)
+
+This means you never need a .env in your project directory.
+Set keys once in your shell or ~/.corecoder/.env and they apply everywhere.
+"""
 
 from __future__ import annotations
 
@@ -8,21 +18,28 @@ from pathlib import Path
 
 
 def _load_dotenv():
-    """Load .env from cwd, walking up to home dir. No-op if python-dotenv missing."""
+    """Load .env files in priority order.  No-op if python-dotenv missing."""
     try:
         from dotenv import load_dotenv
-        # search cwd first, then parent dirs up to ~
-        env_path = Path(".env")
-        if not env_path.exists():
+
+        # 1. Global user config — always loaded if it exists
+        global_env = Path.home() / ".corecoder" / ".env"
+        if global_env.exists():
+            load_dotenv(global_env, override=False)
+
+        # 2. Project .env — walk up from cwd to home
+        cwd_env = Path(".env")
+        if not cwd_env.exists():
             cur = Path.cwd()
             home = Path.home()
             while cur != home and cur != cur.parent:
                 candidate = cur / ".env"
                 if candidate.exists():
-                    env_path = candidate
+                    cwd_env = candidate
                     break
                 cur = cur.parent
-        load_dotenv(env_path, override=False)
+        load_dotenv(cwd_env, override=False)
+
     except ImportError:
         pass  # python-dotenv not installed, silently skip
 

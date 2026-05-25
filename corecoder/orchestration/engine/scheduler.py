@@ -308,7 +308,7 @@ class Scheduler:
         if result.success and verification.passed:
             return self._handle_success(task, result)
         else:
-            return self._handle_failure(
+            return await self._handle_failure(
                 task,
                 result.error or "Verification failed",
                 verification,
@@ -317,7 +317,7 @@ class Scheduler:
     def _handle_success(
         self, task: TaskNode, result: ExecutionResult
     ) -> SchedulingDecision:
-        """Process a successful task execution."""
+        """Process a successful task execution (sync — no I/O needed)."""
         task.record_result(result)
         # record_result sets status to SUCCESS, but verification result
         # was already recorded — no override needed
@@ -338,13 +338,13 @@ class Scheduler:
 
         return SchedulingDecision.CONTINUE
 
-    def _handle_failure(
+    async def _handle_failure(
         self,
         task: TaskNode,
         error: str,
         verification,
     ) -> SchedulingDecision:
-        """Process a failed task execution — retry, skip, or escalate."""
+        """Process a failed task execution — retry, skip, or escalate (async for backoff)."""
         self.olog.node_transition(
             task.id, task.title, "running", "failed",
             reason=error[:120],
@@ -369,8 +369,9 @@ class Scheduler:
             )
             # Run rollback hooks before retrying
             self.recovery.run_rollbacks(task)
-            # Wait for backoff
-            asyncio.create_task(self.recovery.wait_backoff(action.backoff_ms))
+            # Wait for backoff — must await, not create_task, otherwise
+            # retries fire immediately without any delay
+            await self.recovery.wait_backoff(action.backoff_ms)
             # Prepare for retry
             self.recovery.prepare_retry(task)
             self._notify_progress(task, "retry")

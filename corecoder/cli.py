@@ -313,6 +313,10 @@ async def _repl(agent: Agent, config: Config):
                 console.print("[yellow]Usage: /plan <goal description>[/]")
             continue
 
+        elif user_input.startswith("/"):
+            console.print(f"[yellow]Unknown command: {user_input.split()[0]}[/]")
+            _show_help();
+            continue
         # call the agent
         streamed: list[str] = []
 
@@ -354,23 +358,70 @@ async def _run_plan(agent: Agent, goal: str):
     from .orchestration.engine.planner import LLMPlanner
     from .orchestration.viz import render_graph_rich
 
-    console.print(f"\n[bold blue]Planning:[/] {goal}\n")
+    console.print(f"\n[bold blue]Planning:[/] {goal}")
 
     # ---- Phase 1: Plan (LLM decomposes goal into task graph) ----
-    # Wrap agent.chat as the LLM call for the planner
+    # Show a spinner with elapsed time during LLM planning (can take 30s-2m
+    # depending on model and prompt length)
+    import time as _time
+    planning_start = _time.time()
+
     async def llm_call(messages: list[dict]) -> LLMResponse:
         return await agent.llm.chat(messages=messages, tools=None)
 
     planner = LLMPlanner(llm_call=llm_call, model=agent.llm.model)
-    plan = await planner.aplan(goal)
 
-    if plan.graph.node_count == 0:
-        console.print("[yellow]Planner produced an empty plan.  Falling back to direct execution.[/]\n")
-        # Fall back to normal agent execution
+    async def _plan_with_progress():
+        nonlocal plan_result
+        plan_result = await planner.aplan(goal)
+
+    plan_result = None
+    plan_error: Exception | None = None
+    spinner_chars = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+    i = 0
+    plan_task = asyncio.create_task(_plan_with_progress())
+    planning_timeout_s = 180  # 3 minute timeout for planning
+    try:
+        while not plan_task.done():
+            elapsed = _time.time() - planning_start
+            spinner = spinner_chars[i % len(spinner_chars)]
+            # Show elapsed; warn if taking unusually long (>30s)
+            hint = " [yellow](LLM may be reasoning...)[/]" if elapsed > 30 else ""
+            sys.stdout.write(f"\r  {spinner} 规划中... [dim]{elapsed:.0f}s[/]{hint}")
+            sys.stdout.flush()
+            i += 1
+            if elapsed > planning_timeout_s:
+                plan_task.cancel()
+                raise TimeoutError(f"Planning timed out after {planning_timeout_s}s")
+            await asyncio.sleep(0.15)
+        await plan_task
+        if plan_task.exception():
+            plan_error = plan_task.exception()
+    except (asyncio.CancelledError, KeyboardInterrupt):
+        plan_task.cancel()
+        raise
+    except TimeoutError:
+        plan_error = TimeoutError(f"Planning timed out after {planning_timeout_s}s")
+    except Exception as e:
+        plan_error = e
+    finally:
+        sys.stdout.write("\r" + " " * 60 + "\r")
+        sys.stdout.flush()
+
+    if plan_error:
+        console.print(f"[red]Planning failed: {plan_error}[/]")
+        console.print("[yellow]Falling back to direct execution.[/]\n")
         await _run_once(agent, goal)
         return
 
-    console.print(f"[dim]Planner produced {plan.graph.node_count} tasks.[/]")
+    plan = plan_result
+    plan_elapsed = _time.time() - planning_start
+    console.print(f"  [green]Done[/] [dim]({plan_elapsed:.1f}s, {plan.graph.node_count} tasks)[/]\n")
+
+    if plan.graph.node_count == 0:
+        console.print("[yellow]Planner produced an empty plan.  Falling back to direct execution.[/]\n")
+        await _run_once(agent, goal)
+        return
 
     # ---- Phase 2: Show the plan ----
     console.print(render_graph_rich(plan.graph, goal))
@@ -387,7 +438,7 @@ async def _run_plan(agent: Agent, goal: str):
         console.print(f"{prefix} [dim]> {name}({brief})[/dim]")
 
     def on_progress(task_node, event: str):
-        """Print task status transitions with timing."""
+        """Print task status transitions with timing and verification details."""
         nonlocal _current_task_title
         if event == "running":
             _current_task_title = task_node.title
@@ -414,7 +465,17 @@ async def _run_plan(agent: Agent, goal: str):
             console.print(f"[{color}]{msg}[/{color}]")
         else:
             console.print(msg)
-        # Flush to ensure users can see progress immediately
+
+        # Show verification failure details so user can debug
+        if event in ("retry", "skipped") and task_node.verification:
+            v = task_node.verification
+            if v.failures:
+                for f in v.failures[:3]:  # Show at most 3 failures
+                    console.print(f"    [red]verify: {f[:200]}[/]")
+            if v.warnings:
+                for w in v.warnings[:2]:
+                    console.print(f"    [yellow]warn: {w[:200]}[/]")
+
         sys.stdout.flush()
 
     orch_config = OrchestratorConfig(

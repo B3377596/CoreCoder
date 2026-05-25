@@ -135,13 +135,42 @@ class RecoveryManager:
         """Decide what to do about a failed task.
 
         Decision priority:
-        1. If verifier says replan → replan
-        2. If retry budget remaining → retry
-        3. If verifier says retry even without budget → retry (override)
-        4. If too many consecutive failures → abort
-        5. Otherwise → skip
+        1. Same error repeated → escalate immediately (not transient)
+        2. Verifier says replan → replan
+        3. Too many consecutive failures → abort (checked BEFORE verifier override)
+        4. Retry budget remaining → retry
+        5. Verifier override → retry (with hard cap at 2x max_retries)
+        6. Otherwise → skip
         """
-        # Verifier-requested replan takes precedence
+        max_r = node.retry_policy.max_retries
+
+        # ---- Hard guard: same error repeating → not transient, stop ----
+        prev_errors: list[str] = node.metadata.get("failure_history", [])
+        if prev_errors and len(prev_errors) >= 3:
+            # Check if the last N errors are all the same
+            recent = []
+            for e in prev_errors[-3:]:
+                short = e.split("] ", 1)[-1] if "] " in e else e
+                recent.append(short[:200])
+            current_short = error[:200]
+            if all(current_short[:100] in r or r in current_short[:100] for r in recent):
+                self._consecutive_failures += 1
+                return RecoveryAction(
+                    action="skip",
+                    task_id=node.id,
+                    reason=f"Same error repeated {len(prev_errors)} times — "
+                           f"not a transient failure. Last error: {error[:120]}",
+                )
+
+        # ---- Global failure guard (checked early) ----
+        if self._consecutive_failures >= self.max_consecutive_failures:
+            return RecoveryAction(
+                action="abort",
+                task_id=node.id,
+                reason=f"Aborting after {self._consecutive_failures} consecutive failures",
+            )
+
+        # ---- Verifier-requested replan ----
         if verification and verification.should_replan:
             self._consecutive_failures = 0
             return RecoveryAction(
@@ -150,41 +179,34 @@ class RecoveryManager:
                 reason=verification.replan_hint or "Verifier requested replan",
             )
 
-        # Check retry budget
+        # ---- Retry budget available ----
         if self._policy.should_retry(node, error):
             self._consecutive_failures += 1
             backoff = self._policy.backoff_ms(node.retry_count + 1)
             return RecoveryAction(
                 action="retry",
                 task_id=node.id,
-                reason=f"Retry {node.retry_count + 1}/{node.retry_policy.max_retries}",
+                reason=f"Retry {node.retry_count + 1}/{max_r}",
                 backoff_ms=backoff,
             )
 
-        # Verifier override: retry even if policy says no
-        if verification and verification.should_retry:
+        # ---- Verifier override: ONE extra retry beyond budget ----
+        if verification and verification.should_retry and node.retry_count < max_r * 2:
             self._consecutive_failures += 1
+            backoff = self._policy.backoff_ms(node.retry_count + 1)
             return RecoveryAction(
                 action="retry",
                 task_id=node.id,
-                reason="Verifier override: should retry",
-                backoff_ms=self._policy.backoff_ms(node.retry_count + 1),
+                reason=f"Verifier override retry {node.retry_count + 1}/{max_r * 2}",
+                backoff_ms=backoff,
             )
 
-        # Global failure guard
-        if self._consecutive_failures >= self.max_consecutive_failures:
-            return RecoveryAction(
-                action="abort",
-                task_id=node.id,
-                reason=f"Aborting after {self._consecutive_failures} consecutive failures",
-            )
-
-        # Default: skip this task, mark dependents as blocked
+        # ---- Default: skip ----
         self._consecutive_failures += 1
         return RecoveryAction(
             action="skip",
             task_id=node.id,
-            reason=f"Retry budget exhausted ({node.retry_count}/{node.retry_policy.max_retries})",
+            reason=f"Retry budget exhausted ({node.retry_count}/{max_r})",
         )
 
     def reset_consecutive_failures(self) -> None:
