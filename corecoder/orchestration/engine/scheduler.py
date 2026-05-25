@@ -26,7 +26,13 @@ from typing import Any, Callable
 from corecoder.orchestration.dag.models import TaskNode, TaskStatus, ExecutionResult
 from corecoder.orchestration.dag.graph import TaskGraph
 from corecoder.orchestration.dag.recovery import RecoveryManager, RecoveryAction
-from corecoder.orchestration.engine.verifier import BaseVerifier, NoOpVerifier
+from corecoder.orchestration.engine.verifier import (
+    BaseVerifier,
+    CompositeVerifier,
+    FileCreatedVerifier,
+    PatchAnalysis,
+    VerificationPolicyEngine,
+)
 from corecoder.orchestration.engine.executor import Executor, TaskContext
 from corecoder.orchestration.dag.memory import MemoryInjector, WorkingMemory
 from corecoder.orchestration.observability import OrchestrationLogger, EventType
@@ -100,7 +106,7 @@ class Scheduler:
         self.graph = graph
         self.executor = executor
         self.recovery = recovery or RecoveryManager()
-        self.verifier = verifier or NoOpVerifier()
+        self.verifier = verifier or FileCreatedVerifier()
         self.memory_injector = memory_injector or MemoryInjector()
         self.olog = olog or OrchestrationLogger()
         self.config = config or SchedulerConfig()
@@ -300,14 +306,19 @@ class Scheduler:
                        duration_ms=result.duration_ms)
         self.olog.execution_timing(task_id, result.duration_ms, result.tokens_used)
 
-        # Verify
+        # Verify — grounded in runtime facts (patch analysis), not planner metadata.
         self.olog.emit(EventType.VERIFY_START, task_id=task_id)
-        # Pass the nested "verification" sub-dict if present (from LLMPlanner),
-        # otherwise pass the full metadata for backward compatibility.
-        verify_meta = task.metadata.get("verification", task.metadata)
+        patch = None
+        try:
+            from corecoder.repo.shadow import ShadowGit
+            shadow = ShadowGit(".")
+            patch = PatchAnalysis.from_shadow(shadow, ".")
+        except Exception:
+            pass
+
         verification = self.verifier.verify(
             result,
-            task_metadata=verify_meta,
+            patch=patch,
             working_dir=".",
         )
         task.verification = verification

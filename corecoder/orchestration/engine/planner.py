@@ -151,141 +151,170 @@ class LLMPlanner(BasePlanner):
 
     # Prompt template for the planning LLM call.
     #
-    # Design notes on what makes a good plan:
-    # - Maximize parallelism: tasks that don't share outputs/files should be independent.
-    # - Real dependency = must read the output of another task.  "Happens after" is not a dependency.
-    # - Shallow and wide beats deep and narrow.  Aim for depth ≤ 3.
-    # - Each task should produce concrete, verifiable artifacts (files, test results).
-    PLANNING_PROMPT = """You are a software engineering planner. Given a user goal, decompose it into a
-task DAG (directed acyclic graph) that a coding agent can execute.
+    # Design philosophy: the planner is a milestone decomposer, NOT an
+    # architect.  It produces coarse milestones so the execution runtime
+    # can start immediately.  The runtime (ContextOrchestrator, Scheduler,
+    # Verifier, RecoveryManager) handles all details.
+    #
+    # Key latency-reduction choices:
+    # - No thinking step / chain-of-thought
+    # - No verification design (runtime auto-generates)
+    # - No DAG optimization (scheduler heuristics handle parallelism)
+    # - No file-level reasoning (executor retrieves symbols on demand)
+    PLANNING_PROMPT = """
+You are a lightweight software task planner.
+Your job is NOT to fully understand the repository architecture.
+Your job is to quickly produce a practical execution plan that allows a coding
+agent runtime to START execution immediately.
+The execution runtime itself will later handle:
 
-## Goal
+* symbol analysis
+* dependency inspection
+* code retrieval
+* verification
+* debugging
+* replanning
+* patch validation
+
+So avoid deep software engineering reasoning.
+
+==================================================
+GOAL
+====
 {goal}
-
-## Context
+==================================================
+LIGHTWEIGHT REPOSITORY SKETCH
+=============================
 {context}
+==================================================
+PLANNING PRINCIPLES
+===================
 
-## Core Principle: MAXIMIZE PARALLELISM
+1. Prefer SIMPLE plans over optimal plans.
+2. Produce HIGH-LEVEL executable milestones,not detailed implementation breakdowns.
+3. Assume the execution runtime can dynamically:
+   * inspect code
+   * discover dependencies
+   * retrieve symbols
+   * replan if necessary
+4. Do NOT attempt to globally optimize the DAG.
+5. Use dependencies ONLY when obviously necessary.
+6. Prefer WIDE and SHALLOW task graphs.
+7. Avoid micro-tasks.
+8. Avoid deep dependency reasoning.
+9. Avoid predicting exact implementation details.
+10. Keep planning FAST.
 
-A dependency exists ONLY when task B genuinely cannot start until task A produces
-a concrete output (file, library, config, etc.) that B needs to read or use.
+==================================================
+TASK REQUIREMENTS
+=================
 
-"Task B happens after task A" is NOT a dependency if B doesn't consume A's output.
-If two tasks touch different files, they should be INDEPENDENT — they will run
-concurrently, speeding up the entire plan.
+* Produce 3-6 tasks.
+* Each task should represent one meaningful milestone.
+* Tasks should be independently executable whenever possible.
+* Maximum dependency depth: 2.
+* Prefer sibling tasks over chains.
+* Most tasks should be parallelizable.
 
-## Rules
+==================================================
+WHEN TO CREATE DEPENDENCIES
+===========================
 
-1. Produce 3-8 tasks.  Each must be concrete: a coding agent with file I/O,
-   shell, and code search tools should be able to complete it in one shot.
+Create a dependency ONLY if:
+* Task B directly requires files/artifacts produced by Task A
+* OR Task A establishes mandatory project setup required by B
+* OR Task B cannot reasonably start before A completes
+Otherwise:
+MAKE TASKS INDEPENDENT.
 
-2. **Depth limit**: no dependency chain longer than 3 levels.
-   Bad:  A → B → C → D → E → F   (depth 5, everything blocked on one path)
-   Good: A → B → C,  A → D → E    (depth 2, two parallel branches)
+==================================================
+AVOID
+=====
+DO NOT:
+* simulate full execution
+* reason about all repository symbols
+* predict detailed file edits
+* generate verification logic
+* optimize the DAG globally
+* create tiny subtasks
+* overthink architecture
+* produce long task chains
+The runtime system handles those later.
 
-3. **Branch at every opportunity**.  If you have N tasks that don't share
-   outputs, make them all direct children of the same parent so they run
-   in parallel.
+==================================================
+PRIORITIES
+==========
 
-4. **"Leaf" tasks (tests, lint, docs) should be terminal nodes** that depend
-   on the implementation tasks they verify.  They should NOT form long chains.
+10 = setup/foundation
+8 = core implementation
+5 = integration/enhancement
+3 = testing/verification
 
-5. **Priorities**: 10 = foundation/setup (must do first), 8 = core logic,
-   5 = features/enhancements, 3 = tests/verification.
-   Higher priority tasks are scheduled first among ready tasks.
+==================================================
+OUTPUT FORMAT
+=============
 
-## Thinking Step
+Return ONLY valid JSON.
 
-Before writing the JSON, briefly list:
-- What are the concrete outputs (files) of each task?
-- Which outputs does each downstream task ACTUALLY need?
-- Can any tasks run in parallel?  If yes, make them siblings under the same parent.
+{
+"plan_summary": "Short summary",
+"assumptions": [],
+"constraints": [],
+"tasks": [
+{
+"title": "Short milestone title",
+"description": "What this task accomplishes at a high level.",
+"dependencies": [],
+"priority": 8,
+"artifacts": [
+"Expected files/modules/components affected"
+]
+}
+]
+}
 
-## Output JSON
+==================================================
+GOOD EXAMPLE
+============
 
-Return ONLY a JSON object.  Tasks are ordered in the array by index (0, 1, 2...).
-Dependencies reference PREVIOUS indices.  Task 0 cannot have dependencies.
+Goal:
+"Add JWT authentication to an existing FastAPI app"
 
-{{
-    "plan_summary": "One-line summary",
-    "assumptions": ["..."],
-    "constraints": ["..."],
-    "tasks": [
-        {{
-            "title": "Short title",
-            "description": "What this task does and what files it produces.",
-            "dependencies": [],        // indices of prerequisite tasks.  EMPTY for root tasks.
-            "priority": 10,
-            "verification": {{
-                "expected_files": ["path/to/output.py"],
-                "required_patterns": ["SUCCESS", "completed", "created"],
-                "forbidden_patterns": ["ERROR", "FAILED"]
-            }}
-        }}
-    ]
-}}
+GOOD:
+[
+{
+"title": "Add backend JWT authentication",
+"dependencies": [],
+"priority": 8
+},
+{
+"title": "Integrate authenticated API access in frontend",
+"dependencies": [],
+"priority": 5
+},
+{
+"title": "Add authentication tests and verification",
+"dependencies": [0,1],
+"priority": 3
+}
+]
 
-## Concrete Example
+BAD:
 
-Goal: "Build a REST API for a todo app"
+* overly detailed implementation steps
+* file-level planning
+* long dependency chains
+* exact symbol reasoning
+* verification pattern generation
 
-Thinking:
-- Setup is the root: creates files that everything else needs
-- Models and routes are independent (different files) → siblings under setup
-- Tests for models depend on models, tests for routes depend on routes → leaf nodes
-- Depth = 2, width = 2 parallel branches
+==================================================
+FINAL INSTRUCTION
+=================
 
-Output:
-{{
-    "plan_summary": "FastAPI todo API with models, routes, and tests",
-    "assumptions": ["Python 3.10+", "FastAPI available"],
-    "constraints": ["In-memory storage, no database"],
-    "tasks": [
-        {{
-            "title": "Initialize project structure",
-            "description": "Create main.py, requirements.txt, and folder layout.",
-            "dependencies": [],
-            "priority": 10,
-            "verification": {{"expected_files": ["main.py", "requirements.txt"]}}
-        }},
-        {{
-            "title": "Implement Todo data model",
-            "description": "Define Pydantic Todo model with id/title/done fields in models.py.",
-            "dependencies": [0],
-            "priority": 8,
-            "verification": {{"expected_files": ["models.py"], "required_patterns": ["class Todo"]}}
-        }},
-        {{
-            "title": "Implement CRUD API routes",
-            "description": "Create GET/POST/PUT/DELETE /todos endpoints in routes.py.",
-            "dependencies": [0],
-            "priority": 8,
-            "verification": {{"expected_files": ["routes.py"], "required_patterns": ["@app"]}}
-        }},
-        {{
-            "title": "Write model unit tests",
-            "description": "Test Pydantic model validation and serialization.",
-            "dependencies": [1],
-            "priority": 3,
-            "verification": {{"expected_files": ["tests/test_models.py"], "required_patterns": ["def test_"]}}
-        }},
-        {{
-            "title": "Write API integration tests",
-            "description": "Test all endpoints with FastAPI TestClient.",
-            "dependencies": [2],
-            "priority": 3,
-            "verification": {{"test_command": "pytest tests/test_routes.py -x", "expected_files": ["tests/test_routes.py"]}}
-        }}
-    ]
-}}
+Favor speed and simplicity over perfect planning.
 
-Graph structure of this example (notice the branching):
-    Task 0 (Setup) → Task 1 (Models) → Task 3 (Model tests)
-                   → Task 2 (Routes) → Task 4 (Route tests)
-    Depth = 2.  Models and Routes run in parallel.  Tests run in parallel.
-
-Return ONLY the JSON.  Do NOT include the thinking step in your output — use it
-internally to design the graph, then output only JSON."""
+The execution runtime is responsible for deeper reasoning later.
+"""
 
     def __init__(
         self,
@@ -387,17 +416,19 @@ internally to design the graph, then output only JSON."""
         tasks_data = data.get("tasks", [])
         nodes: list[TaskNode] = []
 
-        # First pass: create nodes
+        # First pass: create nodes.
+        # Planner no longer generates verification metadata — verification is
+        # handled by the runtime (patch analysis + VerificationPolicyEngine).
         for i, td in enumerate(tasks_data):
-            verification_meta = td.get("verification", {})
+            extra_meta = {
+                k: v for k, v in td.items()
+                if k not in ("title", "description", "dependencies", "priority", "verification")
+            }
             node = TaskNode(
                 title=td.get("title", f"Task {i}"),
                 description=td.get("description", ""),
                 priority=td.get("priority", 0),
-                metadata={
-                    "verification": verification_meta,
-                    **{k: v for k, v in td.items() if k not in ("title", "description", "dependencies", "priority", "verification")},
-                },
+                metadata=extra_meta if extra_meta else {},
             )
             graph.add_node(node)
             nodes.append(node)

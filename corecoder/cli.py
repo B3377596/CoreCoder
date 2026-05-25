@@ -371,70 +371,50 @@ async def _run_plan(agent: Agent, goal: str):
 
     planner = LLMPlanner(llm_call=llm_call, model=agent.llm.model)
 
-    # Build a rich planning context from the repository index so the
-    # LLM can make informed decisions about task decomposition.
-    # Orchestrator.run() would do this internally, but since we pre-plan
-    # here (to show the graph before execution), we must build it ourselves.
+    # Build a lightweight project sketch for the planner.
+    # Key principle: this is a SKETCH, not a semantic dump.  The planner
+    # should get just enough to know framework/language/modules — NOT
+    # enough to trigger deep architectural reasoning.
+    # The execution runtime (ContextOrchestrator) handles detailed context later.
     cwd = os.getcwd()
     planning_ctx = {"working_dir": cwd}
 
     try:
         ri = agent.repo_index
-        # 1. Repository structure overview (framework, entry points, conventions)
-        full_summary = ri.summary_full if hasattr(ri, 'summary_full') else ri.summary
-        if hasattr(ri, 'summary_full') and callable(ri.summary_full):
-            full_summary = ri.summary_full()
-        else:
-            full_summary = ri.summary
-        if full_summary:
-            planning_ctx["repo_summary"] = str(full_summary)[:2500]
 
-        # 2. Symbol index — key classes, functions, and where they live.
-        # This tells the planner what already exists so it doesn't plan
-        # to create things that are already there.
+        # 1. Framework + language hints (from repo summary, just the first ~10 lines)
+        summary = ri.summary if hasattr(ri, 'summary') else ""
+        if summary:
+            # Extract just the key facts: framework, language, entry point
+            lines = str(summary).strip().split("\n")
+            key_lines = [l for l in lines[:15] if l.strip() and not l.startswith("#")]
+            if key_lines:
+                planning_ctx["project"] = "\n".join(key_lines)[:800]
+
+        # 2. Module list — just names, no symbols
         if hasattr(ri, '_symbols') and ri._symbols:
-            symbols_compact = {}
-            for filepath, syms in ri._symbols.items():
-                if isinstance(syms, dict):
-                    names = list(syms.keys())[:10]
-                elif isinstance(syms, list):
-                    names = [s.get("name", "?") if isinstance(s, dict) else str(s) for s in syms[:10]]
-                else:
-                    names = []
-                if names:
-                    rel = filepath
-                    symbols_compact[rel] = names
-            if symbols_compact:
-                # Limit to 20 files to keep tokens reasonable
-                top_symbols = dict(list(symbols_compact.items())[:20])
-                planning_ctx["top_symbols"] = top_symbols
+            modules = list(ri._symbols.keys())[:15]
+            if modules:
+                planning_ctx["modules"] = modules
 
-        # 3. Dependencies summary — declared packages and key imports
-        if hasattr(ri, '_deps') and ri._deps:
-            deps = ri._deps
-            deps_compact = {}
-            if isinstance(deps, dict):
-                declared = deps.get("declared", [])
-                if declared:
-                    deps_compact["declared_packages"] = declared[:20]
-                internal = deps.get("internal_imports", {})
-                if internal:
-                    deps_compact["internal_imports_count"] = len(internal)
-            if deps_compact:
-                planning_ctx["dependencies"] = deps_compact
+        # 3. Declared packages — just names
+        if hasattr(ri, '_deps') and isinstance(ri._deps, dict):
+            declared = ri._deps.get("declared", [])
+            if declared:
+                planning_ctx["packages"] = declared[:10]
 
     except Exception:
         pass
 
-    # 4. Top-level directory listing
+    # 4. Top-level file listing (just names, not contents)
     try:
-        top_files = []
+        entries = []
         for entry in os.scandir(cwd):
             if not entry.name.startswith("."):
                 suffix = "/" if entry.is_dir() else ""
-                top_files.append(entry.name + suffix)
-        if top_files:
-            planning_ctx["existing_files"] = sorted(top_files)[:60]
+                entries.append(entry.name + suffix)
+        if entries:
+            planning_ctx["top_files"] = sorted(entries)[:30]
     except Exception:
         pass
 
