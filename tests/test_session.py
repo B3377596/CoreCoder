@@ -1,5 +1,5 @@
-from corecoder import session as session_module
-from corecoder.session import load_session, save_session
+from corecoder.history import session as session_module
+from corecoder.history.session import load_session, save_session
 
 
 def test_default_session_ids_do_not_collide(tmp_path, monkeypatch):

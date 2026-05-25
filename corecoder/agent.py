@@ -35,12 +35,12 @@ from .tools.base import Tool
 from .tools.agent import AgentTool
 from .tools.repo_info import RepoInfoTool
 from .prompt import system_prompt
-from .context import ContextManager
-from .shadow import ShadowGit
-from .repo_index import RepoIndex
+from .history.compression import ContextManager
+from .repo.shadow import ShadowGit
+from .repo.index import RepoIndex
 
 if TYPE_CHECKING:
-    from .llm import LLM
+    from .llm.client import LLM
 
 logger = logging.getLogger("corecoder.agent")
 
@@ -255,7 +255,7 @@ class Agent:
             Text content if the LLM responded without tool calls.
             None if tool calls were executed (results appended to messages).
         """
-        from .llm import LLMResponse, ToolCall as LlmToolCall
+        from .llm.types import LLMResponse, ToolCall as LlmToolCall
 
         content_parts: list[str] = []
         reasoning_parts: list[str] = []

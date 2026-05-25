@@ -18,7 +18,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from corecoder.orchestration.models import TaskStatus
+from corecoder.orchestration.dag.models import TaskStatus
 
 
 @dataclass

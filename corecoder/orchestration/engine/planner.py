@@ -21,8 +21,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
-from corecoder.orchestration.models import TaskNode, TaskStatus, RetryPolicy
-from corecoder.orchestration.graph import TaskGraph
+from corecoder.orchestration.dag.models import TaskNode, TaskStatus, RetryPolicy
+from corecoder.orchestration.dag.graph import TaskGraph
 
 
 @dataclass

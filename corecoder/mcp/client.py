@@ -28,7 +28,7 @@ import logging
 import os
 from pathlib import Path
 
-from .tools.base import Tool
+from ..tools.base import Tool
 
 logger = logging.getLogger("corecoder.mcp")
 

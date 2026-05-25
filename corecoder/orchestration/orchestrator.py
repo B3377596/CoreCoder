@@ -23,27 +23,27 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Callable, Awaitable
 
-from corecoder.orchestration.models import TaskNode, TaskStatus, RetryPolicy
-from corecoder.orchestration.graph import TaskGraph
-from corecoder.orchestration.planner import (
+from corecoder.orchestration.dag.models import TaskNode, TaskStatus, RetryPolicy
+from corecoder.orchestration.dag.graph import TaskGraph
+from corecoder.orchestration.engine.planner import (
     BasePlanner,
     StaticPlanner,
     LLMPlanner,
     PlanResult,
 )
-from corecoder.orchestration.scheduler import (
+from corecoder.orchestration.engine.scheduler import (
     Scheduler,
     SchedulerConfig,
     SchedulingDecision,
 )
-from corecoder.orchestration.executor import Executor
-from corecoder.orchestration.verifier import (
+from corecoder.orchestration.engine.executor import Executor
+from corecoder.orchestration.engine.verifier import (
     BaseVerifier,
     NoOpVerifier,
     CompositeVerifier,
 )
-from corecoder.orchestration.recovery import RecoveryManager, DefaultRetryPolicy
-from corecoder.orchestration.memory import MemoryInjector
+from corecoder.orchestration.dag.recovery import RecoveryManager, DefaultRetryPolicy
+from corecoder.orchestration.dag.memory import MemoryInjector
 from corecoder.orchestration.storage import BaseStorage, JSONStorage
 from corecoder.orchestration.observability import OrchestrationLogger, EventType
 
@@ -123,6 +123,7 @@ class Orchestrator:
         self._storage: BaseStorage | None = None
         self._agent_chat_fn: Callable[..., Awaitable[str]] | None = None
         self._agent_instance: Any = None  # full Agent object for cloning in parallel mode
+        self._context_orchestrator: Any = None  # ContextOrchestrator for dynamic context
 
         # Replan hooks
         self._replan_hooks: list[Callable[[PlanResult, dict[str, Any]], PlanResult]] = []
@@ -153,6 +154,15 @@ class Orchestrator:
 
     def set_storage(self, storage: BaseStorage) -> None:
         self._storage = storage
+
+    def set_context_orchestrator(self, orchestrator: Any) -> None:
+        """Inject a ContextOrchestrator for dynamic context assembly.
+
+        When set, each task execution uses the orchestrator's pipeline
+        (collect → rank → deduplicate → compress → budget) instead of
+        the flat prompt builder in the Executor.
+        """
+        self._context_orchestrator = orchestrator
 
     def on_progress(self, callback: Callable[[TaskNode, str], None]) -> None:
         """Register a callback(task_node, event) for progress updates.
@@ -305,7 +315,7 @@ class Orchestrator:
         goal = log_data.get("goal", "")
 
         # Reset RUNNING tasks to PENDING
-        from corecoder.orchestration.recovery import resume_graph_state
+        from corecoder.orchestration.dag.recovery import resume_graph_state
         resume_graph_state(graph, graph_data)
 
         olog = OrchestrationLogger(name=f"resume_{run_id}")
@@ -346,6 +356,17 @@ class Orchestrator:
             agent_chat_fn=self._agent_chat_fn,
             max_rounds_per_task=self.config.max_rounds_per_task,
         )
+
+        # Wire ContextOrchestrator — enables dynamic context assembly by default.
+        # If an external orchestrator was injected via set_context_orchestrator(),
+        # use that.  Otherwise, create one from the agent instance.
+        if self._context_orchestrator is not None:
+            executor.set_context_orchestrator(self._context_orchestrator)
+        elif self._agent_instance is not None:
+            from corecoder.orchestration.context.orchestrator import ContextOrchestrator
+            co = ContextOrchestrator(working_dir=".")
+            co.set_system_prompt(getattr(self._agent_instance, '_system', ''))
+            executor.set_context_orchestrator(co)
 
         # In parallel mode, each task gets a fresh Agent clone to prevent
         # conversation interleaving.  The factory uses the same LLM client
@@ -442,11 +463,11 @@ class Orchestrator:
         composite.add(NoOpVerifier())
 
         if self.config.run_tests and self.config.test_command:
-            from corecoder.orchestration.verifier import TestVerifier
+            from corecoder.orchestration.engine.verifier import TestVerifier
             composite.add(TestVerifier())
 
         if self.config.run_lint and self.config.lint_command:
-            from corecoder.orchestration.verifier import LintVerifier
+            from corecoder.orchestration.engine.verifier import LintVerifier
             composite.add(LintVerifier())
 
         return composite

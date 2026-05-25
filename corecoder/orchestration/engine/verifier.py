@@ -21,7 +21,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
 
-from corecoder.orchestration.models import ExecutionResult, VerificationResult
+from corecoder.orchestration.dag.models import ExecutionResult, VerificationResult
 
 
 class BaseVerifier(ABC):

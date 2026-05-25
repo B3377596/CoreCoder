@@ -19,8 +19,8 @@ from __future__ import annotations
 import os
 import sys
 
-from corecoder.orchestration.models import TaskNode, TaskStatus
-from corecoder.orchestration.graph import TaskGraph
+from corecoder.orchestration.dag.models import TaskNode, TaskStatus
+from corecoder.orchestration.dag.graph import TaskGraph
 
 
 def _use_unicode() -> bool:

@@ -22,8 +22,9 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Awaitable
 
-from corecoder.orchestration.models import TaskNode, ExecutionResult
-from corecoder.orchestration.memory import WorkingMemory
+from corecoder.orchestration.dag.models import TaskNode, ExecutionResult
+from corecoder.orchestration.dag.memory import WorkingMemory
+from corecoder.orchestration.context.models import ExecutionState
 
 
 @dataclass
@@ -89,6 +90,9 @@ class Executor:
         self._timeout_ms = default_timeout_ms
         self._max_rounds = max_rounds_per_task
 
+        # Optional ContextOrchestrator — when set, replaces flat prompt building
+        self._context_orchestrator: Any = None  # ContextOrchestrator (lazy import)
+
         # Optional callbacks — set by the scheduler for observability
         self._on_tool: Callable[[str, dict], None] | None = None
         self._on_token: Callable[[str], None] | None = None
@@ -100,6 +104,15 @@ class Executor:
     def set_agent_factory(self, factory: Callable[[], Any]) -> None:
         """Inject an agent factory that creates a fresh Agent per task (parallel mode)."""
         self._agent_factory = factory
+
+    def set_context_orchestrator(self, orchestrator: Any) -> None:
+        """Inject a ContextOrchestrator for dynamic context assembly.
+
+        When set, the executor uses the orchestrator's build_task_context()
+        instead of the flat _build_task_prompt() method.  The orchestrator
+        handles retrieval, ranking, deduplication, compression, and budget.
+        """
+        self._context_orchestrator = orchestrator
 
     def set_callbacks(
         self,
@@ -125,7 +138,11 @@ class Executor:
         task.status = "running"
         task.touch()
 
-        user_message = self._build_task_prompt(ctx)
+        # Build the prompt: use ContextOrchestrator if available, else flat builder
+        if self._context_orchestrator is not None:
+            user_message = self._build_prompt_orchestrated(ctx)
+        else:
+            user_message = self._build_task_prompt(ctx)
 
         start = time.time()
         round_count = [0]  # mutable counter for closure
@@ -264,6 +281,56 @@ class Executor:
         )
 
         return "\n".join(parts)
+
+    def _build_prompt_orchestrated(self, ctx: TaskContext) -> str:
+        """Build the task prompt using the ContextOrchestrator.
+
+        This replaces the flat string concatenation in _build_task_prompt()
+        with a dynamic, state-aware context assembly pipeline.
+        """
+        orch = self._context_orchestrator
+        memory = ctx.memory
+
+        # Determine execution state from the task context
+        exec_state = ExecutionState.CODING  # Default
+        if memory.known_constraints and any("test" in c.lower() for c in memory.known_constraints):
+            exec_state = ExecutionState.TESTING
+        if memory.recent_failures:
+            exec_state = ExecutionState.DEBUGGING
+
+        # Extract focus files from completed artifacts
+        focus_files: list[str] = []
+        for art in memory.completed_artifacts.values():
+            files = art.get("expected_files", art.get("files", []))
+            focus_files.extend(files)
+
+        # Build completed artifacts map
+        completed_map: dict[str, dict] = {}
+        for tid, art in memory.completed_artifacts.items():
+            completed_map[tid] = dict(art)
+
+        result = orch.build_task_context(
+            task_id=memory.current_task_id,
+            task_title=memory.current_task_title,
+            task_description=memory.current_task_description,
+            goal=memory.current_goal,
+            execution_state=exec_state,
+            focus_files=focus_files,
+            focus_symbols=[],
+            recent_errors=memory.recent_failures,
+            constraints=memory.known_constraints,
+            assumptions=memory.assumptions,
+            completed_artifacts=completed_map,
+            token_budget=None,  # Use policy default
+        )
+
+        # Append the completion instruction (not part of context orchestration)
+        prompt = result.prompt
+        prompt += (
+            "\n\nWhen you have completed this task, summarize what you did "
+            "and what files you changed.  Be specific about file paths."
+        )
+        return prompt
 
     def _extract_artifacts(self, ctx: TaskContext) -> dict[str, Any]:
         """Extract artifact information from task metadata.

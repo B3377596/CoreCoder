@@ -23,12 +23,12 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import Any, Callable
 
-from corecoder.orchestration.models import TaskNode, TaskStatus, ExecutionResult
-from corecoder.orchestration.graph import TaskGraph
-from corecoder.orchestration.recovery import RecoveryManager, RecoveryAction
-from corecoder.orchestration.verifier import BaseVerifier, NoOpVerifier
-from corecoder.orchestration.executor import Executor, TaskContext
-from corecoder.orchestration.memory import MemoryInjector, WorkingMemory
+from corecoder.orchestration.dag.models import TaskNode, TaskStatus, ExecutionResult
+from corecoder.orchestration.dag.graph import TaskGraph
+from corecoder.orchestration.dag.recovery import RecoveryManager, RecoveryAction
+from corecoder.orchestration.engine.verifier import BaseVerifier, NoOpVerifier
+from corecoder.orchestration.engine.executor import Executor, TaskContext
+from corecoder.orchestration.dag.memory import MemoryInjector, WorkingMemory
 from corecoder.orchestration.observability import OrchestrationLogger, EventType
 
 

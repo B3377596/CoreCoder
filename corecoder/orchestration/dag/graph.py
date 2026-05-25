@@ -14,7 +14,7 @@ from __future__ import annotations
 from collections import deque
 from typing import Iterator
 
-from corecoder.orchestration.models import TaskNode, TaskStatus
+from corecoder.orchestration.dag.models import TaskNode, TaskStatus
 
 
 class CycleDetectedError(ValueError):
@@ -351,7 +351,7 @@ class TaskGraph:
     @classmethod
     def from_dict(cls, data: dict) -> TaskGraph:
         """Restore a graph from serialized state."""
-        from corecoder.orchestration.models import TaskNode as TN
+        from corecoder.orchestration.dag.models import TaskNode as TN
 
         graph = cls(name=data.get("name", "task_graph"))
         for node_data in data.get("nodes", []):

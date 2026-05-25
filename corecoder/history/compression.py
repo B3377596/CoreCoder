@@ -22,7 +22,7 @@ import re
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .llm import LLM
+    from ..llm.client import LLM
 
 logger = logging.getLogger("corecoder.context")
 

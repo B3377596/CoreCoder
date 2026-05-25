@@ -19,11 +19,12 @@ from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding import KeyBindings
 
 from .agent import Agent
-from .llm import LLM, LiteLLM, LLMResponse
+from .llm.client import LLM, LiteLLM
+from .llm.types import LLMResponse
 from .config import Config
-from .mcp import MCPClient
+from .mcp.client import MCPClient
 from .prompt import system_prompt
-from .session import save_session, load_session, list_sessions
+from .history.session import save_session, load_session, list_sessions
 from . import __version__
 from .orchestration.viz import render_graph_rich, status_icon
 from .orchestration.orchestrator import Orchestrator, OrchestratorConfig
@@ -270,7 +271,7 @@ async def _repl(agent: Agent, config: Config):
                 console.print(f"Current model: [cyan]{config.model}[/]")
             continue
         if user_input == "/compact":
-            from .context import estimate_tokens
+            from .history.compression import estimate_tokens
             before = estimate_tokens(agent.messages)
             compressed = await agent.context.maybe_compress(agent.messages, agent.llm)
             after = estimate_tokens(agent.messages)

@@ -6,8 +6,8 @@ import pathlib
 import pytest
 
 from corecoder import Agent, LLM, Config, ALL_TOOLS, __version__
-from corecoder.context import ContextManager, estimate_tokens
-from corecoder.session import save_session, load_session, list_sessions
+from corecoder.history.compression import ContextManager, estimate_tokens
+from corecoder.history.session import save_session, load_session, list_sessions
 from corecoder.tools import get_tool
 
 
@@ -119,7 +119,7 @@ def test_list_sessions():
 # --- Cost estimation ---
 
 def test_cost_estimation_known_model():
-    from corecoder.llm import LLM
+    from corecoder.llm.client import LLM
     llm = LLM.__new__(LLM)
     llm.model = "gpt-5.4"
     llm.total_prompt_tokens = 1_000_000
@@ -129,7 +129,7 @@ def test_cost_estimation_known_model():
     assert cost == 2.5 + 7.5  # $2.5/M in + $15/M out * 0.5M
 
 def test_cost_estimation_unknown_model():
-    from corecoder.llm import LLM
+    from corecoder.llm.client import LLM
     llm = LLM.__new__(LLM)
     llm.model = "some-custom-model"
     llm.total_prompt_tokens = 1000

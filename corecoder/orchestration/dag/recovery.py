@@ -18,7 +18,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
-from corecoder.orchestration.models import (
+from corecoder.orchestration.dag.models import (
     TaskNode,
     TaskStatus,
     ExecutionResult,

@@ -1,12 +1,7 @@
-"""LLM provider layer - thin wrapper over OpenAI-compatible APIs.
+"""LLM provider layer — thin wrapper over OpenAI-compatible APIs.
 
-Since most providers (DeepSeek, Qwen, Kimi, GLM, Ollama, etc.) expose an
-OpenAI-compatible endpoint, we use the openai SDK directly.  Switch
-provider by changing OPENAI_BASE_URL + OPENAI_API_KEY.  That's it.
-
-For providers that are NOT OpenAI-compatible (AWS Bedrock, Google Vertex,
-etc.), use the LiteLLM backend which routes to 100+ providers through a
-single unified interface. Set CORECODER_PROVIDER=litellm.
+Since most providers expose an OpenAI-compatible endpoint, we use the
+openai SDK directly.  For non-OpenAI providers, use the LiteLLM backend.
 """
 
 from __future__ import annotations
@@ -14,9 +9,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import json
-from typing import AsyncGenerator, Literal
-from dataclasses import dataclass, field
-
+from typing import AsyncGenerator
 
 from openai import (
     AsyncOpenAI,
@@ -26,63 +19,7 @@ from openai import (
     APIConnectionError,
 )
 
-
-
-@dataclass
-class ToolCall:
-    id: str
-    name: str
-    arguments: dict
-
-
-@dataclass
-class SSEEvent:
-    """A single event in the SSE (Server-Sent Events) stream.
-
-    Types:
-    - "text": a content token
-    - "reasoning": a reasoning token (DeepSeek/o1)
-    - "tool_call": a complete tool call (args parsed as valid JSON)
-    - "done": stream finished
-    - "error": stream error
-    """
-
-    type: str
-    token: str | None = None
-    tool_call: ToolCall | None = None
-    usage: dict | None = None
-    error: str | None = None
-
-
-@dataclass
-class LLMResponse:
-    content: str = ""
-    reasoning_content: str = ""  #thinking tokens
-    tool_calls: list[ToolCall] = field(default_factory=list)
-    prompt_tokens: int = 0
-    completion_tokens: int = 0
-
-    @property
-    def message(self) -> dict:
-        """Convert to OpenAI message format for appending to history."""
-        msg: dict = {"role": "assistant", "content": self.content or None}
-        # DeepSeek requires reasoning_content to be passed back in subsequent
-        # messages, otherwise it returns a 400 error.
-        if self.reasoning_content:
-            msg["reasoning_content"] = self.reasoning_content
-        if self.tool_calls:
-            msg["tool_calls"] = [
-                {
-                    "id": tc.id,
-                    "type": "function",
-                    "function": {
-                        "name": tc.name,
-                        "arguments": json.dumps(tc.arguments),
-                    },
-                }
-                for tc in self.tool_calls
-            ]
-        return msg
+from corecoder.llm.types import ToolCall, SSEEvent, LLMResponse
 
 
 # pricing per million tokens: (input, output)
