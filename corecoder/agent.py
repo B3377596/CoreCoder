@@ -278,6 +278,14 @@ class Agent:
 
             elif event.type == "reasoning":
                 reasoning_parts.append(event.token or "")
+                # Forward reasoning tokens to on_token so the UI shows
+                # activity during long thinking phases (DeepSeek-R1 can
+                # reason silently for minutes).  Prefix with [think] so
+                # the UI can distinguish reasoning from output.
+                if on_token:
+                    ret = on_token("[think] " + (event.token or ""))
+                    if inspect.isawaitable(ret):
+                        await ret
 
             elif event.type == "tool_call" and event.tool_call:
                 tc = event.tool_call

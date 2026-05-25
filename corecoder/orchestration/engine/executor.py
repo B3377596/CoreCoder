@@ -222,17 +222,13 @@ class Executor:
         return result
 
     def _build_task_prompt(self, ctx: TaskContext) -> str:
-        """Build the user prompt that drives the agent for this task.
-
-        The prompt combines:
-        - The overall goal context from working memory
-        - The specific task instructions
-        - Information about completed dependencies
-        - Known constraints and previous failures
-        """
+        """Build the user prompt that drives the agent for this task."""
         memory = ctx.memory
 
         parts: list[str] = []
+
+        # ---- Task Contract (runtime policy layer) ----
+        parts.append(self._build_task_contract(ctx))
 
         # Main instruction
         parts.append(f"## Task: {memory.current_task_title}\n\n{memory.current_task_description}")
@@ -241,16 +237,11 @@ class Executor:
         if memory.current_goal:
             parts.append(f"\n## Overall Goal\n{memory.current_goal}")
 
-        # If there are NO completed prerequisites and no context, this is
-        # likely an empty/new project.  Tell the agent explicitly so it
-        # doesn't waste rounds exploring nothing.
+        # Project state
         if not memory.completed_artifacts and not memory.known_constraints:
             parts.append(
                 "\n## Project State\n"
-                "This appears to be an EMPTY or NEW project directory. "
-                "No existing code, no virtual environment, no config. "
-                "Start by creating the necessary structure — don't waste "
-                "time listing empty directories."
+                "EMPTY PROJECT — no code, no venv, no config. Start from scratch."
             )
 
         # Completed upstream work
@@ -294,6 +285,64 @@ class Executor:
 
         return "\n".join(parts)
 
+    def _build_task_contract(self, ctx: TaskContext) -> str:
+        """Build the task contract — runtime policy that constrains agent behavior.
+
+        This is the action gating layer.  Without it, the agent freely does
+        downstream work, runs redundant observations, and never knows when
+        to stop.
+        """
+        memory = ctx.memory
+        lines = ["## Runtime Policy (MUST follow)"]
+
+        # 1. Scope boundary — don't do work that belongs to downstream tasks
+        lines.append(
+            "- **SCOPE**: ONLY do the task described below.  Do NOT implement "
+            "work that belongs to later tasks.  If you finish early, STOP — "
+            "don't start the next task."
+        )
+
+        # 2. Anti-redundancy — don't verify what you already know
+        lines.append(
+            "- **NO REDUNDANCY**: After creating a file, do NOT immediately "
+            "read it back to confirm.  Trust your writes.  After deterministic "
+            "commands (uv init, npm init, mkdir), you KNOW what files exist — "
+            "do NOT glob/read to verify."
+        )
+
+        # 3. Completion criteria — explicit stop conditions
+        title = memory.current_task_title.lower()
+        desc = memory.current_task_description.lower()
+        stop_hints = []
+        if any(kw in title + desc for kw in ("init", "venv", "virtual environment", "setup", "create project")):
+            stop_hints.append("a .venv directory or pyproject.toml exists")
+        if any(kw in title + desc for kw in ("implement", "write", "create", "code", "logic")):
+            stop_hints.append("the code file exists and runs without errors on basic input")
+        if any(kw in title + desc for kw in ("test", "verify", "validate")):
+            stop_hints.append("tests pass or verification commands succeed")
+        if any(kw in title + desc for kw in ("ui", "interface", "cli", "command line")):
+            stop_hints.append("the entry point accepts input and produces output")
+
+        if stop_hints:
+            lines.append(
+                "- **STOP WHEN**: " + "; or ".join(stop_hints) + ".  "
+                "Do NOT add extra testing/verification beyond what the task requires."
+            )
+        else:
+            lines.append(
+                "- **STOP WHEN**: the task's stated objective is met.  "
+                "Do NOT add extra work."
+            )
+
+        # 4. Efficiency — prefer direct action over exploration
+        lines.append(
+            "- **EFFICIENCY**: If the task says 'create a venv', run 'uv venv' "
+            "directly.  Don't explore, list files, or read config first — just "
+            "do it.  The project state is already described above."
+        )
+
+        return "\n".join(lines)
+
     def _build_prompt_orchestrated(self, ctx: TaskContext) -> str:
         """Build the task prompt using the ContextOrchestrator.
 
@@ -302,6 +351,9 @@ class Executor:
         """
         orch = self._context_orchestrator
         memory = ctx.memory
+
+        # Prepend the task contract (runtime policy layer)
+        contract = self._build_task_contract(ctx)
 
         # Determine execution state from the task context
         exec_state = ExecutionState.CODING  # Default
@@ -336,15 +388,16 @@ class Executor:
             token_budget=None,  # Use policy default
         )
 
-        # If the orchestrator produced almost nothing, this is an empty project
+        # Prepend the task contract to the orchestrator's output
         if not result.prompt.strip() or len(result.prompt) < 50:
             prompt = (
+                contract + "\n\n"
                 "## Project State\n"
                 "EMPTY PROJECT — no files, no config, no virtual environment. "
                 "Create everything from scratch.\n\n"
             )
         else:
-            prompt = result.prompt
+            prompt = contract + "\n\n" + result.prompt
 
         prompt += (
             "\n\nWhen you have completed this task, summarize what you did "
