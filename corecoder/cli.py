@@ -372,41 +372,44 @@ async def _run_plan(agent: Agent, goal: str):
     planner = LLMPlanner(llm_call=llm_call, model=agent.llm.model)
 
     # Build a lightweight project sketch for the planner.
-    # Key principle: this is a SKETCH, not a semantic dump.  The planner
-    # should get just enough to know framework/language/modules — NOT
-    # enough to trigger deep architectural reasoning.
-    # The execution runtime (ContextOrchestrator) handles detailed context later.
+    # Key principle: this is a SKETCH, not a semantic dump.
+    # IMPORTANT: if the project is empty, SAY SO explicitly so the agent
+    # doesn't waste tool calls exploring nothing.
     cwd = os.getcwd()
     planning_ctx = {"working_dir": cwd}
+
+    has_any_content = False
 
     try:
         ri = agent.repo_index
 
-        # 1. Framework + language hints (from repo summary, just the first ~10 lines)
+        # 1. Framework + language hints
         summary = ri.summary if hasattr(ri, 'summary') else ""
         if summary:
-            # Extract just the key facts: framework, language, entry point
             lines = str(summary).strip().split("\n")
             key_lines = [l for l in lines[:15] if l.strip() and not l.startswith("#")]
             if key_lines:
                 planning_ctx["project"] = "\n".join(key_lines)[:800]
+                has_any_content = True
 
-        # 2. Module list — just names, no symbols
+        # 2. Module list
         if hasattr(ri, '_symbols') and ri._symbols:
             modules = list(ri._symbols.keys())[:15]
             if modules:
                 planning_ctx["modules"] = modules
+                has_any_content = True
 
-        # 3. Declared packages — just names
+        # 3. Declared packages
         if hasattr(ri, '_deps') and isinstance(ri._deps, dict):
             declared = ri._deps.get("declared", [])
             if declared:
                 planning_ctx["packages"] = declared[:10]
+                has_any_content = True
 
     except Exception:
         pass
 
-    # 4. Top-level file listing (just names, not contents)
+    # 4. Top-level file listing
     try:
         entries = []
         for entry in os.scandir(cwd):
@@ -415,8 +418,17 @@ async def _run_plan(agent: Agent, goal: str):
                 entries.append(entry.name + suffix)
         if entries:
             planning_ctx["top_files"] = sorted(entries)[:30]
+            has_any_content = True
     except Exception:
         pass
+
+    # If nothing at all was found, tell the planner this is a blank slate
+    if not has_any_content:
+        planning_ctx["project"] = (
+            "EMPTY DIRECTORY — no existing code, no config files, "
+            "no virtual environment, no package manager initialized. "
+            "Start from scratch: create venv, init project, then write code."
+        )
 
     async def _plan_with_progress():
         nonlocal plan_result
@@ -478,11 +490,22 @@ async def _run_plan(agent: Agent, goal: str):
     # Track which task is currently executing (for tool call context in parallel mode)
     _current_task_title: str = ""
 
+    # Token counter for "thinking" indicator
+    _token_count = [0]
+
     def on_tool(name: str, kwargs: dict):
         """Print each tool invocation with the task context."""
+        _token_count[0] = 0  # Reset token counter when a tool is called
         brief = _brief(kwargs, 120)
         prefix = f"    [{_current_task_title[:20]}]" if _current_task_title else "    "
         console.print(f"{prefix} [dim]> {name}({brief})[/dim]")
+
+    def on_token(_tok: str):
+        """Show periodic indicator while the agent is generating text."""
+        _token_count[0] += 1
+        if _token_count[0] % 80 == 1 and _current_task_title:
+            sys.stdout.write(f"\r    [{_current_task_title[:20]}] [dim]thinking...[/]")
+            sys.stdout.flush()
 
     def on_progress(task_node, event: str):
         """Print task status transitions with timing and verification details."""
@@ -529,10 +552,11 @@ async def _run_plan(agent: Agent, goal: str):
         goal=goal,
         continue_on_failure=True,
         auto_persist=True,
-        max_rounds_per_task=15,  # each orchestrated task is focused
+        max_rounds_per_task=25,  # first tasks need exploration; code tasks need test cycles
         parallel=True,           # run independent tasks concurrently
         max_parallel=4,
         on_tool_callback=on_tool,
+        on_token_callback=on_token,
     )
     orch = Orchestrator(orch_config)
     orch.set_planner(planner)

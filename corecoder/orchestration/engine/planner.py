@@ -161,160 +161,44 @@ class LLMPlanner(BasePlanner):
     # - No verification design (runtime auto-generates)
     # - No DAG optimization (scheduler heuristics handle parallelism)
     # - No file-level reasoning (executor retrieves symbols on demand)
-    PLANNING_PROMPT = """
-You are a lightweight software task planner.
-Your job is NOT to fully understand the repository architecture.
-Your job is to quickly produce a practical execution plan that allows a coding
-agent runtime to START execution immediately.
-The execution runtime itself will later handle:
+    PLANNING_PROMPT = """Break the following goal into 3-6 high-level milestones for a coding agent.
 
-* symbol analysis
-* dependency inspection
-* code retrieval
-* verification
-* debugging
-* replanning
-* patch validation
-
-So avoid deep software engineering reasoning.
-
-==================================================
-GOAL
-====
+## Goal
 {goal}
-==================================================
-LIGHTWEIGHT REPOSITORY SKETCH
-=============================
+
+## Project Sketch
 {context}
-==================================================
-PLANNING PRINCIPLES
-===================
 
-1. Prefer SIMPLE plans over optimal plans.
-2. Produce HIGH-LEVEL executable milestones,not detailed implementation breakdowns.
-3. Assume the execution runtime can dynamically:
-   * inspect code
-   * discover dependencies
-   * retrieve symbols
-   * replan if necessary
-4. Do NOT attempt to globally optimize the DAG.
-5. Use dependencies ONLY when obviously necessary.
-6. Prefer WIDE and SHALLOW task graphs.
-7. Avoid micro-tasks.
-8. Avoid deep dependency reasoning.
-9. Avoid predicting exact implementation details.
-10. Keep planning FAST.
+## Rules
+- Each milestone is one actionable step.
+- **Setup and implementation are ALWAYS separate tasks.** Environment creation
+  (uv init, npm init, venv, install deps) must be its own task, NOT bundled
+  with code writing.  Code tasks depend on setup tasks.
+- Add a dependency ONLY if milestone B literally cannot start before A finishes
+  (e.g., A creates files/config that B needs).  Default to independent.
+- Keep dependency chains shallow (max depth 2).
+- Priorities: 10=setup, 8=core, 5=integration, 3=verification.
 
-==================================================
-TASK REQUIREMENTS
-=================
-
-* Produce 3-6 tasks.
-* Each task should represent one meaningful milestone.
-* Tasks should be independently executable whenever possible.
-* Maximum dependency depth: 2.
-* Prefer sibling tasks over chains.
-* Most tasks should be parallelizable.
-
-==================================================
-WHEN TO CREATE DEPENDENCIES
-===========================
-
-Create a dependency ONLY if:
-* Task B directly requires files/artifacts produced by Task A
-* OR Task A establishes mandatory project setup required by B
-* OR Task B cannot reasonably start before A completes
-Otherwise:
-MAKE TASKS INDEPENDENT.
-
-==================================================
-AVOID
-=====
-DO NOT:
-* simulate full execution
-* reason about all repository symbols
-* predict detailed file edits
-* generate verification logic
-* optimize the DAG globally
-* create tiny subtasks
-* overthink architecture
-* produce long task chains
-The runtime system handles those later.
-
-==================================================
-PRIORITIES
-==========
-
-10 = setup/foundation
-8 = core implementation
-5 = integration/enhancement
-3 = testing/verification
-
-==================================================
-OUTPUT FORMAT
-=============
-
-Return ONLY valid JSON.
-
-{
-"plan_summary": "Short summary",
-"assumptions": [],
-"constraints": [],
-"tasks": [
-{
-"title": "Short milestone title",
-"description": "What this task accomplishes at a high level.",
-"dependencies": [],
-"priority": 8,
-"artifacts": [
-"Expected files/modules/components affected"
-]
-}
-]
-}
-
-==================================================
-GOOD EXAMPLE
-============
-
-Goal:
-"Add JWT authentication to an existing FastAPI app"
-
-GOOD:
+## Example
+Goal: "Build a CLI calculator with uv"
 [
-{
-"title": "Add backend JWT authentication",
-"dependencies": [],
-"priority": 8
-},
-{
-"title": "Integrate authenticated API access in frontend",
-"dependencies": [],
-"priority": 5
-},
-{
-"title": "Add authentication tests and verification",
-"dependencies": [0,1],
-"priority": 3
-}
+  {"title": "Initialize uv project and venv", "dependencies": [], "priority": 10},
+  {"title": "Implement calculator logic", "dependencies": [0], "priority": 8},
+  {"title": "Add CLI argument handling", "dependencies": [1], "priority": 5}
 ]
 
-BAD:
-
-* overly detailed implementation steps
-* file-level planning
-* long dependency chains
-* exact symbol reasoning
-* verification pattern generation
-
-==================================================
-FINAL INSTRUCTION
-=================
-
-Favor speed and simplicity over perfect planning.
-
-The execution runtime is responsible for deeper reasoning later.
-"""
+Return ONLY JSON:
+{
+  "plan_summary": "one-line summary",
+  "tasks": [
+    {
+      "title": "Short milestone title",
+      "description": "What this accomplishes.",
+      "dependencies": [],
+      "priority": 5
+    }
+  ]
+}"""
 
     def __init__(
         self,
@@ -344,7 +228,9 @@ The execution runtime is responsible for deeper reasoning later.
             raise RuntimeError("LLMPlanner has no LLM callable.  Call set_llm() first.")
 
         ctx_str = json.dumps(context or {}, indent=2, default=str)
-        prompt = self.PLANNING_PROMPT.format(goal=goal, context=ctx_str)
+        # Use .replace() instead of .format() to avoid brace-escaping issues
+        # when the prompt template contains JSON examples with { and }.
+        prompt = self.PLANNING_PROMPT.replace("{goal}", goal).replace("{context}", ctx_str)
 
         messages = [{"role": "user", "content": prompt}]
         response = await self._llm_call(messages)

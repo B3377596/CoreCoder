@@ -73,8 +73,9 @@ class SchedulerConfig:
     # Max tool-call rounds per orchestrated task (prevents infinite loops)
     max_rounds_per_task: int = 20
 
-    # Optional tool-call callback for UI observability
+    # Optional callbacks for UI observability
     on_tool_callback: Callable[[str, dict], None] | None = None
+    on_token_callback: Callable[[str], None] | None = None
 
     # Parallel execution: run independent tasks concurrently
     parallel: bool = False
@@ -148,9 +149,11 @@ class Scheduler:
         self.olog.start_run()
         self.olog.emit(EventType.SCHEDULE_PICK, message="Scheduler starting")
 
-        # Wire tool-call callbacks to the executor for observability
-        if self.config.on_tool_callback:
-            self.executor.set_callbacks(on_tool=self.config.on_tool_callback)
+        # Wire callbacks to the executor for observability
+        self.executor.set_callbacks(
+            on_tool=self.config.on_tool_callback,
+            on_token=self.config.on_token_callback,
+        )
 
         while self._tasks_run < self.config.max_tasks_per_run:
             # 1. Find ready tasks

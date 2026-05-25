@@ -469,14 +469,13 @@ class VerificationPolicyEngine:
     add SyntaxVerifier for Python changes, add TestVerifier for test changes.
     """
 
-    def select_verifiers(self, patch: PatchAnalysis) -> list[BaseVerifier]:
+    def select_verifiers(self, patch: PatchAnalysis | None) -> list[BaseVerifier]:
         """Return the verifiers to run based on what actually changed."""
-        verifiers: list[BaseVerifier] = []
+        verifiers: list[BaseVerifier] = [FileCreatedVerifier()]
 
-        # Always check that files mentioned in output exist (zero-cost)
-        verifiers.append(FileCreatedVerifier())
-
-        if not patch.has_changes:
+        # If no patch info available (e.g., ShadowGit not initialized),
+        # just do the basic file-existence check.
+        if patch is None or not patch.has_changes:
             return verifiers
 
         # Python changes → syntax + import checks
@@ -490,7 +489,7 @@ class VerificationPolicyEngine:
 
         return verifiers
 
-    def build(self, patch: PatchAnalysis) -> CompositeVerifier:
+    def build(self, patch: PatchAnalysis | None) -> CompositeVerifier:
         """Build a composite verifier for the given patch."""
         return CompositeVerifier(self.select_verifiers(patch))
 

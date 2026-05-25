@@ -78,8 +78,9 @@ class OrchestratorConfig:
     parallel: bool = False
     max_parallel: int = 4
 
-    # Tool-call callback for CLI observability
+    # Callbacks for CLI observability
     on_tool_callback: Callable[[str, dict], None] | None = None
+    on_token_callback: Callable[[str], None] | None = None
 
 
 @dataclass
@@ -396,6 +397,7 @@ class Orchestrator:
             parallel=self.config.parallel,
             max_parallel=self.config.max_parallel,
             on_tool_callback=self.config.on_tool_callback,
+            on_token_callback=self.config.on_token_callback,
             goal=goal,
         )
 
@@ -472,6 +474,22 @@ class Orchestrator:
         # appropriate verifiers for what actually changed.
         return _DynamicVerifier(engine)
 
+    # ------------------------------------------------------------------
+    # lazy init helpers
+    # ------------------------------------------------------------------
+
+    def _get_planner(self) -> BasePlanner:
+        if self._planner is not None:
+            return self._planner
+        self._planner = StaticPlanner()
+        return self._planner
+
+    def _get_storage(self) -> BaseStorage:
+        if self._storage is not None:
+            return self._storage
+        self._storage = JSONStorage(base_dir=self.config.storage_dir)
+        return self._storage
+
 
 class _DynamicVerifier(BaseVerifier):
     """Verifier wrapper that defers selection to verification time."""
@@ -482,20 +500,3 @@ class _DynamicVerifier(BaseVerifier):
     def verify(self, result, patch=None, working_dir=None):
         composite = self._engine.build(patch)
         return composite.verify(result, patch=patch, working_dir=working_dir)
-
-    # ------------------------------------------------------------------
-    # lazy init helpers
-    # ------------------------------------------------------------------
-
-    def _get_planner(self) -> BasePlanner:
-        if self._planner is not None:
-            return self._planner
-        # Default: empty static planner
-        self._planner = StaticPlanner()
-        return self._planner
-
-    def _get_storage(self) -> BaseStorage:
-        if self._storage is not None:
-            return self._storage
-        self._storage = JSONStorage(base_dir=self.config.storage_dir)
-        return self._storage

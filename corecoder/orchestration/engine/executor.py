@@ -241,6 +241,18 @@ class Executor:
         if memory.current_goal:
             parts.append(f"\n## Overall Goal\n{memory.current_goal}")
 
+        # If there are NO completed prerequisites and no context, this is
+        # likely an empty/new project.  Tell the agent explicitly so it
+        # doesn't waste rounds exploring nothing.
+        if not memory.completed_artifacts and not memory.known_constraints:
+            parts.append(
+                "\n## Project State\n"
+                "This appears to be an EMPTY or NEW project directory. "
+                "No existing code, no virtual environment, no config. "
+                "Start by creating the necessary structure — don't waste "
+                "time listing empty directories."
+            )
+
         # Completed upstream work
         if memory.completed_artifacts:
             parts.append("\n## Completed Prerequisites")
@@ -324,8 +336,16 @@ class Executor:
             token_budget=None,  # Use policy default
         )
 
-        # Append the completion instruction (not part of context orchestration)
-        prompt = result.prompt
+        # If the orchestrator produced almost nothing, this is an empty project
+        if not result.prompt.strip() or len(result.prompt) < 50:
+            prompt = (
+                "## Project State\n"
+                "EMPTY PROJECT — no files, no config, no virtual environment. "
+                "Create everything from scratch.\n\n"
+            )
+        else:
+            prompt = result.prompt
+
         prompt += (
             "\n\nWhen you have completed this task, summarize what you did "
             "and what files you changed.  Be specific about file paths."
