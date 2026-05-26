@@ -267,7 +267,6 @@ class Executor:
                 context_parts.append(f"- COMPLETED: {desc}")
                 files = (art.get("created_files", []) or
                          art.get("all_changed", []) or
-                         art.get("agent_mentioned_files", []) or
                          art.get("files", []) or
                          art.get("expected_files", []))
                 if files:
@@ -330,7 +329,6 @@ class Executor:
         for art in memory.completed_artifacts.values():
             files = (art.get("created_files", []) or
                      art.get("all_changed", []) or
-                     art.get("agent_mentioned_files", []) or
                      art.get("expected_files", []) or
                      art.get("files", []))
             focus_files.extend(files)

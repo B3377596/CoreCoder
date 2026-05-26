@@ -172,7 +172,7 @@ class WorkingMemoryContextLayer(ContextLayer):
                     if key == "description":
                         continue
                     if isinstance(value, list):
-                        parts.append(f"  - {key}: {', '.join(str(v) for v in value)}")
+                        parts.append(f"  - {key}: {', '.join(str(v) for v in value[:8])}")
             content = "\n".join(parts)
             fragments.append(ContextFragment(
                 source=self.source,
@@ -302,19 +302,6 @@ class ExecutionPolicyContextLayer(ContextLayer):
                 token_count=_estimate_tokens(stop) + 20,
             ))
 
-        # ---- Anti-redundancy rules ----
-        fragments.append(ContextFragment(
-            source=self.source, type=ContextType.INSTRUCTION,
-            content=(
-                "**RULES**: (1) Do NOT read back files you just wrote. "
-                "(2) After deterministic commands like 'uv init', trust the output. "
-                "(3) If a prerequisite task already initialized the project, "
-                "do NOT re-initialize it. "
-                "(4) Do NOT install tools/packages unless THIS task requires them."
-            ),
-            priority=9, relevance_score=0.9,
-            token_count=60,
-        ))
 
         return fragments
     #TODO: 关键词匹配，后续需要修改

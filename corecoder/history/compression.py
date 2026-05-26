@@ -71,7 +71,7 @@ def estimate_tokens(messages: list[dict]) -> int:
 
 
 class ContextManager:
-    def __init__(self, max_tokens: int = 128_000):
+    def __init__(self, max_tokens: int = 256_000):
         self.max_tokens = max_tokens
         # layer thresholds (fraction of max_tokens)
         self._snip_at = int(max_tokens * 0.50)

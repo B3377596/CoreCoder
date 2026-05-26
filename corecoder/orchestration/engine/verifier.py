@@ -138,15 +138,6 @@ class ArtifactExtractor:
             artifacts["deleted_files"] = list(patch.deleted_files)
             artifacts["all_changed"] = patch.all_changed
 
-        # Extract file paths mentioned in agent output as hints
-        import re
-        mentioned = set()
-        for line in result.output.split("\n"):
-            for m in re.finditer(r'(?:created|modified|wrote|updated|changed)\s+[`"\']?([^\s`"\']+\.\w+)', line, re.IGNORECASE):
-                mentioned.add(m.group(1))
-        if mentioned:
-            artifacts["agent_mentioned_files"] = sorted(mentioned)
-
         return artifacts
 
 

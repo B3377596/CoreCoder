@@ -107,14 +107,13 @@ class WorkingMemory:
                 parts.append(f"- COMPLETED: **{desc}**")
                 # Show what files were created — this is the key working memory
                 created = (art.get("created_files", []) or
-                          art.get("all_changed", []) or
-                          art.get("agent_mentioned_files", []))
+                          art.get("all_changed", []))
                 if created:
                     parts.append(f"  Files: {', '.join(str(f) for f in created[:10])}")
                 # Other metadata
                 for key, value in art.items():
                     if key in ("description", "created_files", "all_changed",
-                               "agent_mentioned_files", "modified_files", "deleted_files"):
+                               "modified_files", "deleted_files"):
                         continue
                     if isinstance(value, list):
                         parts.append(f"  {key}: {', '.join(str(v) for v in value)}")
