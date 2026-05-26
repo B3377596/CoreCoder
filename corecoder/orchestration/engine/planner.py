@@ -23,6 +23,7 @@ from typing import Any, Callable
 
 from corecoder.orchestration.dag.models import TaskNode, TaskStatus, RetryPolicy
 from corecoder.orchestration.dag.graph import TaskGraph
+from corecoder.orchestration.context.layers import derive_task_bounds, derive_task_stop
 
 
 @dataclass
@@ -355,6 +356,9 @@ Return ONLY JSON:
                         # Skip invalid dependencies rather than failing the whole plan
                         pass
 
+        # Validate and auto-fill missing bounds for each task
+        self._validate_and_fill_bounds(nodes)
+
         return PlanResult(
             graph=graph,
             plan_summary=data.get("plan_summary", f"Plan for: {goal}"),
@@ -363,6 +367,32 @@ Return ONLY JSON:
             estimated_tasks=len(nodes),
             metadata={"raw_plan": data},
         )
+
+    @staticmethod
+    def _validate_and_fill_bounds(nodes: list[TaskNode]) -> None:
+        """Auto-fill missing allowed/forbidden/stop_when from keyword heuristics.
+
+        If the LLM planner didn't provide bounds for a task (or provided empty
+        lists/strings), fall back to keyword-based derivation.  This ensures
+        every task has a contract even when the planner output is incomplete.
+        """
+        for node in nodes:
+            allowed = node.metadata.get("allowed")
+            forbidden = node.metadata.get("forbidden")
+            stop_when = node.metadata.get("stop_when", "")
+
+            # Fill bounds if missing or empty
+            if not allowed and not forbidden:
+                a, f = derive_task_bounds(node.title, node.description)
+                if a:
+                    node.metadata["allowed"] = a
+                if f:
+                    node.metadata["forbidden"] = f
+
+            if not stop_when:
+                s = derive_task_stop(node.title, node.description)
+                if s:
+                    node.metadata["stop_when"] = s
 
     def replan(
         self,

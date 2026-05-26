@@ -310,59 +310,70 @@ class ExecutionPolicyContextLayer(ContextLayer):
             ))
 
         return fragments
-    #TODO: 关键词匹配，后续需要修改
     def _derive_bounds(self, title: str, desc: str) -> tuple[list[str], list[str]]:
-        """Derive allowed and forbidden actions from task keywords."""
-        text = title + desc
+        return derive_task_bounds(title, desc)
 
-        # Install / dependency tasks — ONLY run package manager, nothing else
-        if any(kw in text for kw in
-               ("install", "dependency", "dependencies", "package", "uv add", "pip install")):
-            return (
-                ["run package manager commands (uv add, pip install, etc.)",
-                 "edit pyproject.toml/requirements.txt to declare dependencies"],
-                ["write application code", "create .py files", "write server files",
-                 "start servers", "create test files", "implement features"],
-            )
-
-        if any(kw in text for kw in
-               ("init", "venv", "virtual environment", "setup", "create project", "uv init")):
-            return (
-                ["run 'uv init' or 'uv venv'", "create config files"],
-                ["write application code", "create test files", "install testing packages",
-                 "run tests", "implement features or algorithms"],
-            )
-        if any(kw in text for kw in
-               ("implement", "write", "create", "code", "logic", "function")):
-            return (
-                ["write the specified code files", "run once with basic input to verify"],
-                ["initialize package managers", "create virtual environments",
-                 "create test files", "install testing packages", "run test suites"],
-            )
-        if any(kw in text for kw in
-               ("ui", "interface", "cli", "command line", "entry point")):
-            return (
-                ["create or modify the CLI/UI entry point", "wire existing modules"],
-                ["re-initialize the project", "re-create existing code files", "create tests"],
-            )
-        return ([], [])
-    #TODO: 关键词匹配，后续需要修改
     def _derive_stop(self, title: str, desc: str) -> str:
-        """Derive stop conditions from task keywords."""
-        text = title + desc
-        if any(kw in text for kw in
-               ("install", "dependency", "dependencies", "uv add", "pip install")):
-            return "the dependency appears in pyproject.toml or the package manager reports success"
-        if any(kw in text for kw in
-               ("init", "venv", "virtual environment", "setup", "create project")):
-            return ".venv/ or pyproject.toml exists"
-        if any(kw in text for kw in
-               ("implement", "write", "create", "code", "logic")):
-            return "the code file exists and runs correctly on one basic input"
-        if any(kw in text for kw in
-               ("ui", "interface", "cli", "command line")):
-            return "the entry point works end-to-end"
-        return ""
+        return derive_task_stop(title, desc)
+
+
+# ===========================================================================
+# Shared keyword heuristics — used by both ExecutionPolicyContextLayer
+# (fallback) and LLMPlanner (auto-fill missing bounds after parsing).
+# ===========================================================================
+
+
+def derive_task_bounds(title: str, desc: str) -> tuple[list[str], list[str]]:
+    """Derive allowed and forbidden actions from task keywords."""
+    text = (title + " " + desc).lower()
+
+    if any(kw in text for kw in
+           ("install", "dependency", "dependencies", "package", "uv add", "pip install")):
+        return (
+            ["run package manager commands (uv add, pip install, etc.)",
+             "edit pyproject.toml/requirements.txt to declare dependencies"],
+            ["write application code", "create .py files", "write server files",
+             "start servers", "create test files", "implement features"],
+        )
+    if any(kw in text for kw in
+           ("init", "venv", "virtual environment", "setup", "create project", "uv init")):
+        return (
+            ["run 'uv init' or 'uv venv'", "create config files"],
+            ["write application code", "create test files", "install testing packages",
+             "run tests", "implement features or algorithms"],
+        )
+    if any(kw in text for kw in
+           ("implement", "write", "create", "code", "logic", "function")):
+        return (
+            ["write the specified code files", "run once with basic input to verify"],
+            ["initialize package managers", "create virtual environments",
+             "create test files", "install testing packages", "run test suites"],
+        )
+    if any(kw in text for kw in
+           ("ui", "interface", "cli", "command line", "entry point")):
+        return (
+            ["create or modify the CLI/UI entry point", "wire existing modules"],
+            ["re-initialize the project", "re-create existing code files", "create tests"],
+        )
+    return ([], [])
+
+
+def derive_task_stop(title: str, desc: str) -> str:
+    """Derive stop conditions from task keywords."""
+    text = (title + " " + desc).lower()
+    if any(kw in text for kw in
+           ("install", "dependency", "dependencies", "uv add", "pip install")):
+        return "the dependency appears in pyproject.toml or the package manager reports success"
+    if any(kw in text for kw in
+           ("init", "venv", "virtual environment", "setup", "create project")):
+        return ".venv/ or pyproject.toml exists"
+    if any(kw in text for kw in
+           ("implement", "write", "create", "code", "logic")):
+        return "the code file exists and runs correctly on one basic input"
+    if any(kw in text for kw in
+           ("ui", "interface", "cli", "command line")):
+        return "the entry point works end-to-end"
+    return ""
 
 
 # ===========================================================================

@@ -67,6 +67,111 @@ class FileSummaryManager:
             )
 
     # ------------------------------------------------------------------
+    # LLM-powered summary generation (optional, async)
+    # ------------------------------------------------------------------
+
+    async def generate_with_llm(
+        self,
+        filepath: str,
+        symbols: list[str],
+        llm_call,
+        source_lines: str = "",
+    ) -> FileSummary:
+        """Generate a file summary using an LLM (async, one file).
+
+        Uses a minimal prompt (~100 input tokens) to produce a structured
+        summary.  Designed for offline/batch use — call once per file,
+        cache the result.
+
+        Args:
+            filepath: Path to the file.
+            symbols: List of symbol names in the file.
+            llm_call: Async callable that takes messages and returns a
+                      response with a .content attribute.
+            source_lines: Optional first ~20 lines of the file for context.
+
+        Returns:
+            FileSummary with LLM-generated purpose and responsibilities.
+        """
+        symbol_list = ", ".join(symbols[:15]) if symbols else "(none)"
+        fname = filepath.split("/")[-1]
+        context = source_lines[:800] if source_lines else ""
+
+        prompt = f"""Analyze this Python file and return a one-sentence purpose and 1-3 key responsibilities.
+
+File: {fname}
+Full path: {filepath}
+Symbols defined: {symbol_list}
+First lines:
+{context}
+
+Return ONLY valid JSON:
+{{
+  "purpose": "one short sentence describing what this file does",
+  "responsibilities": ["short phrase 1", "short phrase 2"],
+  "category": "cli|core_logic|utility|config|test|data|web"
+}}"""
+
+        try:
+            resp = await llm_call([{"role": "user", "content": prompt}])
+            import json as _json
+            data = _json.loads(resp.content.strip())
+            purpose = data.get("purpose", self._infer_purpose(filepath, symbols, "core_logic"))
+            responsibilities = data.get("responsibilities", [])[:3]
+            category = data.get("category", self._categorize(filepath, symbols))
+
+            summary = FileSummary(
+                path=filepath,
+                purpose=purpose,
+                responsibilities=responsibilities,
+                key_symbols=self._key_symbols(symbols, category),
+                category=category,
+                file_type=self._file_type(filepath),
+            )
+            self._summaries[filepath] = summary
+            return summary
+        except Exception:
+            # LLM call failed — fall back to heuristic
+            return self._summaries.get(filepath) or FileSummary(path=filepath)
+
+    async def generate_all_with_llm(
+        self,
+        symbols_json: dict,
+        llm_call,
+    ) -> None:
+        """Generate LLM summaries for all files (async batch).
+
+        Each file gets its own LLM call.  Results replace heuristic
+        summaries and are cached to disk.
+        """
+        import asyncio
+
+        async def _one(filepath: str, syms):
+            names = self._extract_names(syms)
+            # Try to read first lines for context
+            source = ""
+            full_path = self._working_dir / filepath
+            if full_path.exists():
+                try:
+                    source = full_path.read_text(encoding="utf-8", errors="replace")[:800]
+                except Exception:
+                    pass
+            await self.generate_with_llm(filepath, names, llm_call, source)
+
+        tasks = []
+        for fp, syms in symbols_json.items():
+            if self._should_skip(fp):
+                continue
+            tasks.append(_one(fp.replace("\\", "/"), syms))
+
+        # Run in parallel batches of 5 to avoid rate limiting
+        for i in range(0, len(tasks), 5):
+            batch = tasks[i:i + 5]
+            await asyncio.gather(*batch)
+
+        self.save_cache()
+
+    # ------------------------------------------------------------------
     # query
     # ------------------------------------------------------------------
 

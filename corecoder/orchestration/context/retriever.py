@@ -179,31 +179,33 @@ class RepositoryContextRetriever:
                         candidates.append(known)
                         break
 
-        # If too few candidates, include all non-skipped files from the index
-        if len(candidates) < 5:
-            import re
-            task_text = (request.task_title + " " + request.task_description + " " + request.goal).lower()
-            keywords = set(re.findall(r'[a-zA-Z_][a-zA-Z0-9_]{2,}', task_text))
-            # Add files whose name or summary matches keywords
+        # If too few candidates from symbol routing, use semantic summary
+        # matching via FileSummaryManager instead of raw keyword grep.
+        if len(candidates) < 5 and (query.concepts or intent.concepts):
+            all_concepts = set(c.lower() for c in (query.concepts + intent.concepts))
             for filepath in self._symbols_json:
                 if self._should_skip_file(filepath):
                     continue
-                if filepath.replace("\\", "/") in candidates:
+                fp = filepath.replace("\\", "/")
+                if fp in candidates:
                     continue
-                stem = filepath.replace("\\", "/").split("/")[-1].replace(".py", "").lower()
-                summary = self._summary_manager.get(filepath)
-                summary_text = (summary.purpose + " " + " ".join(summary.responsibilities)).lower() if summary else ""
-                if any(kw in stem or kw in summary_text for kw in keywords):
-                    candidates.append(filepath.replace("\\", "/"))
+                summary = self._summary_manager.get(fp)
+                if summary is None:
+                    continue
+                search_text = (
+                    summary.purpose + " " + " ".join(summary.responsibilities)
+                ).lower()
+                if any(c in search_text for c in all_concepts):
+                    candidates.append(fp)
 
-            # Still too few — add first N files as fallback
-            if len(candidates) < 3:
-                for filepath in self._symbols_json:
-                    filepath = filepath.replace("\\", "/")
-                    if filepath not in candidates and not self._should_skip_file(filepath):
-                        candidates.append(filepath)
-                    if len(candidates) >= 5:
-                        break
+        # Still too few — add all non-skipped files as last resort
+        if len(candidates) < 3:
+            for filepath in self._symbols_json:
+                fp = filepath.replace("\\", "/")
+                if fp not in candidates and not self._should_skip_file(filepath):
+                    candidates.append(fp)
+                if len(candidates) >= 5:
+                    break
 
         # ---- Stage 5: Structured Ranking ----
         ranked = self._ranker.rank(candidates, query, intent)
