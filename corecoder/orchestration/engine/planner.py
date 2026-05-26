@@ -178,13 +178,37 @@ class LLMPlanner(BasePlanner):
   (e.g., A creates files/config that B needs).  Default to independent.
 - Keep dependency chains shallow (max depth 2).
 - Priorities: 10=setup, 8=core, 5=integration, 3=verification.
+- For EACH task, specify what the agent is ALLOWED to do, FORBIDDEN from doing,
+  and when to STOP. This prevents scope creep.  Be specific: "FORBIDDEN: write
+  application code" is better than "FORBIDDEN: do other things".
 
 ## Example
 Goal: "Build a CLI calculator with uv"
 [
-  {"title": "Initialize uv project and venv", "dependencies": [], "priority": 10},
-  {"title": "Implement calculator logic", "dependencies": [0], "priority": 8},
-  {"title": "Add CLI argument handling", "dependencies": [1], "priority": 5}
+  {
+    "title": "Initialize uv project and venv",
+    "dependencies": [],
+    "priority": 10,
+    "allowed": ["run uv init or uv venv", "create pyproject.toml"],
+    "forbidden": ["write application code", "create .py files", "implement features"],
+    "stop_when": ".venv/ or pyproject.toml exists"
+  },
+  {
+    "title": "Implement calculator logic",
+    "dependencies": [0],
+    "priority": 8,
+    "allowed": ["write calculator.py with arithmetic functions"],
+    "forbidden": ["initialize package managers", "create venv", "modify pyproject.toml"],
+    "stop_when": "calculator.py exists and basic arithmetic works"
+  },
+  {
+    "title": "Add CLI argument handling",
+    "dependencies": [1],
+    "priority": 5,
+    "allowed": ["write CLI entrypoint", "wire existing calculator module"],
+    "forbidden": ["modify calculator.py logic", "re-initialize project"],
+    "stop_when": "CLI entrypoint runs end-to-end with one example"
+  }
 ]
 
 Return ONLY JSON:
@@ -195,7 +219,10 @@ Return ONLY JSON:
       "title": "Short milestone title",
       "description": "What this accomplishes.",
       "dependencies": [],
-      "priority": 5
+      "priority": 5,
+      "allowed": ["what the agent CAN do"],
+      "forbidden": ["what the agent MUST NOT do"],
+      "stop_when": "condition that signals task completion"
     }
   ]
 }"""

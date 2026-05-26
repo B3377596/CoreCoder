@@ -293,9 +293,20 @@ class ContextOrchestrator:
         dependency_ids: list[str] | None = None,
         completed_artifacts: dict[str, dict[str, Any]] | None = None,
         downstream_tasks: list[str] | None = None,
+        task_allowed: list[str] | None = None,
+        task_forbidden: list[str] | None = None,
+        task_stop_when: str = "",
         token_budget: TokenBudget | None = None,
     ) -> AssemblyResult:
         """Convenience method — builds the ContextRequest and calls build_context()."""
+        meta: dict[str, Any] = {"downstream_tasks": downstream_tasks or []}
+        if task_allowed:
+            meta["task_allowed"] = task_allowed
+        if task_forbidden:
+            meta["task_forbidden"] = task_forbidden
+        if task_stop_when:
+            meta["task_stop_when"] = task_stop_when
+
         request = ContextRequest(
             task_id=task_id,
             task_title=task_title,
@@ -311,7 +322,7 @@ class ContextOrchestrator:
             assumptions=assumptions or [],
             dependency_ids=dependency_ids or [],
             completed_artifact_map=completed_artifacts or {},
-            metadata={"downstream_tasks": downstream_tasks or []},
+            metadata=meta,
         )
         return self.build_context(request)
 

@@ -302,13 +302,13 @@ class RepositoryContextRetriever:
         )
 
         # Print debug info
-        print(
+        '''print(
             f"[Retriever] intent={intent.type} confidence={intent.confidence:.2f}, "
             f"symbols={query.symbols}, concepts={query.concepts}, "
             f"candidates={len(candidates)}, ranked={len(ranked)}, "
             f"top_files={[rf.filepath for rf in top_files[:5]]}, "
             f"time={retrieval_time_ms:.1f}ms"
-        )
+        )'''
 
         return fragments
 

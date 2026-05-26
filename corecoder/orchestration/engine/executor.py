@@ -336,6 +336,8 @@ class Executor:
         # Build completed artifacts map
         completed_map = {tid: dict(art) for tid, art in memory.completed_artifacts.items()}
 
+        # Pull task-level bounds from planner (LLM-generated), if available
+        task_meta = ctx.task.metadata
         result = orch.build_task_context(
             task_id=memory.current_task_id,
             task_title=memory.current_task_title,
@@ -349,6 +351,9 @@ class Executor:
             assumptions=memory.assumptions,
             completed_artifacts=completed_map,
             downstream_tasks=getattr(memory, 'downstream_tasks', []),
+            task_allowed=task_meta.get("allowed"),
+            task_forbidden=task_meta.get("forbidden"),
+            task_stop_when=task_meta.get("stop_when", ""),
             token_budget=None,
         )
 

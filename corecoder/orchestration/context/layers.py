@@ -261,9 +261,10 @@ class ExecutionPolicyContextLayer(ContextLayer):
         fragments: list[ContextFragment] = []
         title = request.task_title.lower()
         desc = request.task_description.lower()
+        meta = request.metadata
 
         # ---- Downstream tasks (what NOT to do) ----
-        downstream_ids = request.metadata.get("downstream_tasks", [])
+        downstream_ids = meta.get("downstream_tasks", [])
         if downstream_ids:
             lines = ["**DOWNSTREAM TASKS (do NOT do these):**"]
             for d in downstream_ids:
@@ -279,7 +280,12 @@ class ExecutionPolicyContextLayer(ContextLayer):
             ))
 
         # ---- Allowed / Forbidden ----
-        allowed, forbidden = self._derive_bounds(title, desc)
+        # Prefer planner-generated bounds (LLM). Fall back to keyword heuristics.
+        allowed = meta.get("task_allowed")
+        forbidden = meta.get("task_forbidden")
+        if allowed is None and forbidden is None:
+            allowed, forbidden = self._derive_bounds(title, desc)
+
         if allowed or forbidden:
             lines = []
             if allowed:
@@ -293,7 +299,8 @@ class ExecutionPolicyContextLayer(ContextLayer):
             ))
 
         # ---- Stop conditions ----
-        stop = self._derive_stop(title, desc)
+        # Prefer planner-generated stop condition. Fall back to keywords.
+        stop = meta.get("task_stop_when", "") or self._derive_stop(title, desc)
         if stop:
             fragments.append(ContextFragment(
                 source=self.source, type=ContextType.INSTRUCTION,
@@ -302,26 +309,37 @@ class ExecutionPolicyContextLayer(ContextLayer):
                 token_count=_estimate_tokens(stop) + 20,
             ))
 
-
         return fragments
     #TODO: 关键词匹配，后续需要修改
     def _derive_bounds(self, title: str, desc: str) -> tuple[list[str], list[str]]:
         """Derive allowed and forbidden actions from task keywords."""
-        if any(kw in title + desc for kw in
+        text = title + desc
+
+        # Install / dependency tasks — ONLY run package manager, nothing else
+        if any(kw in text for kw in
+               ("install", "dependency", "dependencies", "package", "uv add", "pip install")):
+            return (
+                ["run package manager commands (uv add, pip install, etc.)",
+                 "edit pyproject.toml/requirements.txt to declare dependencies"],
+                ["write application code", "create .py files", "write server files",
+                 "start servers", "create test files", "implement features"],
+            )
+
+        if any(kw in text for kw in
                ("init", "venv", "virtual environment", "setup", "create project", "uv init")):
             return (
                 ["run 'uv init' or 'uv venv'", "create config files"],
                 ["write application code", "create test files", "install testing packages",
                  "run tests", "implement features or algorithms"],
             )
-        if any(kw in title + desc for kw in
+        if any(kw in text for kw in
                ("implement", "write", "create", "code", "logic", "function")):
             return (
                 ["write the specified code files", "run once with basic input to verify"],
                 ["initialize package managers", "create virtual environments",
                  "create test files", "install testing packages", "run test suites"],
             )
-        if any(kw in title + desc for kw in
+        if any(kw in text for kw in
                ("ui", "interface", "cli", "command line", "entry point")):
             return (
                 ["create or modify the CLI/UI entry point", "wire existing modules"],
@@ -331,13 +349,17 @@ class ExecutionPolicyContextLayer(ContextLayer):
     #TODO: 关键词匹配，后续需要修改
     def _derive_stop(self, title: str, desc: str) -> str:
         """Derive stop conditions from task keywords."""
-        if any(kw in title + desc for kw in
+        text = title + desc
+        if any(kw in text for kw in
+               ("install", "dependency", "dependencies", "uv add", "pip install")):
+            return "the dependency appears in pyproject.toml or the package manager reports success"
+        if any(kw in text for kw in
                ("init", "venv", "virtual environment", "setup", "create project")):
             return ".venv/ or pyproject.toml exists"
-        if any(kw in title + desc for kw in
+        if any(kw in text for kw in
                ("implement", "write", "create", "code", "logic")):
             return "the code file exists and runs correctly on one basic input"
-        if any(kw in title + desc for kw in
+        if any(kw in text for kw in
                ("ui", "interface", "cli", "command line")):
             return "the entry point works end-to-end"
         return ""
