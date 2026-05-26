@@ -206,7 +206,9 @@ class ContextOrchestrator:
         # ---- Phase 3: Assemble messages ----
         user_message = self._assemble_user_message(bundle)
         context_message = self._assemble_context_message(bundle)
-
+        print(user_message)
+        print("-" * 40)
+        print(context_message)
         assembly_time_ms = (time.time() - t0) * 1000.0
 
         # Collect fragment counts by source

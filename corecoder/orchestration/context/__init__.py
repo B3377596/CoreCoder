@@ -8,8 +8,11 @@ Key components:
 - ContextOrchestrator: central engine
 - ContextFragment: typed, scored context atom
 - ContextAssemblyPipeline: collect → rank → deduplicate → compress → budget
-- RepositoryContextRetriever: graph-aware file/symbol retrieval
-- ContextRanker: multi-signal relevance scoring
+- RepositoryContextRetriever: symbolic graph-aware retrieval
+- SymbolOwnershipGraph: symbol → file, file → symbols, fuzzy lookup
+- FileSummaryManager: heuristic file purpose/responsibility summaries
+- TaskIntentAnalyzer: classify task type (bug_fix, cli_change, etc.)
+- StructuredRanker: multi-factor scoring with retrieval reasoning
 - StatePolicy: per-execution-state context profiles
 """
 
@@ -50,6 +53,21 @@ from corecoder.orchestration.context.orchestrator import (
     AssemblyResult,
 )
 
+# New symbolic retrieval layer
+from corecoder.orchestration.retrieval.models import (
+    SymbolInfo,
+    FileSummary,
+    TaskIntent,
+    RetrievalQuery,
+    RankedFile,
+    RetrievalMeta,
+)
+from corecoder.orchestration.retrieval.symbol_index import SymbolOwnershipGraph
+from corecoder.orchestration.retrieval.summaries import FileSummaryManager
+from corecoder.orchestration.retrieval.task_intent import TaskIntentAnalyzer
+from corecoder.orchestration.retrieval.query_planner import RetrievalQueryPlanner
+from corecoder.orchestration.retrieval.ranker import StructuredRanker
+
 __all__ = [
     # Models
     "ContextFragment",
@@ -67,7 +85,7 @@ __all__ = [
     "WorkingMemoryContextLayer",
     "FailureMemoryContextLayer",
     "ConstraintContextLayer",
-    # Ranker
+    # Ranker (pipeline)
     "ContextRanker",
     # Retriever
     "RepositoryContextRetriever",
@@ -83,4 +101,16 @@ __all__ = [
     "ContextOrchestrator",
     "ContextOrchestratorConfig",
     "AssemblyResult",
+    # Symbolic retrieval layer
+    "SymbolOwnershipGraph",
+    "FileSummaryManager",
+    "TaskIntentAnalyzer",
+    "RetrievalQueryPlanner",
+    "StructuredRanker",
+    "SymbolInfo",
+    "FileSummary",
+    "TaskIntent",
+    "RetrievalQuery",
+    "RankedFile",
+    "RetrievalMeta",
 ]
