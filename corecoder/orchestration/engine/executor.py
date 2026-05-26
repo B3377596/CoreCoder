@@ -138,14 +138,20 @@ class Executor:
         task.status = "running"
         task.touch()
 
-        # Build the prompt: use ContextOrchestrator if available, else flat builder
+        # Build the prompt: use ContextOrchestrator if available, else flat builder.
+        # Both return (user_message, context_message) — the user_message is the
+        # actual instruction, context_message is structured metadata injected as
+        # an assistant message.
         if self._context_orchestrator is not None:
-            user_message = self._build_prompt_orchestrated(ctx)
+            print("context_orchestrator")  # debug log to verify CO is set,don't remove
+            user_message, context_message = self._build_prompt_orchestrated(ctx)
         else:
-            user_message = self._build_task_prompt(ctx)
+            print("flat prompt builder")  # debug log to verify flat builder is used,don't remove
+            user_message, context_message = self._build_task_prompt(ctx)
         start = time.time()
         round_count = [0]  # mutable counter for closure
-
+        #debug log,don't remove
+        print(f"Executor: Starting task '{task.title}' with prompt:\n{user_message}\n")
         def _on_tool(name: str, kwargs: dict) -> None:
             round_count[0] += 1
             if round_count[0] > self._max_rounds:
@@ -165,9 +171,15 @@ class Executor:
             # Agent factory creates a fresh Agent per task → no message interleaving.
             if self._agent_factory is not None:
                 agent = self._agent_factory()
-                output = await agent.chat(user_message, on_token=_on_token, on_tool=_on_tool)
+                output = await agent.chat(
+                    user_message, context_message=context_message,
+                    on_token=_on_token, on_tool=_on_tool,
+                )
             elif self._chat is not None:
-                output = await self._chat(user_message, on_token=_on_token, on_tool=_on_tool)
+                output = await self._chat(
+                    user_message, context_message=context_message,
+                    on_token=_on_token, on_tool=_on_tool,
+                )
             else:
                 raise RuntimeError("Executor has no agent. Call set_agent() or set_agent_factory().")
 
@@ -220,87 +232,90 @@ class Executor:
 
         return result
 
-    def _build_task_prompt(self, ctx: TaskContext) -> str:
-        """Build the user prompt that drives the agent for this task."""
+    def _build_task_prompt(self, ctx: TaskContext) -> tuple[str, str]:
+        """Build the user + context messages from working memory.
+
+        Returns (user_message, context_message):
+        - user_message: Task description + Overall Goal
+        - context_message: Runtime state, constraints, failures, assumptions
+        """
         memory = ctx.memory
 
-        parts: list[str] = []
+        user_parts: list[str] = []
+        context_parts: list[str] = []
 
-        # ---- Task Contract (runtime policy layer) ----
+        # ---- User message: Task + Goal ----
+        user_parts.append(f"## Task: {memory.current_task_title}\n\n{memory.current_task_description}")
 
-        # Main instruction
-        parts.append(f"## Task: {memory.current_task_title}\n\n{memory.current_task_description}")
-
-        # Context from the overall goal
         if memory.current_goal:
-            parts.append(f"\n## Overall Goal\n{memory.current_goal}")
+            user_parts.append(f"\n## Overall Goal\n{memory.current_goal}")
+
+        # ---- Context message: environment / state ----
 
         # Project state
         if not memory.completed_artifacts and not memory.known_constraints:
-            parts.append(
+            context_parts.append(
                 "\n## Project State\n"
                 "EMPTY PROJECT — no code, no venv, no config. Start from scratch."
             )
 
-        # Completed upstream work — show as RUNTIME STATE so the agent
-        # knows what already exists and doesn't re-create it.
+        # Completed upstream work
         if memory.completed_artifacts:
-            parts.append("\n## Runtime State (already done by previous tasks)")
+            context_parts.append("\n## Runtime State (already done by previous tasks)")
             for tid, art in memory.completed_artifacts.items():
                 desc = art.get("description", tid)
-                parts.append(f"- COMPLETED: {desc}")
+                context_parts.append(f"- COMPLETED: {desc}")
                 files = (art.get("created_files", []) or
                          art.get("all_changed", []) or
                          art.get("agent_mentioned_files", []) or
                          art.get("files", []) or
                          art.get("expected_files", []))
                 if files:
-                    parts.append(f"  Existing: {', '.join(str(f) for f in files[:10])}")
-            parts.append(
+                    context_parts.append(f"  Existing: {', '.join(str(f) for f in files[:10])}")
+            context_parts.append(
                 "\nDO NOT re-create, re-initialize, or re-install anything "
                 "listed above.  It already exists."
             )
 
         # Known constraints
         if memory.known_constraints:
-            parts.append("\n## Constraints (must follow)")
+            context_parts.append("\n## Constraints (must follow)")
             for c in memory.known_constraints:
-                parts.append(f"- {c}")
+                context_parts.append(f"- {c}")
 
-        # Previous failures to avoid
+        # Previous failures
         if memory.recent_failures:
-            parts.append("\n## Previous Failures (do NOT repeat)")
+            context_parts.append("\n## Previous Failures (do NOT repeat)")
             for f in memory.recent_failures:
-                parts.append(f"- {f}")
+                context_parts.append(f"- {f}")
 
         # Assumptions
         if memory.assumptions:
-            parts.append("\n## Assumptions")
+            context_parts.append("\n## Assumptions")
             for a in memory.assumptions:
-                parts.append(f"- {a}")
+                context_parts.append(f"- {a}")
 
         # Notes
         if memory.notes:
-            parts.append(f"\n## Notes\n{memory.notes}")
+            context_parts.append(f"\n## Notes\n{memory.notes}")
 
-        # Output format instruction
-        parts.append(
+        user_msg = "\n".join(user_parts)
+        user_msg += (
             "\n\nWhen you have completed this task, summarize what you did "
             "and what files you changed.  Be specific about file paths."
         )
 
-        return "\n".join(parts)
+        context_msg = "\n".join(context_parts).strip()
 
-    def _build_prompt_orchestrated(self, ctx: TaskContext) -> str:
+        return user_msg, context_msg
+
+    def _build_prompt_orchestrated(self, ctx: TaskContext) -> tuple[str, str]:
         """Build the task prompt using the ContextOrchestrator.
 
-        Delegates ALL context assembly to the ContextOrchestrator:
-        - Task contract (bounds, stop conditions, anti-redundancy)
-        - Runtime state (completed artifacts from upstream tasks)
-        - Repository context (graph-aware retrieval)
-        - Token budgeting and compression
-
-        The executor itself is a thin wrapper — just bridges memory → CO → prompt.
+        Returns (user_message, context_message):
+        - user_message: Goal + Current Task (the instruction)
+        - context_message: Working memory, repo files, constraints, etc.
+          (injected as an assistant message before the user message)
         """
         orch = self._context_orchestrator
         memory = ctx.memory
@@ -339,14 +354,17 @@ class Executor:
             token_budget=None,
         )
 
-        prompt = result.prompt.strip()
-        if not prompt:
-            prompt = "EMPTY PROJECT — create everything from scratch."
-        prompt += (
+        user_msg = result.user_message.strip()
+        if not user_msg:
+            user_msg = "EMPTY PROJECT — create everything from scratch."
+        user_msg += (
             "\n\nWhen you have completed this task, summarize what you did "
             "and what files you changed.  Be specific about file paths."
         )
-        return prompt
+
+        context_msg = result.context_message.strip()
+
+        return user_msg, context_msg
 
     def _extract_artifacts(self, ctx: TaskContext) -> dict[str, Any]:
         """Extract artifact information from what the agent actually produced.

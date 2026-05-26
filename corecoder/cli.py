@@ -385,13 +385,19 @@ async def _run_plan(agent: Agent, goal: str):
     try:
         ri = agent.repo_index
 
-        # 1. Framework + language hints
+        # 1. Framework + language hints (strip symbol details, they go in modules)
         summary = ri.summary if hasattr(ri, 'summary') else ""
         if summary:
             lines = str(summary).strip().split("\n")
-            key_lines = [l for l in lines[:15] if l.strip() and not l.startswith("#")]
+            # Take only framework/entry point info, stop before symbols section
+            key_lines = []
+            for l in lines[:20]:
+                if l.strip().startswith("## Key Symbols") or l.strip().startswith("## Dependencies"):
+                    break
+                if l.strip() and not l.startswith("#"):
+                    key_lines.append(l)
             if key_lines:
-                planning_ctx["project"] = "\n".join(key_lines)[:800]
+                planning_ctx["project"] = "\n".join(key_lines)[:500]
                 has_any_content = True
 
         # 2. Module list

@@ -88,13 +88,31 @@ class Agent:
     # public API
     # ------------------------------------------------------------------
 
-    async def chat(self, user_input: str, on_token=None, on_tool=None) -> str:
+    async def chat(
+        self,
+        user_input: str,
+        context_message: str | None = None,
+        on_token=None,
+        on_tool=None,
+    ) -> str:
         """Process one user message. May involve multiple LLM/tool rounds.
 
         Uses SSE streaming when tools are available: tool calls are detected
         and executed as soon as their arguments form valid JSON, without
         waiting for the full LLM response.
+
+        Args:
+            user_input: The user message (goal + current task).
+            context_message: Optional structured context (working memory,
+                repo files, constraints, etc.) injected as an *assistant*
+                message before the user message.
         """
+        # Inject context as an assistant message so structured metadata
+        # (project files, completed tasks, constraints) doesn't pollute
+        # the user instruction.
+        if context_message:
+            self.messages.append({"role": "assistant", "content": context_message})
+
         # git snapshot before this turn (lightweight: only commits if dirty)
         self.shadow.snapshot(f"checkpoint: {user_input[:60]}")
         # record head commit so undo can find the right ref

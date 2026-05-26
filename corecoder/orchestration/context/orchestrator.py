@@ -55,12 +55,16 @@ from corecoder.orchestration.context.policies import (
 class AssemblyResult:
     """Output of the ContextOrchestrator.build_context() call.
 
-    Contains both the structured bundle and the formatted prompt ready
-    for injection into the agent.
+    Splits the assembled context into two messages:
+    - user_message: Goal + Current Task (the actual instruction)
+    - context_message: Working Memory, Constraints, Repo files, Symbols,
+      Dependencies, Failures, Artifacts — injected as an *assistant* message
+      so structured environment metadata doesn't pollute the user instruction.
     """
 
     bundle: ContextBundle
-    prompt: str = ""
+    user_message: str = ""
+    context_message: str = ""
     assembly_time_ms: float = 0.0
     fragment_counts: dict[str, int] = field(default_factory=dict)
 
@@ -79,7 +83,8 @@ class ContextOrchestrator:
             focus_files=["auth.py"],
         )
         result = orch.build_context(request)
-        # result.prompt is ready for Agent.chat()
+        # result.user_message is Goal + Current Task
+        # result.context_message is everything else (assistant-role)
     """
 
     def __init__(
@@ -198,8 +203,9 @@ class ContextOrchestrator:
         # ---- Phase 2: Pipeline (rank → deduplicate → compress → budget) ----
         bundle = self._pipeline.run(fragments, request, budget)
 
-        # ---- Phase 3: Assemble prompt ----
-        prompt = self._assemble_prompt(bundle, request)
+        # ---- Phase 3: Assemble messages ----
+        user_message = self._assemble_user_message(bundle)
+        context_message = self._assemble_context_message(bundle)
 
         assembly_time_ms = (time.time() - t0) * 1000.0
 
@@ -211,7 +217,8 @@ class ContextOrchestrator:
 
         return AssemblyResult(
             bundle=bundle,
-            prompt=prompt,
+            user_message=user_message,
+            context_message=context_message,
             assembly_time_ms=assembly_time_ms,
             fragment_counts=fragment_counts,
         )
@@ -220,46 +227,48 @@ class ContextOrchestrator:
     # prompt assembly
     # ------------------------------------------------------------------
 
-    def _assemble_prompt(
-        self, bundle: ContextBundle, request: ContextRequest
-    ) -> str:
-        """Assemble the final prompt from the context bundle.
+    def _assemble_user_message(self, bundle: ContextBundle) -> str:
+        """Assemble the USER message — only Goal + Current Task.
 
-        The prompt structure follows a consistent format:
-        1. System context (always first)
-        2. Task context (goal + current task)
-        3. Repository context (relevant files, symbols)
-        4. Working memory (assumptions, completed work)
-        5. Failure memory (if any)
-        6. Constraints (always near the end)
-
-        Fragments are already sorted by relevance score from the pipeline.
+        These are the actual instructions the agent must act on.
+        Everything else (working memory, repo files, constraints) goes
+        into the context (assistant) message.
         """
-        sections: list[tuple[str, ContextSource, str]] = [
-            ("System", ContextSource.SYSTEM, ""),
-            ("Task", ContextSource.TASK, ""),
-            ("Repository", ContextSource.REPOSITORY, ""),
-            ("Symbols", ContextSource.SYMBOL, ""),
-            ("Dependencies", ContextSource.DEPENDENCY_GRAPH, ""),
-            ("Working Memory", ContextSource.WORKING_MEMORY, ""),
-            ("Artifacts", ContextSource.ARTIFACT, ""),
-            ("Tool Results", ContextSource.TOOL_RESULT, ""),
-            ("Failures", ContextSource.FAILURE_MEMORY, ""),
-            ("Constraints", ContextSource.CONSTRAINT, ""),
+        parts: list[str] = []
+        for frag in bundle.fragments:
+            if frag.source == ContextSource.TASK:
+                parts.append(frag.content)
+                parts.append("")
+        return "\n".join(parts).strip()
+
+    def _assemble_context_message(self, bundle: ContextBundle) -> str:
+        """Assemble the CONTEXT (assistant) message — structured environment info.
+
+        Includes: Working Memory, Repo Files, Symbols, Dependencies,
+        Completed Artifacts, Failures, Constraints, Tool Results.
+        Excludes TASK source (that goes in the user message).
+        """
+        sections: list[tuple[ContextSource, str]] = [
+            (ContextSource.WORKING_MEMORY, "Working Memory"),
+            (ContextSource.CONSTRAINT, "Constraints"),
+            (ContextSource.REPOSITORY, "Repository"),
+            (ContextSource.SYMBOL, "Symbols"),
+            (ContextSource.DEPENDENCY_GRAPH, "Dependencies"),
+            (ContextSource.ARTIFACT, "Completed Tasks"),
+            (ContextSource.FAILURE_MEMORY, "Failures"),
+            (ContextSource.TOOL_RESULT, "Tool Results"),
         ]
 
         parts: list[str] = []
-
-        for section_name, source, _ in sections:
+        for source, _ in sections:
             layer_fragments = [
                 f for f in bundle.fragments if f.source == source
             ]
             if not layer_fragments:
                 continue
-
             for frag in layer_fragments:
                 parts.append(frag.content)
-                parts.append("")  # Blank line between fragments
+                parts.append("")
 
         return "\n".join(parts).strip()
 

@@ -227,11 +227,10 @@ Return ONLY JSON:
         if self._llm_call is None:
             raise RuntimeError("LLMPlanner has no LLM callable.  Call set_llm() first.")
 
-        ctx_str = json.dumps(context or {}, indent=2, default=str)
-        # Use .replace() instead of .format() to avoid brace-escaping issues
-        # when the prompt template contains JSON examples with { and }.
+        ctx_str = json.dumps(context or {}, indent=2, ensure_ascii=False, default=str)
         prompt = self.PLANNING_PROMPT.replace("{goal}", goal).replace("{context}", ctx_str)
-        print(prompt)  # Debug: show the final prompt sent to the LLM
+        # debug log,don't remove
+        print(f"LLMPlanner: Sending prompt to LLM (model={self._model}):\n{prompt}\n")  
         messages = [{"role": "user", "content": prompt}]
         response = await self._llm_call(messages)
 

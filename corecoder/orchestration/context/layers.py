@@ -341,7 +341,7 @@ class ExecutionPolicyContextLayer(ContextLayer):
                 ["re-initialize the project", "re-create existing code files", "create tests"],
             )
         return ([], [])
-
+    #TODO: 关键词匹配，后续需要修改
     def _derive_stop(self, title: str, desc: str) -> str:
         """Derive stop conditions from task keywords."""
         if any(kw in title + desc for kw in
