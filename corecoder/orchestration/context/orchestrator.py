@@ -39,6 +39,7 @@ from corecoder.orchestration.context.layers import (
     WorkingMemoryContextLayer,
     FailureMemoryContextLayer,
     ConstraintContextLayer,
+    ExecutionPolicyContextLayer,
 )
 from corecoder.orchestration.context.ranker import ContextRanker
 from corecoder.orchestration.context.retriever import RepositoryContextRetriever
@@ -95,6 +96,7 @@ class ContextOrchestrator:
         self._memory_layer = WorkingMemoryContextLayer()
         self._failure_layer = FailureMemoryContextLayer()
         self._constraint_layer = ConstraintContextLayer()
+        self._policy_layer = ExecutionPolicyContextLayer()
 
         # Retrieval
         self._retriever = RepositoryContextRetriever(working_dir)
@@ -149,8 +151,11 @@ class ContextOrchestrator:
         # ---- Phase 1: Collect candidates ----
         fragments: list[ContextFragment] = []
 
-        # System layer
-        fragments.extend(self._system_layer.produce(request))
+        # NOTE: System layer is intentionally SKIPPED for task execution.
+        # The system prompt is already injected by the Agent as a system
+        # role message (via _full_messages()).  Putting it in the user
+        # message body wastes tokens and confuses the model.
+        # System layer fragments are excluded here.
 
         # Task layer
         fragments.extend(self._task_layer.produce(request))
@@ -164,10 +169,31 @@ class ContextOrchestrator:
         # Constraint layer
         fragments.extend(self._constraint_layer.produce(request))
 
+        # Execution policy layer (task contract: bounds, stop conditions)
+        fragments.extend(self._policy_layer.produce(request))
+
         # Repository layer (graph-aware retrieval)
         repo_options = get_retrieval_options(request.execution_state)
         repo_fragments = self._retriever.retrieve(request, repo_options)
         fragments.extend(repo_fragments)
+
+        # Empty project detection: if no repo content was found, explicitly
+        # tell the agent this is a blank slate so it doesn't waste rounds
+        # exploring.
+        if not repo_fragments and not request.completed_artifact_map:
+            fragments.append(ContextFragment(
+                source=ContextSource.SYSTEM,
+                type=ContextType.INSTRUCTION,
+                content=(
+                    "## Project State\n"
+                    "EMPTY PROJECT — no code, no venv, no config, no package manager. "
+                    "Start everything from scratch. "
+                    "Do NOT explore or list files to confirm — there is nothing here."
+                ),
+                priority=10,
+                relevance_score=1.0,
+                token_count=40,
+            ))
 
         # ---- Phase 2: Pipeline (rank → deduplicate → compress → budget) ----
         bundle = self._pipeline.run(fragments, request, budget)
@@ -255,12 +281,10 @@ class ContextOrchestrator:
         assumptions: list[str] | None = None,
         dependency_ids: list[str] | None = None,
         completed_artifacts: dict[str, dict[str, Any]] | None = None,
+        downstream_tasks: list[str] | None = None,
         token_budget: TokenBudget | None = None,
     ) -> AssemblyResult:
-        """Convenience method — builds the ContextRequest and calls build_context().
-
-        This is the integration point for the Executor/Scheduler.
-        """
+        """Convenience method — builds the ContextRequest and calls build_context()."""
         request = ContextRequest(
             task_id=task_id,
             task_title=task_title,
@@ -276,6 +300,7 @@ class ContextOrchestrator:
             assumptions=assumptions or [],
             dependency_ids=dependency_ids or [],
             completed_artifact_map=completed_artifacts or {},
+            metadata={"downstream_tasks": downstream_tasks or []},
         )
         return self.build_context(request)
 

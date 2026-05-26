@@ -244,6 +244,119 @@ class ConstraintContextLayer(ContextLayer):
 
 
 # ===========================================================================
+# Execution policy — task contract: boundaries, stop conditions, anti-redundancy
+# ===========================================================================
+
+class ExecutionPolicyContextLayer(ContextLayer):
+    """Produces the task contract — hard execution boundaries.
+
+    This is the "action gating" layer.  Without it, the agent treats task
+    descriptions as suggestions and freely does downstream work.
+    """
+
+    source = ContextSource.CONSTRAINT
+    default_priority = 10  # Highest priority — contract must always be visible
+
+    def _produce(self, request: ContextRequest) -> list[ContextFragment]:
+        fragments: list[ContextFragment] = []
+        title = request.task_title.lower()
+        desc = request.task_description.lower()
+
+        # ---- Downstream tasks (what NOT to do) ----
+        downstream_ids = request.metadata.get("downstream_tasks", [])
+        if downstream_ids:
+            lines = ["**DOWNSTREAM TASKS (do NOT do these):**"]
+            for d in downstream_ids:
+                lines.append(f"  - FORBIDDEN: {d}")
+            lines.append(
+                "\nIf you find yourself doing any of the above, STOP immediately. "
+                "Those belong to later tasks in the pipeline."
+            )
+            fragments.append(ContextFragment(
+                source=self.source, type=ContextType.CONSTRAINT,
+                content="\n".join(lines), priority=10, relevance_score=1.0,
+                token_count=_estimate_tokens("\n".join(lines)),
+            ))
+
+        # ---- Allowed / Forbidden ----
+        allowed, forbidden = self._derive_bounds(title, desc)
+        if allowed or forbidden:
+            lines = []
+            if allowed:
+                lines.append(f"**ALLOWED**: {', '.join(allowed)}")
+            if forbidden:
+                lines.append(f"**FORBIDDEN**: {', '.join(forbidden)}")
+            fragments.append(ContextFragment(
+                source=self.source, type=ContextType.CONSTRAINT,
+                content="\n".join(lines), priority=10, relevance_score=1.0,
+                token_count=_estimate_tokens("\n".join(lines)),
+            ))
+
+        # ---- Stop conditions ----
+        stop = self._derive_stop(title, desc)
+        if stop:
+            fragments.append(ContextFragment(
+                source=self.source, type=ContextType.INSTRUCTION,
+                content=f"**STOP WHEN**: {stop}. Then STOP. Do not do extra work.",
+                priority=10, relevance_score=1.0,
+                token_count=_estimate_tokens(stop) + 20,
+            ))
+
+        # ---- Anti-redundancy rules ----
+        fragments.append(ContextFragment(
+            source=self.source, type=ContextType.INSTRUCTION,
+            content=(
+                "**RULES**: (1) Do NOT read back files you just wrote. "
+                "(2) After deterministic commands like 'uv init', trust the output. "
+                "(3) If a prerequisite task already initialized the project, "
+                "do NOT re-initialize it. "
+                "(4) Do NOT install tools/packages unless THIS task requires them."
+            ),
+            priority=9, relevance_score=0.9,
+            token_count=60,
+        ))
+
+        return fragments
+    #TODO: 关键词匹配，后续需要修改
+    def _derive_bounds(self, title: str, desc: str) -> tuple[list[str], list[str]]:
+        """Derive allowed and forbidden actions from task keywords."""
+        if any(kw in title + desc for kw in
+               ("init", "venv", "virtual environment", "setup", "create project", "uv init")):
+            return (
+                ["run 'uv init' or 'uv venv'", "create config files"],
+                ["write application code", "create test files", "install testing packages",
+                 "run tests", "implement features or algorithms"],
+            )
+        if any(kw in title + desc for kw in
+               ("implement", "write", "create", "code", "logic", "function")):
+            return (
+                ["write the specified code files", "run once with basic input to verify"],
+                ["initialize package managers", "create virtual environments",
+                 "create test files", "install testing packages", "run test suites"],
+            )
+        if any(kw in title + desc for kw in
+               ("ui", "interface", "cli", "command line", "entry point")):
+            return (
+                ["create or modify the CLI/UI entry point", "wire existing modules"],
+                ["re-initialize the project", "re-create existing code files", "create tests"],
+            )
+        return ([], [])
+
+    def _derive_stop(self, title: str, desc: str) -> str:
+        """Derive stop conditions from task keywords."""
+        if any(kw in title + desc for kw in
+               ("init", "venv", "virtual environment", "setup", "create project")):
+            return ".venv/ or pyproject.toml exists"
+        if any(kw in title + desc for kw in
+               ("implement", "write", "create", "code", "logic")):
+            return "the code file exists and runs correctly on one basic input"
+        if any(kw in title + desc for kw in
+               ("ui", "interface", "cli", "command line")):
+            return "the entry point works end-to-end"
+        return ""
+
+
+# ===========================================================================
 # Token estimation helper (shared)
 # ===========================================================================
 

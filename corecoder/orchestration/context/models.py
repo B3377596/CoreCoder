@@ -328,6 +328,9 @@ class ContextRequest:
     dependency_ids: list[str] = field(default_factory=list)
     completed_artifact_map: dict[str, dict[str, Any]] = field(default_factory=dict)
 
+    # Extra metadata (e.g., downstream task titles for contract generation)
+    metadata: dict[str, Any] = field(default_factory=dict)
+
     # Constraints
     constraints: list[str] = field(default_factory=list)
     assumptions: list[str] = field(default_factory=list)

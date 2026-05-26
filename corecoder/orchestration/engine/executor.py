@@ -143,7 +143,6 @@ class Executor:
             user_message = self._build_prompt_orchestrated(ctx)
         else:
             user_message = self._build_task_prompt(ctx)
-
         start = time.time()
         round_count = [0]  # mutable counter for closure
 
@@ -228,7 +227,6 @@ class Executor:
         parts: list[str] = []
 
         # ---- Task Contract (runtime policy layer) ----
-        parts.append(self._build_task_contract(ctx))
 
         # Main instruction
         parts.append(f"## Task: {memory.current_task_title}\n\n{memory.current_task_description}")
@@ -293,111 +291,26 @@ class Executor:
 
         return "\n".join(parts)
 
-    def _build_task_contract(self, ctx: TaskContext) -> str:
-        """Build the task contract — HARD execution boundaries.
-
-        Without this, the agent treats task descriptions as suggestions and
-        freely does downstream work, runs redundant observations, and never
-        knows when to stop.  This contract is the runtime policy layer.
-        """
-        memory = ctx.memory
-        lines = ["## EXECUTION CONTRACT — hard boundaries, not suggestions"]
-
-        # ---- 1. Show what NOT to do (downstream tasks) ----
-        downstream = self._get_downstream_tasks(ctx)
-        if downstream:
-            lines.append("\n**DOWNSTREAM TASKS (do NOT do these):**")
-            for d in downstream:
-                lines.append(f"  - FORBIDDEN: {d}")
-            lines.append(
-                "\nIf you find yourself doing any of the above, STOP immediately. "
-                "Those belong to later tasks in the pipeline."
-            )
-
-        # ---- 2. What THIS task IS allowed to do ----
-        title = memory.current_task_title.lower()
-        desc = memory.current_task_description.lower()
-
-        allowed = []
-        forbidden = []
-        if any(kw in title + desc for kw in ("init", "venv", "virtual environment", "setup", "create project", "uv init")):
-            allowed = ["run 'uv init' or 'uv venv'", "create pyproject.toml or config files"]
-            forbidden = [
-                "write application code (calculator, business logic, etc.)",
-                "create test files or test directories",
-                "install testing packages (pytest, etc.)",
-                "run tests or verification commands",
-                "implement features or algorithms",
-            ]
-        elif any(kw in title + desc for kw in ("implement", "write", "create", "code", "logic", "function")):
-            allowed = ["write the specified code files", "run the code once with a basic input to check it works"]
-            forbidden = [
-                "initialize uv, npm, or other package managers",
-                "create virtual environments",
-                "create test files or test directories",
-                "install testing packages",
-                "run comprehensive tests or test suites",
-            ]
-        elif any(kw in title + desc for kw in ("ui", "interface", "cli", "command line", "entry point")):
-            allowed = ["create or modify the CLI/UI entry point", "wire together existing modules"]
-            forbidden = [
-                "re-initialize the project",
-                "re-create existing code files",
-                "create test files",
-            ]
-
-        if allowed:
-            lines.append(f"\n**ALLOWED**: {', '.join(allowed)}")
-        if forbidden:
-            lines.append(f"**FORBIDDEN**: {', '.join(forbidden)}")
-
-        # ---- 3. Stop conditions ----
-        stop_hints = []
-        if any(kw in title + desc for kw in ("init", "venv", "virtual environment", "setup", "create project")):
-            stop_hints.append(".venv/ or pyproject.toml exists")
-        if any(kw in title + desc for kw in ("implement", "write", "create", "code", "logic")):
-            stop_hints.append("the code file exists and runs correctly on one basic input")
-        if any(kw in title + desc for kw in ("ui", "interface", "cli", "command line")):
-            stop_hints.append("the entry point works end-to-end")
-        if stop_hints:
-            lines.append(f"\n**STOP WHEN**: {'; or '.join(stop_hints)}. Then STOP. Do not do extra work.")
-
-        # ---- 4. Anti-redundancy ----
-        lines.append(
-            "\n**RULES**: (1) Do NOT read back files you just wrote. "
-            "(2) After deterministic commands like 'uv init', trust the output — "
-            "do not glob/read to verify. "
-            "(3) If a prerequisite task already initialized the project, "
-            "do NOT re-initialize it. "
-            "(4) Do NOT install tools or packages unless explicitly required by THIS task."
-        )
-
-        return "\n".join(lines)
-
-    def _get_downstream_tasks(self, ctx: TaskContext) -> list[str]:
-        """Get titles of downstream tasks that this task should NOT do."""
-        return getattr(ctx.memory, 'downstream_tasks', []) or []
-
     def _build_prompt_orchestrated(self, ctx: TaskContext) -> str:
         """Build the task prompt using the ContextOrchestrator.
 
-        This replaces the flat string concatenation in _build_task_prompt()
-        with a dynamic, state-aware context assembly pipeline.
+        Delegates ALL context assembly to the ContextOrchestrator:
+        - Task contract (bounds, stop conditions, anti-redundancy)
+        - Runtime state (completed artifacts from upstream tasks)
+        - Repository context (graph-aware retrieval)
+        - Token budgeting and compression
+
+        The executor itself is a thin wrapper — just bridges memory → CO → prompt.
         """
         orch = self._context_orchestrator
         memory = ctx.memory
 
-        # Prepend the task contract (runtime policy layer)
-        contract = self._build_task_contract(ctx)
-
-        # Determine execution state from the task context
-        exec_state = ExecutionState.CODING  # Default
-        if memory.known_constraints and any("test" in c.lower() for c in memory.known_constraints):
-            exec_state = ExecutionState.TESTING
+        # Determine execution state
+        exec_state = ExecutionState.CODING
         if memory.recent_failures:
             exec_state = ExecutionState.DEBUGGING
 
-        # Extract focus files from completed artifacts
+        # Collect focus files from upstream artifacts
         focus_files: list[str] = []
         for art in memory.completed_artifacts.values():
             files = (art.get("created_files", []) or
@@ -408,9 +321,7 @@ class Executor:
             focus_files.extend(files)
 
         # Build completed artifacts map
-        completed_map: dict[str, dict] = {}
-        for tid, art in memory.completed_artifacts.items():
-            completed_map[tid] = dict(art)
+        completed_map = {tid: dict(art) for tid, art in memory.completed_artifacts.items()}
 
         result = orch.build_task_context(
             task_id=memory.current_task_id,
@@ -424,20 +335,13 @@ class Executor:
             constraints=memory.known_constraints,
             assumptions=memory.assumptions,
             completed_artifacts=completed_map,
-            token_budget=None,  # Use policy default
+            downstream_tasks=getattr(memory, 'downstream_tasks', []),
+            token_budget=None,
         )
 
-        # Prepend the task contract to the orchestrator's output
-        if not result.prompt.strip() or len(result.prompt) < 50:
-            prompt = (
-                contract + "\n\n"
-                "## Project State\n"
-                "EMPTY PROJECT — no files, no config, no virtual environment. "
-                "Create everything from scratch.\n\n"
-            )
-        else:
-            prompt = contract + "\n\n" + result.prompt
-
+        prompt = result.prompt.strip()
+        if not prompt:
+            prompt = "EMPTY PROJECT — create everything from scratch."
         prompt += (
             "\n\nWhen you have completed this task, summarize what you did "
             "and what files you changed.  Be specific about file paths."

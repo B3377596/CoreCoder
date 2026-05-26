@@ -234,7 +234,8 @@ class Orchestrator:
         # ---- Phase 2: Execute ----
         replans_used = 0
         final_decision = SchedulingDecision.CONTINUE
-
+        
+        #重新规划的条件是调度器返回REPLAN，并且没有超过最大重新规划次数
         while replans_used <= self.config.max_replans:
             decision = await self._execute_graph(graph, goal, plan, run_id, olog)
             final_decision = decision
@@ -362,7 +363,6 @@ class Orchestrator:
         elif self._agent_instance is not None:
             from corecoder.orchestration.context.orchestrator import ContextOrchestrator
             co = ContextOrchestrator(working_dir=".")
-            co.set_system_prompt(getattr(self._agent_instance, '_system', ''))
             executor.set_context_orchestrator(co)
 
         # In parallel mode, each task gets a fresh Agent clone to prevent

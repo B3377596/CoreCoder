@@ -49,7 +49,7 @@ def save_session(messages: list[dict], model: str, session_id: str | None = None
     }
 
     path = _session_path(session_id)
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=2))
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     return session_id
 
 
@@ -59,7 +59,7 @@ def load_session(session_id: str) -> tuple[list[dict], str] | None:
     if not path.exists():
         return None
 
-    data = json.loads(path.read_text())
+    data = json.loads(path.read_text(encoding="utf-8"))
     return data["messages"], data["model"]
 
 
@@ -71,7 +71,7 @@ def list_sessions() -> list[dict]:
     sessions = []
     for f in sorted(SESSIONS_DIR.glob("*.json"), reverse=True):
         try:
-            data = json.loads(f.read_text())
+            data = json.loads(f.read_text(encoding="utf-8"))
             # grab first user message as preview
             preview = ""
             for m in data.get("messages", []):

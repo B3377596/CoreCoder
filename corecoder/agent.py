@@ -67,7 +67,7 @@ class Agent:
         else:
             self.repo_index.load()
 
-        self._system = system_prompt(self.tools, self.repo_index.summary)
+        self._system = system_prompt(self.tools)
 
         # checkpoint: (messages_length, description, git_commit_hash)
         self._checkpoints: list[tuple[int, str, str | None]] = []
@@ -104,15 +104,14 @@ class Agent:
         self.messages.append({"role": "user", "content": user_input})
         await self.context.maybe_compress(self.messages, self.llm)
 
+        result_text: str | None = None
+
         for _ in range(self.max_rounds):
             if self.tools:
-                # SSE mode: tools execute as soon as their args arrive.
-                # _execute_turn_sse handles the full turn — streaming,
-                # tool execution, and appending to self.messages.
-                # Returns text content if LLM responded without tools.
                 text = await self._execute_turn_sse(on_token, on_tool)
                 if text is not None:
-                    return text
+                    result_text = text
+                    break
             else:
                 resp = await self.llm.chat(
                     messages=self._full_messages(),
@@ -121,7 +120,8 @@ class Agent:
                 )
                 if not resp.tool_calls:
                     self.messages.append(resp.message)
-                    return resp.content
+                    result_text = resp.content
+                    break
 
                 self.messages.append(resp.message)
                 if len(resp.tool_calls) == 1:
@@ -141,7 +141,13 @@ class Agent:
 
             await self.context.maybe_compress(self.messages, self.llm)
 
-        return "(reached maximum tool-call rounds)"
+        # Rebuild repo index after every user turn — files may have changed
+        try:
+            self.repo_index.build()
+        except Exception:
+            pass
+
+        return result_text or "(reached maximum tool-call rounds)"
 
     def reset(self):
         """Clear conversation history and checkpoints."""

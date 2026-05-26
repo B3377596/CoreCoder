@@ -231,7 +231,7 @@ Return ONLY JSON:
         # Use .replace() instead of .format() to avoid brace-escaping issues
         # when the prompt template contains JSON examples with { and }.
         prompt = self.PLANNING_PROMPT.replace("{goal}", goal).replace("{context}", ctx_str)
-
+        print(prompt)  # Debug: show the final prompt sent to the LLM
         messages = [{"role": "user", "content": prompt}]
         response = await self._llm_call(messages)
 

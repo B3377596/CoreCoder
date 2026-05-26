@@ -143,7 +143,7 @@ async def _async_main(agent: Agent, config: Config, args):
     mcp_tools = mcp_client.all_tools()
     if mcp_tools:
         agent.tools.extend(mcp_tools)
-        agent._system = system_prompt(agent.tools, agent.repo_index.summary)
+        agent._system = system_prompt(agent.tools)
         console.print(f"[dim]MCP: {len(mcp_tools)} tools from {len(mcp_client.servers)} server(s)[/]")
 
     try:
@@ -361,6 +361,8 @@ async def _run_plan(agent: Agent, goal: str):
     console.print(f"\n[bold blue]Planning:[/] {goal}")
 
     # ---- Phase 1: Plan (LLM decomposes goal into task graph) ----
+    # Note: RepoIndex is automatically rebuilt by agent.chat() after each turn,
+    # so it's already up-to-date when we reach /plan.
     # Show a spinner with elapsed time during LLM planning (can take 30s-2m
     # depending on model and prompt length)
     import time as _time
@@ -504,7 +506,7 @@ async def _run_plan(agent: Agent, goal: str):
         """Show periodic indicator while the agent is generating text."""
         _token_count[0] += 1
         if _token_count[0] % 80 == 1 and _current_task_title:
-            sys.stdout.write(f"\r    [{_current_task_title[:20]}] [dim]thinking...[/]")
+            sys.stdout.write(f"\r    [{_current_task_title[:20]}] [dim]thinking...[/]\n")
             sys.stdout.flush()
 
     def on_progress(task_node, event: str):
