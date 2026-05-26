@@ -181,20 +181,24 @@ class Agent:
         if not self._checkpoints:
             return None
 
-        _, desc, commit = self._checkpoints.pop()
-
-        # count changed files in working tree before resetting
+        # Count changed files BEFORE resetting
         n_files = len(self.changed_files)
+
+        # If nothing changed at all, don't pretend we undid something
+        if n_files == 0 and len(self._checkpoints) == 1:
+            return None  # silent no-op: no modifications to undo
+
+        _, desc, commit = self._checkpoints.pop()
 
         if not self._checkpoints:
             self.messages.clear()
-            # restore working tree to HEAD (pre-turn snapshot)
             if commit:
                 try:
                     self.shadow._git("reset", "--hard", commit)
                 except Exception as e:
                     logger.warning("Shadow reset failed: %s", e)
-            return f"(returned to initial state){' — restored ' + str(n_files) + ' file(s)' if n_files else ''}"
+            file_info = f" — restored {n_files} file(s)" if n_files else ""
+            return f"{desc}{file_info}"
 
         # git reset to the pre-turn commit
         if commit:

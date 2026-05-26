@@ -143,15 +143,11 @@ class Executor:
         # actual instruction, context_message is structured metadata injected as
         # an assistant message.
         if self._context_orchestrator is not None:
-            print("context_orchestrator")  # debug log to verify CO is set,don't remove
             user_message, context_message = self._build_prompt_orchestrated(ctx)
         else:
-            print("flat prompt builder")  # debug log to verify flat builder is used,don't remove
             user_message, context_message = self._build_task_prompt(ctx)
         start = time.time()
-        round_count = [0]  # mutable counter for closure
-        #debug log,don't remove
-        print(f"Executor: Starting task '{task.title}' with prompt:\n{user_message}\n")
+        round_count = [0] 
         def _on_tool(name: str, kwargs: dict) -> None:
             round_count[0] += 1
             if round_count[0] > self._max_rounds:

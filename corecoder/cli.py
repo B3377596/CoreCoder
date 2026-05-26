@@ -29,9 +29,36 @@ from . import __version__
 from .orchestration.viz import render_graph_rich, status_icon
 from .orchestration.orchestrator import Orchestrator, OrchestratorConfig
 from .orchestration.engine.planner import LLMPlanner
+from .orchestration.context.retriever import RepositoryContextRetriever
+from .orchestration.context.models import ContextRequest, ExecutionState
 
 console = Console()
 logger = logging.getLogger("corecoder")
+
+
+def _build_repo_overview(agent) -> str | None:
+    """Build a lightweight repo overview for normal (non-orchestrated) chat.
+
+    Uses the retriever to get a project files list and dependency info,
+    formatted as a brief assistant context message.
+    """
+    try:
+        ret = RepositoryContextRetriever(working_dir=agent.working_dir)
+        req = ContextRequest(
+            task_title="Understand the project",
+            task_description="Explore the codebase structure",
+            goal="Understand what this project does",
+            execution_state=ExecutionState.EXPLORING,
+        )
+        frags = ret.retrieve(req)
+        if not frags:
+            return None
+        parts = []
+        for f in frags:
+            parts.append(f.content)
+        return "\n\n".join(parts).strip()
+    except Exception:
+        return None
 
 
 # ------------------------------------------------------------------
@@ -180,12 +207,19 @@ async def _run_once(agent: Agent, prompt: str):
     streamed: list[str] = []
 
     def on_token(tok):
+        if tok.startswith("[think]"):
+            return  # reasoning tokens are noise in non-orchestrated mode
         streamed.append(tok)
 
     def on_tool(name, kwargs):
         console.print(f"[dim]> {name}({_brief(kwargs)})[/dim]")
 
-    response = await agent.chat(prompt, on_token=on_token, on_tool=on_tool)
+    # Inject repo overview as context so the agent starts with project knowledge
+    repo_overview = _build_repo_overview(agent)
+    response = await agent.chat(
+        prompt, context_message=repo_overview,
+        on_token=on_token, on_tool=on_tool,
+    )
     output = "".join(streamed) or response
     if output:
         console.print(Markdown(output))
@@ -321,13 +355,20 @@ async def _repl(agent: Agent, config: Config):
         streamed: list[str] = []
 
         def on_token(tok):
+            if tok.startswith("[think]"):
+                return  # reasoning tokens are noise in non-orchestrated mode
             streamed.append(tok)
 
         def on_tool(name, kwargs):
             console.print(f"[dim]> {name}({_brief(kwargs)})[/dim]")
 
+        # Inject repo overview on first REPL turn so the agent has project context
+        ctx_msg = _build_repo_overview(agent) if len(agent.messages) == 0 else None
         try:
-            response = await agent.chat(user_input, on_token=on_token, on_tool=on_tool)
+            response = await agent.chat(
+                user_input, context_message=ctx_msg,
+                on_token=on_token, on_tool=on_tool,
+            )
             # render the complete response with proper markdown formatting
             output = "".join(streamed) or response
             if output:
