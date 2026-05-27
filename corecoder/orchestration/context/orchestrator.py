@@ -220,9 +220,13 @@ class ContextOrchestrator:
             fragment_counts[key] = fragment_counts.get(key, 0) + 1
 
         # ---- Phase 4: Extract state updates from fragments ----
-        # Computed once here so the executor doesn't need to reconstruct
-        # the same information from raw strings.
         state_updates = self._extract_state_updates(bundle, request)
+
+        # Fallback: if repo_summary wasn't set from fragments (e.g. retriever
+        # found nothing, or pipeline filtered repo fragments), use the assembled
+        # context_message which contains all non-TASK fragment content.
+        if not state_updates.get("repo_summary") and context_message:
+            state_updates["repo_summary"] = context_message
 
         return AssemblyResult(
             bundle=bundle,

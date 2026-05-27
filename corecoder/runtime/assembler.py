@@ -110,18 +110,17 @@ def estimate_ephemeral_tokens(state: SessionState, system_prompt: str) -> int:
 
 
 def _build_memory_prefix(state: SessionState) -> str:
-    """Build the assistant(memory) prefix — working memory and progress."""
+    """Build the assistant(memory) prefix — completed work and decisions.
+
+    Goal and current task are deliberately EXCLUDED — they belong in the
+    user message, not duplicated here.  This layer only carries "what we've
+    done so far" to give the agent continuity without polluting the instruction.
+    """
     parts: list[str] = []
-
-    if state.current_goal:
-        parts.append(f"## Overall Goal\n{state.current_goal}")
-
-    if state.current_task:
-        parts.append(f"## Current Task\n{state.current_task}")
 
     if state.completed_steps:
         steps = "\n".join(f"- {s}" for s in state.completed_steps[-15:])
-        parts.append(f"## Progress So Far\n{steps}")
+        parts.append(f"## Completed Steps\n{steps}")
 
     if state.important_decisions:
         decisions = "\n".join(f"- {d}" for d in state.important_decisions[-10:])

@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import json
+import sys
 from typing import AsyncGenerator
 
 from openai import (
@@ -48,6 +49,37 @@ _PRICING = {
     # Moonshot Kimi
     "kimi-k2.5": (0.6, 3),
 }
+
+# Set to False to disable debug message dumps and Enter-to-continue prompts
+_DEBUG = True
+
+
+def _debug_messages(source: str, messages: list[dict]) -> None:
+    """Print messages before LLM call and wait for Enter to continue.
+
+    Uses ensure_ascii=False so CJK characters render correctly.
+    Truncates content > 500 chars per message to keep output manageable.
+    Skips the Enter prompt when stdin is not a tty (e.g. pytest, CI).
+    """
+    if not _DEBUG:
+        return
+    # Print a compact summary: role + content preview for each message
+    print(f"\n{'='*60}")
+    print(f"[DEBUG] {source} — {len(messages)} messages")
+    for i, m in enumerate(messages):
+        role = m.get("role", "?")
+        content = m.get("content", "") or ""
+        tool_calls = m.get("tool_calls")
+        if tool_calls:
+            tc_names = [tc.get("name", "?") for tc in tool_calls]
+            content = f"[tool_calls: {', '.join(tc_names)}] {content}"[:500]
+        print(f"  [{i}] {role}: {content}")
+    print(f"{'='*60}\n")
+    sys.stdout.flush()
+    try:
+        input("[debug] Press Enter to send to LLM...")
+    except (OSError, EOFError):
+        pass  # non-interactive (pytest, CI, pipe) — skip prompt
 
 
 class LLM:
@@ -92,8 +124,8 @@ class LLM:
         on_token=None,
     ) -> LLMResponse:
         """Send messages, stream back response, handle tool calls."""
+        _debug_messages("chat", messages)
         params = self._build_params(messages, tools)
-
         # stream_options is an OpenAI extension; not all providers support it
         try:
             params["stream_options"] = {"include_usage": True}
@@ -123,6 +155,7 @@ class LLM:
         This enables the agent to start executing tools before the LLM
         finishes generating other tool calls or trailing text.
         """
+        _debug_messages("chat_sse", messages)
         params = self._build_params(messages, tools)
         try:
             params["stream_options"] = {"include_usage": True}
