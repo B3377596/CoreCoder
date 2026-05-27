@@ -18,12 +18,12 @@ from corecoder.orchestration.engine.executor import (
 )
 from corecoder.orchestration.engine.verifier import (
     BaseVerifier,
-    NoOpVerifier,
     CompositeVerifier,
     TestVerifier,
     LintVerifier,
-    OutputVerifier,
-    FileExistsVerifier,
+    FileCreatedVerifier,
+    SyntaxVerifier,
+    VerificationPolicyEngine,
 )
 
 __all__ = [
@@ -38,10 +38,10 @@ __all__ = [
     "TaskContext",
     "MaxRoundsExceededError",
     "BaseVerifier",
-    "NoOpVerifier",
     "CompositeVerifier",
     "TestVerifier",
     "LintVerifier",
-    "OutputVerifier",
-    "FileExistsVerifier",
+    "FileCreatedVerifier",
+    "SyntaxVerifier",
+    "VerificationPolicyEngine",
 ]

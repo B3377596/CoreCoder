@@ -268,47 +268,6 @@ class SyntaxVerifier(BaseVerifier):
         )
 
 
-class ImportVerifier(BaseVerifier):
-    """Verify that modified Python files can be imported (no ImportError).
-
-    Uses a subprocess to attempt import.  Only runs when there are
-    Python file changes.
-    """
-
-    def verify(
-        self,
-        result: ExecutionResult,
-        patch: PatchAnalysis | None = None,
-        working_dir: str | None = None, task_meta: dict | None = None,
-    ) -> VerificationResult:
-        if not patch or not patch.python_files:
-            return VerificationResult(passed=True, checks_run=["import:no_python_changes"])
-
-        cwd = Path(working_dir) if working_dir else Path.cwd()
-        failures: list[str] = []
-
-        for py_file in patch.python_files[:5]:  # Max 5 files to keep fast
-            full = cwd / py_file
-            if not full.exists():
-                continue
-            mod_name = Path(py_file).stem
-            try:
-                subprocess.run(
-                    ["python", "-c", f"import py_compile; py_compile.compile('{full}', doraise=True)"],
-                    capture_output=True, text=True, timeout=15, cwd=str(cwd),
-                )
-            except subprocess.TimeoutExpired:
-                pass  # Slow import — skip
-            except Exception:
-                pass  # Import check is best-effort
-
-        return VerificationResult(
-            passed=len(failures) == 0,
-            checks_run=[f"import:{len(patch.python_files)}_files"],
-            failures=failures,
-        )
-
-
 class TestVerifier(BaseVerifier):
     """Run a test command when test files were modified.
 
@@ -475,10 +434,9 @@ class VerificationPolicyEngine:
         if patch is None or not patch.has_changes:
             return verifiers
 
-        # Python changes → syntax + import checks
+        # Python changes → syntax check
         if patch.python_files:
             verifiers.append(SyntaxVerifier())
-            verifiers.append(ImportVerifier())
 
         # Test file changes → run tests
         if patch.test_files:
@@ -490,9 +448,20 @@ class VerificationPolicyEngine:
         """Build a composite verifier for the given patch."""
         return CompositeVerifier(self.select_verifiers(patch))
 
+    def verify(
+        self,
+        result: ExecutionResult,
+        patch: PatchAnalysis | None = None,
+        working_dir: str | None = None,
+        task_meta: dict | None = None,
+    ) -> VerificationResult:
+        """Route verification based on the actual patch at verify time.
 
-# For backward compatibility with old code that expects these names
-# (used in test files and orchestrator imports)
-NoOpVerifier = FileCreatedVerifier  # Most basic runtime check
-OutputVerifier = FileCreatedVerifier  # Replaced string matching with file existence
-FileExistsVerifier = FileCreatedVerifier  # Same thing, better name
+        Implements the BaseVerifier interface so the engine can be used
+        directly by the scheduler without a wrapper class.
+        """
+        return self.build(patch).verify(
+            result, patch=patch, working_dir=working_dir, task_meta=task_meta,
+        )
+
+

@@ -23,7 +23,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Callable, Awaitable
 
-from corecoder.orchestration.dag.models import TaskNode, TaskStatus, RetryPolicy
+from corecoder.orchestration.dag.models import TaskNode, TaskStatus
 from corecoder.orchestration.dag.graph import TaskGraph
 from corecoder.orchestration.engine.planner import (
     BasePlanner,
@@ -48,8 +48,8 @@ from corecoder.orchestration.observability import OrchestrationLogger, EventType
 class OrchestratorConfig:
     """Top-level configuration for the orchestration pipeline.
 
-    Every subcomponent has its own config (SchedulerConfig, RetryPolicy, etc.)
-    but these are the knobs users most commonly need to adjust.
+    Orchestrator-unique settings live here.  Scheduler-specific settings
+    are in the embedded ``scheduler`` SchedulerConfig — no field duplication.
     """
 
     goal: str = ""
@@ -67,20 +67,25 @@ class OrchestratorConfig:
     run_lint: bool = False
     lint_command: str = ""
 
-    # Scheduler configuration
-    max_tasks_per_run: int = 50
-    max_consecutive_failures: int = 5
-    continue_on_failure: bool = True
-    task_timeout_ms: float = 300_000.0
-    max_rounds_per_task: int = 20
+    # Scheduler configuration — single source of truth for scheduling knobs
+    scheduler: SchedulerConfig = field(default_factory=SchedulerConfig)
 
-    # Parallel execution: run independent tasks concurrently
-    parallel: bool = False
-    max_parallel: int = 4
-
-    # Callbacks for CLI observability
-    on_tool_callback: Callable[[str, dict], None] | None = None
-    on_token_callback: Callable[[str], None] | None = None
+    def to_scheduler_config(self, goal: str = "") -> SchedulerConfig:
+        """Produce the final SchedulerConfig with goal merged in."""
+        sc = SchedulerConfig(
+            max_tasks_per_run=self.scheduler.max_tasks_per_run,
+            max_consecutive_failures=self.scheduler.max_consecutive_failures,
+            auto_persist=self.auto_persist,
+            continue_on_failure=self.scheduler.continue_on_failure,
+            task_timeout_ms=self.scheduler.task_timeout_ms,
+            max_rounds_per_task=self.scheduler.max_rounds_per_task,
+            on_tool_callback=self.scheduler.on_tool_callback,
+            on_token_callback=self.scheduler.on_token_callback,
+            parallel=self.scheduler.parallel,
+            max_parallel=self.scheduler.max_parallel,
+            goal=goal,
+        )
+        return sc
 
 
 @dataclass
@@ -362,7 +367,14 @@ class Orchestrator:
             executor.set_context_orchestrator(self._context_orchestrator)
         elif self._agent_instance is not None:
             from corecoder.orchestration.context.orchestrator import ContextOrchestrator
-            co = ContextOrchestrator(working_dir=".")
+            co = ContextOrchestrator(
+                working_dir=".",
+                repo_index=(
+                    self._agent_instance.repo_index
+                    if self._agent_instance is not None
+                    else None
+                ),
+            )
             executor.set_context_orchestrator(co)
 
         # In parallel mode, each task gets a fresh Agent clone to prevent
@@ -386,19 +398,7 @@ class Orchestrator:
         verifier = self._build_verifier()
         memory_injector = MemoryInjector()
 
-        scheduler_config = SchedulerConfig(
-            max_tasks_per_run=self.config.max_tasks_per_run,
-            max_consecutive_failures=self.config.max_consecutive_failures,
-            auto_persist=self.config.auto_persist,
-            continue_on_failure=self.config.continue_on_failure,
-            task_timeout_ms=self.config.task_timeout_ms,
-            max_rounds_per_task=self.config.max_rounds_per_task,
-            parallel=self.config.parallel,
-            max_parallel=self.config.max_parallel,
-            on_tool_callback=self.config.on_tool_callback,
-            on_token_callback=self.config.on_token_callback,
-            goal=goal,
-        )
+        scheduler_config = self.config.to_scheduler_config(goal)
 
         scheduler = Scheduler(
             graph=graph,
@@ -457,21 +457,11 @@ class Orchestrator:
     def _build_verifier(self) -> BaseVerifier:
         """Build a verifier using the VerificationPolicyEngine.
 
-        The policy engine routes verification based on what files were
-        actually modified (patch analysis), not planner predictions.
-        Runtime facts drive verification, not pre-planned metadata.
+        The engine implements verify() directly — at call time it inspects
+        the patch and dynamically selects appropriate verifiers.
         """
         from corecoder.orchestration.engine.verifier import VerificationPolicyEngine
-
-        # Policy engine selects verifiers dynamically based on patch content.
-        # The scheduler calls verifier.verify(result, patch=patch_analysis)
-        # which triggers the policy-based routing.
-        engine = VerificationPolicyEngine()
-
-        # Return a CompositeVerifier that delegates to the policy engine.
-        # At verify() time, the patch is available and the engine selects
-        # appropriate verifiers for what actually changed.
-        return _DynamicVerifier(engine)
+        return VerificationPolicyEngine()
 
     # ------------------------------------------------------------------
     # lazy init helpers
@@ -490,12 +480,3 @@ class Orchestrator:
         return self._storage
 
 
-class _DynamicVerifier(BaseVerifier):
-    """Verifier wrapper that defers selection to verification time."""
-
-    def __init__(self, engine):
-        self._engine = engine
-
-    def verify(self, result, patch=None, working_dir=None, task_meta=None):
-        composite = self._engine.build(patch)
-        return composite.verify(result, patch=patch, working_dir=working_dir, task_meta=task_meta)

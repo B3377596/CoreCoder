@@ -35,12 +35,12 @@ from corecoder.orchestration.engine import (
     TaskContext,
     MaxRoundsExceededError,
     BaseVerifier,
-    NoOpVerifier,
     CompositeVerifier,
     TestVerifier,
     LintVerifier,
-    OutputVerifier,
-    FileExistsVerifier,
+    FileCreatedVerifier,
+    SyntaxVerifier,
+    VerificationPolicyEngine,
 )
 from corecoder.orchestration.storage import BaseStorage, JSONStorage
 from corecoder.orchestration.observability import (
@@ -60,8 +60,9 @@ __all__ = [
     "Scheduler", "SchedulerConfig", "SchedulingDecision",
     "BasePlanner", "StaticPlanner", "LLMPlanner", "PlanResult",
     "Executor", "TaskContext", "MaxRoundsExceededError",
-    "BaseVerifier", "NoOpVerifier", "CompositeVerifier",
-    "TestVerifier", "LintVerifier", "OutputVerifier", "FileExistsVerifier",
+    "BaseVerifier", "CompositeVerifier",
+    "TestVerifier", "LintVerifier", "FileCreatedVerifier",
+    "SyntaxVerifier", "VerificationPolicyEngine",
     # Infrastructure
     "BaseStorage", "JSONStorage",
     "OrchestrationLogger", "EventType", "TaskTransition",

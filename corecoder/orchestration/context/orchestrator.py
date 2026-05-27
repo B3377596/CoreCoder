@@ -43,6 +43,7 @@ from corecoder.orchestration.context.layers import (
 )
 from corecoder.orchestration.context.ranker import ContextRanker
 from corecoder.orchestration.context.retriever import RepositoryContextRetriever
+from corecoder.repo.index import RepoIndex
 from corecoder.orchestration.context.pipeline import ContextAssemblyPipeline
 from corecoder.orchestration.context.policies import (
     get_policy,
@@ -96,6 +97,7 @@ class ContextOrchestrator:
         self,
         working_dir: str = ".",
         config: ContextOrchestratorConfig | None = None,
+        repo_index: RepoIndex | None = None,
     ):
         self._config = config or ContextOrchestratorConfig()
         self._working_dir = working_dir
@@ -108,8 +110,8 @@ class ContextOrchestrator:
         self._constraint_layer = ConstraintContextLayer()
         self._policy_layer = ExecutionPolicyContextLayer()
 
-        # Retrieval
-        self._retriever = RepositoryContextRetriever(working_dir)
+        # Retrieval — pass RepoIndex when available to avoid re-reading files
+        self._retriever = RepositoryContextRetriever(working_dir, repo_index=repo_index)
 
         # Pipeline
         self._ranker = ContextRanker()

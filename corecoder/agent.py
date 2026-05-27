@@ -73,11 +73,8 @@ class Agent:
         self.tools = tools if tools is not None else ALL_TOOLS
         self.working_dir = os.getcwd()
 
-        # State-centric runtime — replaces the old self.messages
+        # State-centric runtime — all context flows through SessionState.
         self.state = SessionState()
-        # Backward-compat: raw context_message string (CLI one-shot/REPL mode).
-        # When set, the assembler injects it as part of the ephemeral prefix.
-        self._ephemeral_context: str | None = None
 
         self.context = ContextManager(max_tokens=max_context_tokens)
         self.max_rounds = max_rounds
@@ -114,43 +111,27 @@ class Agent:
     async def chat(
         self,
         user_input: str,
-        context_message: str | None = None,
         state_updates: dict | None = None,
         on_token=None,
         on_tool=None,
     ) -> str:
         """Process one user message. May involve multiple LLM/tool rounds.
 
-        Supports two modes for runtime context injection:
+        Runtime context is injected via ``state_updates`` dict.  Fields are
+        merged into SessionState and the assembler rebuilds ephemeral
+        prefixes from state fields each turn.
 
-        1. **Structured** (orchestrated mode): pass ``state_updates`` dict.
-           Fields are merged into SessionState.  The assembler rebuilds
-           ephemeral prefixes from state fields each turn.
-
-        2. **String** (CLI backward compat): pass ``context_message`` str.
-           Stored as ``_ephemeral_context`` and injected as-is into the
-           assembler's context layer.
-
-        In both cases, runtime context is EPHEMERAL — it is never written
-        into persistent_history.
+        Ephemeral context is NEVER written into persistent_history —
+        only real conversation (user, assistant, tool messages) lives there.
 
         Args:
-            user_input: The user message (goal + current task).
-            context_message: Optional raw context string (CLI backward compat).
-            state_updates: Optional dict of SessionState field updates (orchestrated mode).
+            user_input: The user message.
+            state_updates: Optional dict of SessionState field updates.
             on_token: Optional callback for each streamed token.
             on_tool: Optional callback for each tool call.
         """
-        # Apply structured state updates (orchestrated mode).
-        # These populate SessionState fields so the assembler can build
-        # layered ephemeral prefixes.
         if state_updates:
             self.state.apply_state_updates(state_updates)
-
-        # Store raw context string for backward compat (CLI mode).
-        # The assembler will inject this as an ephemeral assistant message.
-        if context_message:
-            self._ephemeral_context = context_message
 
         # git snapshot before this turn (lightweight: only commits if dirty)
         self.shadow.snapshot(f"checkpoint: {user_input[:60]}")
@@ -165,8 +146,6 @@ class Agent:
         # Compression only touches persistent_history.  Ephemeral overhead
         # is accounted for so thresholds are accurate.
         ephemeral_overhead = estimate_ephemeral_tokens(self.state, self._system)
-        if self._ephemeral_context:
-            ephemeral_overhead += len(self._ephemeral_context) // 3
         await self.context.maybe_compress(
             self.state.persistent_history, self.llm,
             ephemeral_overhead=ephemeral_overhead,
@@ -210,8 +189,6 @@ class Agent:
             # Recompute ephemeral overhead after each turn — tool results
             # may have changed what's in active context.
             ephemeral_overhead = estimate_ephemeral_tokens(self.state, self._system)
-            if self._ephemeral_context:
-                ephemeral_overhead += len(self._ephemeral_context) // 3
             await self.context.maybe_compress(
                 self.state.persistent_history, self.llm,
                 ephemeral_overhead=ephemeral_overhead,
@@ -228,7 +205,6 @@ class Agent:
     def reset(self):
         """Clear conversation history and checkpoints.  Fresh SessionState."""
         self.state = SessionState()
-        self._ephemeral_context = None
         self._checkpoints.clear()
 
     # ------------------------------------------------------------------
@@ -438,35 +414,11 @@ class Agent:
     def _build_messages_for_llm(self) -> list[dict]:
         """Build the message list for the next LLM inference call.
 
-        Uses the runtime assembler to layer ephemeral context prefixes
-        over persistent_history.  The assembler rebuilds the prefix from
-        SessionState fields on every call, so state changes take effect
-        immediately without polluting conversation history.
-
-        Backward compat: if _ephemeral_context is set (CLI mode), it is
-        injected as an additional assistant message before persistent_history.
+        The assembler layers ephemeral context prefixes (memory, repo,
+        runtime constraints) over persistent_history.  All context flows
+        through SessionState — no raw string injection.
         """
-        messages = build_runtime_messages(self.state, self._system)
-
-        # Inject backward-compat raw context string (CLI one-shot/REPL mode)
-        # between the ephemeral prefix and persistent_history.
-        # The assembler produces: [system, *ephemeral_prefix, *persistent_history]
-        # We need: [system, *ephemeral_prefix, _ephemeral_context, *persistent_history]
-        if self._ephemeral_context:
-            # Find the split point: everything before persistent_history
-            # is ephemeral prefix.  Insert context before history.
-            hist_len = len(self.state.persistent_history)
-            if hist_len > 0:
-                insert_at = len(messages) - hist_len
-                messages.insert(insert_at, {
-                    "role": "assistant", "content": self._ephemeral_context,
-                })
-            else:
-                messages.append({
-                    "role": "assistant", "content": self._ephemeral_context,
-                })
-
-        return messages
+        return build_runtime_messages(self.state, self._system)
 
     def _tool_schemas(self) -> list[dict]:
         return [t.schema() for t in self.tools]

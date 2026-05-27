@@ -53,7 +53,7 @@ from corecoder.orchestration.retrieval.task_intent import TaskIntentAnalyzer
 from corecoder.orchestration.retrieval.query_planner import RetrievalQueryPlanner
 from corecoder.orchestration.retrieval.dependency_graph import build_dependency_graph
 from corecoder.orchestration.retrieval.ranker import StructuredRanker
-from corecoder.repo.index import should_skip_path
+from corecoder.repo.index import should_skip_path, RepoIndex
 
 
 # ===========================================================================
@@ -99,11 +99,15 @@ class RepositoryContextRetriever:
         fragments = retriever.retrieve(request)
     """
 
-    def __init__(self, working_dir: str = "."):
+    def __init__(self, working_dir: str = ".", repo_index: RepoIndex | None = None):
         self._working_dir = Path(working_dir)
         self._index_dir = self._working_dir / ".corecoder"
 
-        # Core indexes (lazy-loaded)
+        # Optional RepoIndex — when provided, data is read from it instead
+        # of re-reading .corecoder/*.json from disk.
+        self._repo_index = repo_index
+
+        # Core indexes (lazy-loaded, may come from RepoIndex)
         self._symbols_json: dict[str, Any] = {}
         self._dependencies_json: dict[str, Any] = {}
         self._summary: str = ""
@@ -375,34 +379,43 @@ class RepositoryContextRetriever:
     # ------------------------------------------------------------------
 
     def _ensure_loaded(self) -> None:
-        """Lazy-load the repository index and build all components."""
+        """Lazy-load the repository index and build all components.
+
+        When a RepoIndex is provided, data is read from its in-memory
+        fields — no redundant file I/O.  Otherwise falls back to reading
+        .corecoder/*.json directly from disk.
+        """
         if self._loaded:
             return
         self._loaded = True
 
-        # Load symbols
-        symbols_path = self._index_dir / "symbols.json"
-        if symbols_path.exists():
-            try:
-                self._symbols_json = json.loads(symbols_path.read_text(encoding="utf-8"))
-            except Exception:
-                self._symbols_json = {}
+        if self._repo_index is not None:
+            # Use the passed-in RepoIndex — avoids re-reading the same files
+            self._symbols_json = dict(self._repo_index._symbols)
+            self._dependencies_json = dict(self._repo_index._deps)
+            self._summary = self._repo_index._summary
+        else:
+            # Fallback: read files directly (backward compat)
+            symbols_path = self._index_dir / "symbols.json"
+            if symbols_path.exists():
+                try:
+                    self._symbols_json = json.loads(symbols_path.read_text(encoding="utf-8"))
+                except Exception:
+                    self._symbols_json = {}
 
-        # Load dependencies
-        deps_path = self._index_dir / "dependencies.json"
-        if deps_path.exists():
-            try:
-                self._dependencies_json = json.loads(deps_path.read_text(encoding="utf-8"))
-            except Exception:
-                self._dependencies_json = {}
+            deps_path = self._index_dir / "dependencies.json"
+            if deps_path.exists():
+                try:
+                    self._dependencies_json = json.loads(deps_path.read_text(encoding="utf-8"))
+                except Exception:
+                    self._dependencies_json = {}
 
-        # Load summary
-        summary_path = self._index_dir / "repository_summary.md"
-        if summary_path.exists():
-            try:
-                self._summary = summary_path.read_text(encoding="utf-8")
-            except Exception:
-                self._summary = ""
+            summary_path = self._index_dir / "repository_summary.md"
+            if summary_path.exists():
+                try:
+                    self._summary = summary_path.read_text(encoding="utf-8")
+                except Exception:
+                    self._summary = ""
 
         # ---- Build new retrieval components ----
 

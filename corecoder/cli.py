@@ -36,29 +36,54 @@ console = Console()
 logger = logging.getLogger("corecoder")
 
 
-def _build_repo_overview(agent) -> str | None:
-    """Build a lightweight repo overview for normal (non-orchestrated) chat.
+def _build_repl_state_updates(agent, user_input: str) -> dict:
+    """Build structured state_updates for REPL/one-shot mode.
 
-    Uses the retriever to get a project files list and dependency info,
-    formatted as a brief assistant context message.
+    Uses the retriever with the user's actual message — not a static
+    "Understand the project" prompt.  The retriever internally runs
+    intent analysis, query planning, symbol routing, and ranking.
+
+    Returns a state_updates dict for the state-centric runtime.
+    Replaces the old _build_repo_overview() which only ran once and
+    returned a raw string via the legacy context_message path.
     """
     try:
-        ret = RepositoryContextRetriever(working_dir=agent.working_dir)
+        ret = RepositoryContextRetriever(working_dir=agent.working_dir, repo_index=agent.repo_index)
         req = ContextRequest(
-            task_title="Understand the project",
-            task_description="Explore the codebase structure",
-            goal="Understand what this project does",
-            execution_state=ExecutionState.EXPLORING,
+            task_title=user_input[:80],
+            task_description=user_input,
+            goal=user_input,
+            execution_state=ExecutionState.CODING,
         )
         frags = ret.retrieve(req)
         if not frags:
-            return None
-        parts = []
+            return {}
+
+        repo_parts = []
+        active_files = []
         for f in frags:
-            parts.append(f.content)
-        return "\n\n".join(parts).strip()
+            if f.content:
+                repo_parts.append(f.content)
+            for rf in f.metadata.get("ranked_files", []):
+                active_files.append(rf["path"])
+
+        updates: dict = {}
+        if repo_parts:
+            updates["repo_summary"] = "\n\n".join(repo_parts)
+        if active_files:
+            updates["active_files"] = active_files[:15]
+
+        # Carry forward files from previous turns so the agent
+        # accumulates project knowledge across a REPL session.
+        if agent.state.active_files:
+            existing = set(agent.state.active_files)
+            for f in active_files:
+                existing.add(f)
+            updates["active_files"] = list(existing)[:15]
+
+        return updates
     except Exception:
-        return None
+        return {}
 
 
 # ------------------------------------------------------------------
@@ -214,10 +239,10 @@ async def _run_once(agent: Agent, prompt: str):
     def on_tool(name, kwargs):
         console.print(f"[dim]> {name}({_brief(kwargs)})[/dim]")
 
-    # Inject repo overview as context so the agent starts with project knowledge
-    repo_overview = _build_repo_overview(agent)
+    # Build intent-driven context so the agent starts with relevant project knowledge
+    state_updates = _build_repl_state_updates(agent, prompt)
     response = await agent.chat(
-        prompt, context_message=repo_overview,
+        prompt, state_updates=state_updates,
         on_token=on_token, on_tool=on_tool,
     )
     output = "".join(streamed) or response
@@ -362,11 +387,12 @@ async def _repl(agent: Agent, config: Config):
         def on_tool(name, kwargs):
             console.print(f"[dim]> {name}({_brief(kwargs)})[/dim]")
 
-        # Inject repo overview on first REPL turn so the agent has project context
-        ctx_msg = _build_repo_overview(agent) if len(agent.state.persistent_history) == 0 else None
+        # Build intent-driven context on every turn — not just the first.
+        # The retriever analyzes the user's message to find relevant files/symbols.
+        state_updates = _build_repl_state_updates(agent, user_input)
         try:
             response = await agent.chat(
-                user_input, context_message=ctx_msg,
+                user_input, state_updates=state_updates,
                 on_token=on_token, on_tool=on_tool,
             )
             # render the complete response with proper markdown formatting
@@ -601,12 +627,10 @@ async def _run_plan(agent: Agent, goal: str):
         goal=goal,
         continue_on_failure=True,
         auto_persist=True,
-        max_rounds_per_task=25,  # first tasks need exploration; code tasks need test cycles
-        parallel=False,          # single agent, sequential execution
-        max_parallel=4,
-        on_tool_callback=on_tool,
-        on_token_callback=on_token,
     )
+    orch_config.scheduler.max_rounds_per_task = 25
+    orch_config.scheduler.on_tool_callback = on_tool
+    orch_config.scheduler.on_token_callback = on_token
     orch = Orchestrator(orch_config)
     orch.set_planner(planner)
     orch.set_agent(agent.chat, agent_instance=agent)  # pass full Agent for cloning
