@@ -401,13 +401,13 @@ class RepoIndex:
                         entries: list[str]) -> str:
         """Build the repository_summary.md content."""
         lines = [
-            f"# {self.root.name}",
+            f"{self.root.name}\n",
             "",
-            f"**Path:** `{self.root}`",
-            f"**Framework:** {framework}",
-            f"**Entry points:** {', '.join(entries) if entries else 'unknown'}",
+            f"Path: `{self.root}`\n",
+            f"Framework: {framework}\n",
+            f"Entry points: {', '.join(entries) if entries else 'unknown'}\n",
             "",
-            "## Dependencies",
+            "Dependencies",
             "",
         ]
         for d in deps[:30]:

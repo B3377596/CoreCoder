@@ -55,16 +55,21 @@ from corecoder.orchestration.context.policies import (
 class AssemblyResult:
     """Output of the ContextOrchestrator.build_context() call.
 
-    Splits the assembled context into two messages:
+    Splits the assembled context into two messages plus structured state:
     - user_message: Goal + Current Task (the actual instruction)
     - context_message: Working Memory, Constraints, Repo files, Symbols,
       Dependencies, Failures, Artifacts — injected as an *assistant* message
       so structured environment metadata doesn't pollute the user instruction.
+    - state_updates: Dict of SessionState fields extracted from the fragment
+      bundle.  The Executor passes this to Agent.chat(state_updates=...)
+      so ephemeral context is injected via the runtime assembler rather than
+      appended to conversation history.
     """
 
     bundle: ContextBundle
     user_message: str = ""
     context_message: str = ""
+    state_updates: dict = field(default_factory=dict)
     assembly_time_ms: float = 0.0
     fragment_counts: dict[str, int] = field(default_factory=dict)
 
@@ -206,9 +211,6 @@ class ContextOrchestrator:
         # ---- Phase 3: Assemble messages ----
         user_message = self._assemble_user_message(bundle)
         context_message = self._assemble_context_message(bundle)
-        print(user_message)
-        print("-" * 40)
-        print(context_message)
         assembly_time_ms = (time.time() - t0) * 1000.0
 
         # Collect fragment counts by source
@@ -217,10 +219,16 @@ class ContextOrchestrator:
             key = f.source.value
             fragment_counts[key] = fragment_counts.get(key, 0) + 1
 
+        # ---- Phase 4: Extract state updates from fragments ----
+        # Computed once here so the executor doesn't need to reconstruct
+        # the same information from raw strings.
+        state_updates = self._extract_state_updates(bundle, request)
+
         return AssemblyResult(
             bundle=bundle,
             user_message=user_message,
             context_message=context_message,
+            state_updates=state_updates,
             assembly_time_ms=assembly_time_ms,
             fragment_counts=fragment_counts,
         )
@@ -278,24 +286,22 @@ class ContextOrchestrator:
     # convenience: direct build for the executor integration point
     # ------------------------------------------------------------------
 
-    def build_state_updates(self, request: ContextRequest) -> dict[str, Any]:
-        """Build structured state updates for SessionState from context assembly.
+    def _extract_state_updates(
+        self, bundle: ContextBundle, request: ContextRequest
+    ) -> dict[str, Any]:
+        """Extract SessionState fields from an already-computed ContextBundle.
 
-        This is the bridge between string-based context assembly (used for
-        observability/logging) and the new state-centric architecture.
-        Instead of injecting a flat context_message string into conversation
-        history, we return a dict of SessionState fields that the agent
-        merges via ``SessionState.apply_state_updates()``.
+        Called internally by build_context() so state_updates are computed
+        once alongside the string assembly — no double pipeline run.
+        The Executor reads result.state_updates and passes it to
+        Agent.chat(state_updates=...) for structured ephemeral injection.
 
-        The assembler then rebuilds ephemeral message prefixes from these
-        state fields on every ReAct turn — no permanent history pollution.
-
-        Returns a dict keyed by SessionState field names.
+        This replaces the old build_state_updates() which re-ran
+        build_context() a second time just to get the updates dict.
         """
-        result = self.build_context(request)
         updates: dict[str, Any] = {}
 
-        for frag in result.bundle.fragments:
+        for frag in bundle.fragments:
             source = frag.source
 
             if source == ContextSource.TASK:
@@ -304,14 +310,6 @@ class ContextOrchestrator:
                 if request.task_title:
                     updates["current_task"] = request.task_description
 
-            elif source == ContextSource.WORKING_MEMORY:
-                if request.constraints:
-                    updates["constraints"] = list(request.constraints)
-
-            elif source == ContextSource.FAILURE_MEMORY:
-                if request.recent_errors:
-                    updates["failures"] = list(request.recent_errors)
-
             elif source == ContextSource.REPOSITORY:
                 # Repository fragments carry the full repo overview text
                 updates["repo_summary"] = frag.content
@@ -319,6 +317,14 @@ class ContextOrchestrator:
                     updates["active_files"] = list(request.focus_files)
                 if request.focus_symbols:
                     updates["active_symbols"] = list(request.focus_symbols)
+
+            elif source == ContextSource.WORKING_MEMORY:
+                if request.constraints:
+                    updates["constraints"] = list(request.constraints)
+
+            elif source == ContextSource.FAILURE_MEMORY:
+                if request.recent_errors:
+                    updates["failures"] = list(request.recent_errors)
 
         # Execution policy — always from metadata (planner-generated or keyword fallback)
         meta = request.metadata

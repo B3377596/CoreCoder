@@ -101,9 +101,9 @@ class Executor:
         """Inject a shared agent chat function (sequential mode)."""
         self._chat = agent_chat_fn
 
-    def set_agent_factory(self, factory: Callable[[], Any]) -> None:
+    '''def set_agent_factory(self, factory: Callable[[], Any]) -> None:
         """Inject an agent factory that creates a fresh Agent per task (parallel mode)."""
-        self._agent_factory = factory
+        self._agent_factory = factory'''
 
     def set_context_orchestrator(self, orchestrator: Any) -> None:
         """Inject a ContextOrchestrator for dynamic context assembly.
@@ -138,17 +138,14 @@ class Executor:
         task.status = "running"
         task.touch()
 
-        # Build the prompt: use ContextOrchestrator if available, else flat builder.
-        # Orchestrated path returns (user_message, state_updates_dict) — structured
-        # state updates that SessionState.apply_state_updates() merges.
-        # Flat path returns (user_message, context_message) — string context for
-        # backward compat (injected as ephemeral assistant message).
-        state_updates: dict | None = None
-        context_message: str | None = None
+        # Build the prompt.  Both paths now return (user_message, state_updates):
+        # - Orchestrated path: ContextOrchestrator computes structured state_updates
+        #   from the fragment bundle in a single pipeline run.
+        # - Flat path: state_updates built directly from WorkingMemory fields.
         if self._context_orchestrator is not None:
             user_message, state_updates = self._build_prompt_orchestrated(ctx)
         else:
-            user_message, context_message = self._build_task_prompt(ctx)
+            user_message, state_updates = self._build_task_prompt(ctx)
         start = time.time()
         round_count = [0] 
         def _on_tool(name: str, kwargs: dict) -> None:
@@ -168,20 +165,16 @@ class Executor:
         try:
             # Use agent factory (parallel mode) if available, otherwise shared agent.
             # Agent factory creates a fresh Agent per task → no message interleaving.
-            # Pass state_updates (structured) when available, otherwise fall back
-            # to context_message (string) for backward compat.
             if self._agent_factory is not None:
                 agent = self._agent_factory()
                 output = await agent.chat(
                     user_message,
-                    context_message=context_message,
                     state_updates=state_updates,
                     on_token=_on_token, on_tool=_on_tool,
                 )
             elif self._chat is not None:
                 output = await self._chat(
                     user_message,
-                    context_message=context_message,
                     state_updates=state_updates,
                     on_token=_on_token, on_tool=_on_tool,
                 )
@@ -237,100 +230,73 @@ class Executor:
 
         return result
 
-    def _build_task_prompt(self, ctx: TaskContext) -> tuple[str, str]:
-        """Build the user + context messages from working memory.
+    def _build_task_prompt(self, ctx: TaskContext) -> tuple[str, dict]:
+        """Build the user message + structured state updates from working memory.
 
-        Returns (user_message, context_message):
+        Returns (user_message, state_updates):
         - user_message: Task description + Overall Goal
-        - context_message: Runtime state, constraints, failures, assumptions
+        - state_updates: Dict of SessionState fields — the flat builder
+          path now also uses the state-centric pattern.
         """
         memory = ctx.memory
 
-        user_parts: list[str] = []
-        context_parts: list[str] = []
-
         # ---- User message: Task + Goal ----
+        user_parts: list[str] = []
         user_parts.append(f"## Task: {memory.current_task_title}\n\n{memory.current_task_description}")
-
         if memory.current_goal:
             user_parts.append(f"\n## Overall Goal\n{memory.current_goal}")
-
-        # ---- Context message: environment / state ----
-
-        # Project state
-        if not memory.completed_artifacts and not memory.known_constraints:
-            context_parts.append(
-                "\n## Project State\n"
-                "EMPTY PROJECT — no code, no venv, no config. Start from scratch."
-            )
-
-        # Completed upstream work
-        if memory.completed_artifacts:
-            context_parts.append("\n## Runtime State (already done by previous tasks)")
-            for tid, art in memory.completed_artifacts.items():
-                desc = art.get("description", tid)
-                context_parts.append(f"- COMPLETED: {desc}")
-                files = (art.get("created_files", []) or
-                         art.get("all_changed", []) or
-                         art.get("files", []) or
-                         art.get("expected_files", []))
-                if files:
-                    context_parts.append(f"  Existing: {', '.join(str(f) for f in files[:10])}")
-            context_parts.append(
-                "\nDO NOT re-create, re-initialize, or re-install anything "
-                "listed above.  It already exists."
-            )
-
-        # Known constraints
-        if memory.known_constraints:
-            context_parts.append("\n## Constraints (must follow)")
-            for c in memory.known_constraints:
-                context_parts.append(f"- {c}")
-
-        # Previous failures
-        if memory.recent_failures:
-            context_parts.append("\n## Previous Failures (do NOT repeat)")
-            for f in memory.recent_failures:
-                context_parts.append(f"- {f}")
-
-        # Assumptions
-        if memory.assumptions:
-            context_parts.append("\n## Assumptions")
-            for a in memory.assumptions:
-                context_parts.append(f"- {a}")
-
-        # Notes
-        if memory.notes:
-            context_parts.append(f"\n## Notes\n{memory.notes}")
-
         user_msg = "\n".join(user_parts)
         user_msg += (
             "\n\nWhen you have completed this task, summarize what you did "
             "and what files you changed.  Be specific about file paths."
         )
 
-        context_msg = "\n".join(context_parts).strip()
+        # ---- Structured state updates ----
+        state_updates: dict = {
+            "current_goal": memory.current_goal,
+            "current_task": memory.current_task_description,
+            "constraints": list(memory.known_constraints),
+            "failures": list(memory.recent_failures),
+        }
 
-        return user_msg, context_msg
+        # Completed artifacts → working memory
+        if memory.completed_artifacts:
+            steps: list[str] = []
+            for tid, art in memory.completed_artifacts.items():
+                desc = art.get("description", tid)
+                steps.append(desc)
+            state_updates["completed_steps"] = steps
+
+        # Empty project detection
+        if not memory.completed_artifacts and not memory.known_constraints:
+            state_updates["repo_summary"] = (
+                "EMPTY PROJECT — no code, no venv, no config. "
+                "Start everything from scratch."
+            )
+
+        # Notes
+        if memory.notes:
+            state_updates["repo_summary"] = (
+                (state_updates.get("repo_summary", "") + "\n\n## Notes\n" + memory.notes).strip()
+            )
+
+        return user_msg, state_updates
 
     def _build_prompt_orchestrated(self, ctx: TaskContext) -> tuple[str, dict]:
         """Build the task prompt using the ContextOrchestrator.
 
         Returns (user_message, state_updates):
         - user_message: Goal + Current Task (the instruction string)
-        - state_updates: Dict of SessionState fields — working memory, repo
-          context, execution policies.  Merged via apply_state_updates(),
-          then the assembler rebuilds ephemeral prefixes each turn.
+        - state_updates: Dict of SessionState fields — extracted once by
+          the orchestrator from the fragment bundle.  No reconstruction here.
         """
         orch = self._context_orchestrator
         memory = ctx.memory
 
-        # Determine execution state
         exec_state = ExecutionState.CODING
         if memory.recent_failures:
             exec_state = ExecutionState.DEBUGGING
 
-        # Collect focus files from upstream artifacts
         focus_files: list[str] = []
         for art in memory.completed_artifacts.values():
             files = (art.get("created_files", []) or
@@ -339,14 +305,11 @@ class Executor:
                      art.get("files", []))
             focus_files.extend(files)
 
-        # Build completed artifacts map
         completed_map = {tid: dict(art) for tid, art in memory.completed_artifacts.items()}
-
-        # Pull task-level bounds from planner (LLM-generated), if available
         task_meta = ctx.task.metadata
 
-        # Call the orchestrator for the full context assembly (produces
-        # user_message + context_message strings for observability/logging).
+        # Single call to the orchestrator — computes strings AND state_updates
+        # in one pipeline run.
         result = orch.build_task_context(
             task_id=memory.current_task_id,
             task_title=memory.current_task_title,
@@ -374,33 +337,9 @@ class Executor:
             "and what files you changed.  Be specific about file paths."
         )
 
-        # Build structured state updates directly from the values we have.
-        # The context_message string from the orchestrator contains the repo
-        # overview + symbols + dependencies — we store it as repo_summary
-        # so the assembler can inject it as an ephemeral prefix.
-        ctx_msg = result.context_message.strip()
-        state_updates: dict = {
-            "current_goal": memory.current_goal,
-            "current_task": memory.current_task_description,
-            "repo_summary": ctx_msg,
-            "active_files": focus_files,
-            "constraints": list(memory.known_constraints),
-            "failures": list(memory.recent_failures),
-            "completed_steps": [
-                art.get("description", tid)
-                for tid, art in completed_map.items()
-            ],
-        }
-        if task_meta.get("allowed"):
-            state_updates["allowed_actions"] = task_meta["allowed"]
-        if task_meta.get("forbidden"):
-            state_updates["forbidden_actions"] = task_meta["forbidden"]
-        if task_meta.get("stop_when"):
-            state_updates["stop_conditions"] = task_meta["stop_when"]
-        if getattr(memory, 'downstream_tasks', []):
-            state_updates["downstream_tasks"] = memory.downstream_tasks
-
-        return user_msg, state_updates
+        # State updates were computed once by the orchestrator from the
+        # fragment bundle — no duplicate reconstruction here.
+        return user_msg, result.state_updates
 
     def _extract_artifacts(self, ctx: TaskContext) -> dict[str, Any]:
         """Extract artifact information from what the agent actually produced.

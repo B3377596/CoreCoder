@@ -368,7 +368,7 @@ class Orchestrator:
         # In parallel mode, each task gets a fresh Agent clone to prevent
         # conversation interleaving.  The factory uses the same LLM client
         # and tools as the main agent but starts with clean messages.
-        if self.config.parallel and self._agent_instance is not None:
+        '''if self.config.parallel and self._agent_instance is not None:
             main = self._agent_instance
             def _agent_factory():
                 from corecoder.agent import Agent as AgentCls
@@ -378,7 +378,7 @@ class Orchestrator:
                     max_context_tokens=main.context.max_tokens,
                     max_rounds=self.config.max_rounds_per_task,
                 )
-            executor.set_agent_factory(_agent_factory)
+            executor.set_agent_factory(_agent_factory)'''
 
         recovery = RecoveryManager(
             retry_policy=DefaultRetryPolicy(max_retries=3),
