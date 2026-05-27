@@ -21,6 +21,7 @@ from corecoder.orchestration.context.models import (
     ContextRequest,
     ExecutionState,
 )
+from corecoder.history.compression import count_tokens
 
 
 # ===========================================================================
@@ -80,7 +81,7 @@ class SystemContextLayer(ContextLayer):
                 content=self._system_prompt,
                 priority=10,
                 relevance_score=1.0,
-                token_count=_estimate_tokens(self._system_prompt),
+                token_count=count_tokens(self._system_prompt),
             )
         ]
 
@@ -106,7 +107,7 @@ class TaskContextLayer(ContextLayer):
                 content=f"## Goal\n{request.goal}",
                 priority=10,
                 relevance_score=1.0,
-                token_count=_estimate_tokens(request.goal) + 3,
+                token_count=count_tokens(request.goal) + 3,
             ))
 
         # Current task
@@ -118,7 +119,7 @@ class TaskContextLayer(ContextLayer):
                 content=content,
                 priority=9,
                 relevance_score=1.0,
-                token_count=_estimate_tokens(content),
+                token_count=count_tokens(content),
                 origin_task_id=request.task_id,
             ))
 
@@ -147,7 +148,7 @@ class WorkingMemoryContextLayer(ContextLayer):
                 content=content,
                 priority=6,
                 relevance_score=0.8,
-                token_count=_estimate_tokens(content),
+                token_count=count_tokens(content),
             ))
 
         # Constraints
@@ -159,7 +160,7 @@ class WorkingMemoryContextLayer(ContextLayer):
                 content=content,
                 priority=8,
                 relevance_score=0.9,
-                token_count=_estimate_tokens(content),
+                token_count=count_tokens(content),
             ))
 
         # Completed upstream work
@@ -180,7 +181,7 @@ class WorkingMemoryContextLayer(ContextLayer):
                 content=content,
                 priority=7,
                 relevance_score=0.85,
-                token_count=_estimate_tokens(content),
+                token_count=count_tokens(content),
             ))
 
         return fragments
@@ -209,7 +210,7 @@ class FailureMemoryContextLayer(ContextLayer):
                 content=content,
                 priority=8,
                 relevance_score=0.95,
-                token_count=_estimate_tokens(content),
+                token_count=count_tokens(content),
                 ttl=300.0,  # Expire after 5 minutes
             ))
 
@@ -238,7 +239,7 @@ class ConstraintContextLayer(ContextLayer):
                 content=content,
                 priority=9,
                 relevance_score=1.0,
-                token_count=_estimate_tokens(content),
+                token_count=count_tokens(content),
             ))
         return fragments
 
@@ -276,7 +277,7 @@ class ExecutionPolicyContextLayer(ContextLayer):
             fragments.append(ContextFragment(
                 source=self.source, type=ContextType.CONSTRAINT,
                 content="\n".join(lines), priority=10, relevance_score=1.0,
-                token_count=_estimate_tokens("\n".join(lines)),
+                token_count=count_tokens("\n".join(lines)),
             ))
 
         # ---- Allowed / Forbidden ----
@@ -295,7 +296,7 @@ class ExecutionPolicyContextLayer(ContextLayer):
             fragments.append(ContextFragment(
                 source=self.source, type=ContextType.CONSTRAINT,
                 content="\n".join(lines), priority=10, relevance_score=1.0,
-                token_count=_estimate_tokens("\n".join(lines)),
+                token_count=count_tokens("\n".join(lines)),
             ))
 
         # ---- Stop conditions ----
@@ -306,7 +307,7 @@ class ExecutionPolicyContextLayer(ContextLayer):
                 source=self.source, type=ContextType.INSTRUCTION,
                 content=f"**STOP WHEN**: {stop}. Then STOP. Do not do extra work.",
                 priority=10, relevance_score=1.0,
-                token_count=_estimate_tokens(stop) + 20,
+                token_count=count_tokens(stop) + 20,
             ))
 
         return fragments
@@ -376,12 +377,3 @@ def derive_task_stop(title: str, desc: str) -> str:
     return ""
 
 
-# ===========================================================================
-# Token estimation helper (shared)
-# ===========================================================================
-
-def _estimate_tokens(text: str) -> int:
-    """Fast token count estimate — ~4 chars per token for code/mixed text."""
-    if not text:
-        return 0
-    return max(1, len(text) // 3)

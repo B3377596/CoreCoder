@@ -12,7 +12,6 @@ from corecoder.orchestration.dag.memory import WorkingMemory, MemoryInjector
 from corecoder.orchestration.dag.recovery import (
     RecoveryManager,
     RecoveryAction,
-    DefaultRetryPolicy,
     resume_graph_state,
 )
 
@@ -28,6 +27,5 @@ __all__ = [
     "MemoryInjector",
     "RecoveryManager",
     "RecoveryAction",
-    "DefaultRetryPolicy",
     "resume_graph_state",
 ]

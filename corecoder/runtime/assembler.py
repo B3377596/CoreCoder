@@ -24,6 +24,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from corecoder.history.compression import count_tokens
+
 if TYPE_CHECKING:
     from corecoder.runtime.state import SessionState
 
@@ -89,18 +91,18 @@ def estimate_ephemeral_tokens(state: SessionState, system_prompt: str) -> int:
     to determine when to trigger summarization — compression thresholds
     should account for this overhead.
 
-    Uses the same estimation as the compression module (~3 chars/token).
+    Uses ``count_tokens`` from the compression module for consistency.
     """
-    overhead = len(system_prompt) // 3
+    overhead = count_tokens(system_prompt)
     mem = _build_memory_prefix(state)
     if mem:
-        overhead += len(mem) // 3
+        overhead += count_tokens(mem)
     repo = _build_repo_prefix(state)
     if repo:
-        overhead += len(repo) // 3
+        overhead += count_tokens(repo)
     runtime = _build_runtime_prefix(state)
     if runtime:
-        overhead += len(runtime) // 3
+        overhead += count_tokens(runtime)
     return max(1, overhead)
 
 

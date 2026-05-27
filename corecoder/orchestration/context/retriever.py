@@ -53,6 +53,7 @@ from corecoder.orchestration.retrieval.task_intent import TaskIntentAnalyzer
 from corecoder.orchestration.retrieval.query_planner import RetrievalQueryPlanner
 from corecoder.orchestration.retrieval.dependency_graph import build_dependency_graph
 from corecoder.orchestration.retrieval.ranker import StructuredRanker
+from corecoder.repo.index import should_skip_path
 
 
 # ===========================================================================
@@ -184,7 +185,7 @@ class RepositoryContextRetriever:
         if len(candidates) < 5 and (query.concepts or intent.concepts):
             all_concepts = set(c.lower() for c in (query.concepts + intent.concepts))
             for filepath in self._symbols_json:
-                if self._should_skip_file(filepath):
+                if should_skip_path(filepath):
                     continue
                 fp = filepath.replace("\\", "/")
                 if fp in candidates:
@@ -202,7 +203,7 @@ class RepositoryContextRetriever:
         if len(candidates) < 3:
             for filepath in self._symbols_json:
                 fp = filepath.replace("\\", "/")
-                if fp not in candidates and not self._should_skip_file(filepath):
+                if fp not in candidates and not should_skip_path(filepath):
                     candidates.append(fp)
                 if len(candidates) >= 5:
                     break
@@ -346,7 +347,7 @@ class RepositoryContextRetriever:
             for neighbor in neighbors:
                 if neighbor in existing:
                     continue
-                if self._should_skip_file(neighbor):
+                if should_skip_path(neighbor):
                     continue
                 existing.add(neighbor)
                 summary = self._summary_manager.get(neighbor)
@@ -368,15 +369,6 @@ class RepositoryContextRetriever:
     # ------------------------------------------------------------------
     # helpers
     # ------------------------------------------------------------------
-
-    def _should_skip_file(self, file_path: str) -> bool:
-        parts = file_path.replace("\\", "/").split("/")
-        for part in parts:
-            if part in ("__pycache__", ".corecoder", ".git", ".venv", "venv", "node_modules"):
-                return True
-        if file_path.endswith((".pyc", ".pyo", ".so", ".dll", ".pyd", ".exe")):
-            return True
-        return False
 
     # ------------------------------------------------------------------
     # index loading

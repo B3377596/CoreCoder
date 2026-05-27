@@ -235,8 +235,7 @@ class Executor:
 
         Returns (user_message, state_updates):
         - user_message: Task description + Overall Goal
-        - state_updates: Dict of SessionState fields — the flat builder
-          path now also uses the state-centric pattern.
+        - state_updates: Dict of SessionState fields from WorkingMemory
         """
         memory = ctx.memory
 
@@ -251,33 +250,15 @@ class Executor:
             "and what files you changed.  Be specific about file paths."
         )
 
-        # ---- Structured state updates ----
-        state_updates: dict = {
-            "current_goal": memory.current_goal,
-            "current_task": memory.current_task_description,
-            "constraints": list(memory.known_constraints),
-            "failures": list(memory.recent_failures),
-        }
-
-        # Completed artifacts → working memory
-        if memory.completed_artifacts:
-            steps: list[str] = []
-            for tid, art in memory.completed_artifacts.items():
-                desc = art.get("description", tid)
-                steps.append(desc)
-            state_updates["completed_steps"] = steps
+        # ---- Structured state updates via WorkingMemory.to_state_updates() ----
+        state_updates = memory.to_state_updates()
 
         # Empty project detection
         if not memory.completed_artifacts and not memory.known_constraints:
             state_updates["repo_summary"] = (
-                "EMPTY PROJECT — no code, no venv, no config. "
-                "Start everything from scratch."
-            )
-
-        # Notes
-        if memory.notes:
-            state_updates["repo_summary"] = (
-                (state_updates.get("repo_summary", "") + "\n\n## Notes\n" + memory.notes).strip()
+                (state_updates.get("repo_summary", "") + "\n"
+                 "EMPTY PROJECT — no code, no venv, no config. "
+                 "Start everything from scratch.").strip()
             )
 
         return user_msg, state_updates

@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from corecoder.orchestration.retrieval.models import FileSummary
+from corecoder.repo.index import should_skip_path
 
 
 class FileSummaryManager:
@@ -46,7 +47,7 @@ class FileSummaryManager:
         self._summaries.clear()
 
         for filepath, symbols in symbols_json.items():
-            if self._should_skip(filepath):
+            if should_skip_path(filepath):
                 continue
             filepath = filepath.replace("\\", "/")
 
@@ -160,7 +161,7 @@ Return ONLY valid JSON:
 
         tasks = []
         for fp, syms in symbols_json.items():
-            if self._should_skip(fp):
+            if should_skip_path(fp):
                 continue
             tasks.append(_one(fp.replace("\\", "/"), syms))
 
@@ -388,11 +389,3 @@ Return ONLY valid JSON:
             "cfg": "config", "ini": "config", "txt": "text",
         }
         return type_map.get(ext, ext)
-
-    @staticmethod
-    def _should_skip(filepath: str) -> bool:
-        parts = filepath.replace("\\", "/").split("/")
-        for part in parts:
-            if part in ("__pycache__", ".corecoder", ".git", ".venv", "venv", "node_modules"):
-                return True
-        return filepath.endswith((".pyc", ".pyo", ".so", ".dll", ".pyd", ".exe"))

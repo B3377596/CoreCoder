@@ -31,14 +31,32 @@ logger = logging.getLogger("corecoder.repo")
 # ---------------------------------------------------------------------------
 
 
+# Directories and file extensions to skip when scanning repos
+_SKIP_DIRS = frozenset({
+    "__pycache__", ".corecoder", ".git", ".venv", "venv", "node_modules",
+    ".tox", "dist", "build", ".mypy_cache", ".pytest_cache", ".ruff_cache",
+})
+_SKIP_EXTENSIONS = (".pyc", ".pyo", ".so", ".dll", ".pyd", ".exe")
+
+
+def should_skip_path(filepath: str) -> bool:
+    """Check if a file path should be excluded from repo scanning.
+
+    Shared utility — used by RepoIndex, SymbolOwnershipGraph,
+    FileSummaryManager, and RepositoryContextRetriever.
+    """
+    parts = filepath.replace("\\", "/").split("/")
+    for part in parts:
+        if part in _SKIP_DIRS:
+            return True
+    return filepath.endswith(_SKIP_EXTENSIONS)
+
+
 def _find_source_files(root: Path) -> list[Path]:
     """Find all source files, respecting common ignore patterns."""
-    ignore = {".git", ".venv", "venv", "node_modules", "__pycache__",
-              ".tox", "dist", "build", ".mypy_cache", ".pytest_cache",
-              ".ruff_cache", ".corecoder"}
     files: list[Path] = []
     for item in root.rglob("*"):
-        if any(p in ignore for p in item.parts):
+        if any(p in _SKIP_DIRS for p in item.parts):
             continue
         if item.is_file():
             files.append(item)

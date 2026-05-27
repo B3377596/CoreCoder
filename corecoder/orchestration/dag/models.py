@@ -89,6 +89,19 @@ class RetryPolicy:
     retry_on: tuple[str, ...] = ()  # error substrings that trigger retry; empty = all
     reset_context_on_retry: bool = False  # whether to wipe messages before retry
 
+    def should_retry(self, retry_count: int, error: str = "") -> bool:
+        """Return True if the task should be retried given the attempt count."""
+        if retry_count >= self.max_retries:
+            return False
+        if self.retry_on:
+            return any(pattern in error for pattern in self.retry_on)
+        return True
+
+    def backoff_ms(self, attempt: int) -> float:
+        """Return the backoff delay in milliseconds for this attempt."""
+        delay = self.backoff_base_ms * (2 ** attempt)
+        return min(delay, self.backoff_max_ms)
+
 
 @dataclass
 class TaskNode:

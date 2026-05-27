@@ -130,6 +130,33 @@ class WorkingMemory:
 
         return "\n".join(parts)
 
+    def to_state_updates(self) -> dict[str, Any]:
+        """Convert working memory to SessionState field updates.
+
+        Centralizes the mapping between orchestration-side WorkingMemory
+        and runtime-side SessionState.  The executor calls this to produce
+        the state_updates dict passed to Agent.chat().
+        """
+        updates: dict[str, Any] = {
+            "current_goal": self.current_goal,
+            "current_task": self.current_task_description,
+            "constraints": list(self.known_constraints),
+            "failures": list(self.recent_failures),
+            "downstream_tasks": list(self.downstream_tasks),
+        }
+
+        if self.completed_artifacts:
+            steps: list[str] = []
+            for tid, art in self.completed_artifacts.items():
+                desc = art.get("description", tid)
+                steps.append(desc)
+            updates["completed_steps"] = steps
+
+        if self.notes:
+            updates["repo_summary"] = self.notes
+
+        return updates
+
     def clear(self) -> None:
         """Reset all fields for the next task."""
         self.current_task_id = ""

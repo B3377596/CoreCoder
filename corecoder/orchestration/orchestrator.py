@@ -38,7 +38,7 @@ from corecoder.orchestration.engine.scheduler import (
 )
 from corecoder.orchestration.engine.executor import Executor
 from corecoder.orchestration.engine.verifier import BaseVerifier
-from corecoder.orchestration.dag.recovery import RecoveryManager, DefaultRetryPolicy
+from corecoder.orchestration.dag.recovery import RecoveryManager
 from corecoder.orchestration.dag.memory import MemoryInjector
 from corecoder.orchestration.storage import BaseStorage, JSONStorage
 from corecoder.orchestration.observability import OrchestrationLogger, EventType
@@ -381,7 +381,6 @@ class Orchestrator:
             executor.set_agent_factory(_agent_factory)'''
 
         recovery = RecoveryManager(
-            retry_policy=DefaultRetryPolicy(max_retries=3),
             max_consecutive_failures=self.config.max_consecutive_failures,
         )
         verifier = self._build_verifier()

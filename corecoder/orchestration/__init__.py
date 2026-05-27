@@ -21,7 +21,6 @@ from corecoder.orchestration.dag import (
     MemoryInjector,
     RecoveryManager,
     RecoveryAction,
-    DefaultRetryPolicy,
     resume_graph_state,
 )
 from corecoder.orchestration.engine import (
@@ -56,7 +55,7 @@ __all__ = [
     "TaskStatus", "TaskNode", "ExecutionResult", "VerificationResult",
     "RetryPolicy", "TaskGraph", "CycleDetectedError",
     "WorkingMemory", "MemoryInjector",
-    "RecoveryManager", "RecoveryAction", "DefaultRetryPolicy", "resume_graph_state",
+    "RecoveryManager", "RecoveryAction", "resume_graph_state",
     # Engine
     "Scheduler", "SchedulerConfig", "SchedulingDecision",
     "BasePlanner", "StaticPlanner", "LLMPlanner", "PlanResult",

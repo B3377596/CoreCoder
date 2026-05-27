@@ -1,7 +1,7 @@
 """Recovery and retry system for task orchestration.
 
 Handles:
-- Retry policies (exponential backoff, max attempts)
+- Retry decisions (uses node.retry_policy for config)
 - Rollback hooks (clean up partial work before retry)
 - Partial graph recovery (resume after interruption)
 - Failure aggregation for replanning decisions
@@ -13,60 +13,14 @@ It decides whether to retry, skip, or escalate to replanning.
 from __future__ import annotations
 
 import asyncio
-import time
-from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
 from corecoder.orchestration.dag.models import (
     TaskNode,
     TaskStatus,
-    ExecutionResult,
     VerificationResult,
-    RetryPolicy,
 )
-
-
-class BaseRetryPolicy(ABC):
-    """Abstract retry policy — decides if and when to retry a failed task."""
-
-    @abstractmethod
-    def should_retry(self, node: TaskNode, error: str) -> bool:
-        """Return True if the task should be retried."""
-
-    @abstractmethod
-    def backoff_ms(self, attempt: int) -> float:
-        """Return the backoff delay in milliseconds for this attempt."""
-
-
-class DefaultRetryPolicy(BaseRetryPolicy):
-    """Standard exponential backoff with max retries.
-
-    Delay = min(base * 2^attempt, max_delay)
-    """
-
-    def __init__(
-        self,
-        max_retries: int = 3,
-        backoff_base_ms: float = 1000.0,
-        backoff_max_ms: float = 60_000.0,
-        retry_on: tuple[str, ...] = (),
-    ):
-        self.max_retries = max_retries
-        self.backoff_base_ms = backoff_base_ms
-        self.backoff_max_ms = backoff_max_ms
-        self.retry_on = retry_on
-
-    def should_retry(self, node: TaskNode, error: str) -> bool:
-        if node.retry_count >= self.max_retries:
-            return False
-        if self.retry_on:
-            return any(pattern in error for pattern in self.retry_on)
-        return True
-
-    def backoff_ms(self, attempt: int) -> float:
-        delay = self.backoff_base_ms * (2 ** attempt)
-        return min(delay, self.backoff_max_ms)
 
 
 @dataclass
@@ -84,7 +38,7 @@ class RecoveryManager:
     """Decides what to do when a task fails.
 
     The recovery manager is a decision-making layer, NOT an execution layer.
-    It inspects the failure, consults the retry policy, and returns a
+    It inspects the failure, consults the task's RetryPolicy, and returns a
     RecoveryAction.  The scheduler then carries out that action.
 
     Rollback hooks allow cleaning up partial work before retrying
@@ -93,10 +47,8 @@ class RecoveryManager:
 
     def __init__(
         self,
-        retry_policy: BaseRetryPolicy | None = None,
         max_consecutive_failures: int = 5,
     ):
-        self._policy = retry_policy or DefaultRetryPolicy()
         self._rollback_hooks: dict[str, list[Callable[[TaskNode], None]]] = {}
         self.max_consecutive_failures = max_consecutive_failures
         self._consecutive_failures: int = 0
@@ -180,9 +132,9 @@ class RecoveryManager:
             )
 
         # ---- Retry budget available ----
-        if self._policy.should_retry(node, error):
+        if node.retry_policy.should_retry(node.retry_count, error):
             self._consecutive_failures += 1
-            backoff = self._policy.backoff_ms(node.retry_count + 1)
+            backoff = node.retry_policy.backoff_ms(node.retry_count + 1)
             return RecoveryAction(
                 action="retry",
                 task_id=node.id,
@@ -193,7 +145,7 @@ class RecoveryManager:
         # ---- Verifier override: ONE extra retry beyond budget ----
         if verification and verification.should_retry and node.retry_count < max_r * 2:
             self._consecutive_failures += 1
-            backoff = self._policy.backoff_ms(node.retry_count + 1)
+            backoff = node.retry_policy.backoff_ms(node.retry_count + 1)
             return RecoveryAction(
                 action="retry",
                 task_id=node.id,

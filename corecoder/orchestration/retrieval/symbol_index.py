@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from typing import Any
 from corecoder.orchestration.retrieval.models import SymbolInfo
+from corecoder.repo.index import should_skip_path
 
 
 class SymbolOwnershipGraph:
@@ -74,7 +75,7 @@ class SymbolOwnershipGraph:
         self._prefix_index.clear()
 
         for filepath, symbols in symbols_json.items():
-            if self._should_skip(filepath):
+            if should_skip_path(filepath):
                 continue
 
             filepath = filepath.replace("\\", "/")
@@ -230,14 +231,3 @@ class SymbolOwnershipGraph:
     def is_built(self) -> bool:
         return self._built
 
-    # ------------------------------------------------------------------
-    # helpers
-    # ------------------------------------------------------------------
-
-    @staticmethod
-    def _should_skip(filepath: str) -> bool:
-        parts = filepath.replace("\\", "/").split("/")
-        for part in parts:
-            if part in ("__pycache__", ".corecoder", ".git", ".venv", "venv", "node_modules"):
-                return True
-        return filepath.endswith((".pyc", ".pyo", ".so", ".dll", ".pyd", ".exe"))
