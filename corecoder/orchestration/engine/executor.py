@@ -139,11 +139,14 @@ class Executor:
         task.touch()
 
         # Build the prompt: use ContextOrchestrator if available, else flat builder.
-        # Both return (user_message, context_message) — the user_message is the
-        # actual instruction, context_message is structured metadata injected as
-        # an assistant message.
+        # Orchestrated path returns (user_message, state_updates_dict) — structured
+        # state updates that SessionState.apply_state_updates() merges.
+        # Flat path returns (user_message, context_message) — string context for
+        # backward compat (injected as ephemeral assistant message).
+        state_updates: dict | None = None
+        context_message: str | None = None
         if self._context_orchestrator is not None:
-            user_message, context_message = self._build_prompt_orchestrated(ctx)
+            user_message, state_updates = self._build_prompt_orchestrated(ctx)
         else:
             user_message, context_message = self._build_task_prompt(ctx)
         start = time.time()
@@ -165,15 +168,21 @@ class Executor:
         try:
             # Use agent factory (parallel mode) if available, otherwise shared agent.
             # Agent factory creates a fresh Agent per task → no message interleaving.
+            # Pass state_updates (structured) when available, otherwise fall back
+            # to context_message (string) for backward compat.
             if self._agent_factory is not None:
                 agent = self._agent_factory()
                 output = await agent.chat(
-                    user_message, context_message=context_message,
+                    user_message,
+                    context_message=context_message,
+                    state_updates=state_updates,
                     on_token=_on_token, on_tool=_on_tool,
                 )
             elif self._chat is not None:
                 output = await self._chat(
-                    user_message, context_message=context_message,
+                    user_message,
+                    context_message=context_message,
+                    state_updates=state_updates,
                     on_token=_on_token, on_tool=_on_tool,
                 )
             else:
@@ -304,13 +313,14 @@ class Executor:
 
         return user_msg, context_msg
 
-    def _build_prompt_orchestrated(self, ctx: TaskContext) -> tuple[str, str]:
+    def _build_prompt_orchestrated(self, ctx: TaskContext) -> tuple[str, dict]:
         """Build the task prompt using the ContextOrchestrator.
 
-        Returns (user_message, context_message):
-        - user_message: Goal + Current Task (the instruction)
-        - context_message: Working memory, repo files, constraints, etc.
-          (injected as an assistant message before the user message)
+        Returns (user_message, state_updates):
+        - user_message: Goal + Current Task (the instruction string)
+        - state_updates: Dict of SessionState fields — working memory, repo
+          context, execution policies.  Merged via apply_state_updates(),
+          then the assembler rebuilds ephemeral prefixes each turn.
         """
         orch = self._context_orchestrator
         memory = ctx.memory
@@ -334,6 +344,9 @@ class Executor:
 
         # Pull task-level bounds from planner (LLM-generated), if available
         task_meta = ctx.task.metadata
+
+        # Call the orchestrator for the full context assembly (produces
+        # user_message + context_message strings for observability/logging).
         result = orch.build_task_context(
             task_id=memory.current_task_id,
             task_title=memory.current_task_title,
@@ -361,9 +374,33 @@ class Executor:
             "and what files you changed.  Be specific about file paths."
         )
 
-        context_msg = result.context_message.strip()
+        # Build structured state updates directly from the values we have.
+        # The context_message string from the orchestrator contains the repo
+        # overview + symbols + dependencies — we store it as repo_summary
+        # so the assembler can inject it as an ephemeral prefix.
+        ctx_msg = result.context_message.strip()
+        state_updates: dict = {
+            "current_goal": memory.current_goal,
+            "current_task": memory.current_task_description,
+            "repo_summary": ctx_msg,
+            "active_files": focus_files,
+            "constraints": list(memory.known_constraints),
+            "failures": list(memory.recent_failures),
+            "completed_steps": [
+                art.get("description", tid)
+                for tid, art in completed_map.items()
+            ],
+        }
+        if task_meta.get("allowed"):
+            state_updates["allowed_actions"] = task_meta["allowed"]
+        if task_meta.get("forbidden"):
+            state_updates["forbidden_actions"] = task_meta["forbidden"]
+        if task_meta.get("stop_when"):
+            state_updates["stop_conditions"] = task_meta["stop_when"]
+        if getattr(memory, 'downstream_tasks', []):
+            state_updates["downstream_tasks"] = memory.downstream_tasks
 
-        return user_msg, context_msg
+        return user_msg, state_updates
 
     def _extract_artifacts(self, ctx: TaskContext) -> dict[str, Any]:
         """Extract artifact information from what the agent actually produced.

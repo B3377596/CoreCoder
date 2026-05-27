@@ -278,6 +278,79 @@ class ContextOrchestrator:
     # convenience: direct build for the executor integration point
     # ------------------------------------------------------------------
 
+    def build_state_updates(self, request: ContextRequest) -> dict[str, Any]:
+        """Build structured state updates for SessionState from context assembly.
+
+        This is the bridge between string-based context assembly (used for
+        observability/logging) and the new state-centric architecture.
+        Instead of injecting a flat context_message string into conversation
+        history, we return a dict of SessionState fields that the agent
+        merges via ``SessionState.apply_state_updates()``.
+
+        The assembler then rebuilds ephemeral message prefixes from these
+        state fields on every ReAct turn — no permanent history pollution.
+
+        Returns a dict keyed by SessionState field names.
+        """
+        result = self.build_context(request)
+        updates: dict[str, Any] = {}
+
+        for frag in result.bundle.fragments:
+            source = frag.source
+
+            if source == ContextSource.TASK:
+                if request.goal:
+                    updates["current_goal"] = request.goal
+                if request.task_title:
+                    updates["current_task"] = request.task_description
+
+            elif source == ContextSource.WORKING_MEMORY:
+                if request.constraints:
+                    updates["constraints"] = list(request.constraints)
+
+            elif source == ContextSource.FAILURE_MEMORY:
+                if request.recent_errors:
+                    updates["failures"] = list(request.recent_errors)
+
+            elif source == ContextSource.REPOSITORY:
+                # Repository fragments carry the full repo overview text
+                updates["repo_summary"] = frag.content
+                if request.focus_files:
+                    updates["active_files"] = list(request.focus_files)
+                if request.focus_symbols:
+                    updates["active_symbols"] = list(request.focus_symbols)
+
+        # Execution policy — always from metadata (planner-generated or keyword fallback)
+        meta = request.metadata
+        if meta.get("task_allowed"):
+            updates["allowed_actions"] = list(meta["task_allowed"])
+        if meta.get("task_forbidden"):
+            updates["forbidden_actions"] = list(meta["task_forbidden"])
+        if meta.get("task_stop_when"):
+            updates["stop_conditions"] = str(meta["task_stop_when"])
+        if meta.get("downstream_tasks"):
+            updates["downstream_tasks"] = list(meta["downstream_tasks"])
+
+        # Completed artifacts → working memory
+        if request.completed_artifact_map:
+            steps: list[str] = []
+            decisions: list[str] = []
+            for tid, art in request.completed_artifact_map.items():
+                desc = art.get("description", tid)
+                steps.append(desc)
+                files = (art.get("created_files", []) or
+                         art.get("all_changed", []) or [])
+                if files:
+                    decisions.append(
+                        f"Created/modified: {', '.join(str(f) for f in files[:5])}"
+                    )
+            if steps:
+                updates["completed_steps"] = steps
+            if decisions:
+                updates["important_decisions"] = decisions
+
+        return updates
+
     def build_task_context(
         self,
         task_id: str,

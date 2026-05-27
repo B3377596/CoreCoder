@@ -178,7 +178,7 @@ async def _async_main(agent: Agent, config: Config, args):
         if args.resume:
             loaded = load_session(args.resume)
             if loaded:
-                agent.messages, loaded_model = loaded
+                agent.state, loaded_model = loaded
                 if not args.model:
                     agent.llm.model = loaded_model
                     config.model = loaded_model
@@ -282,7 +282,7 @@ async def _repl(agent: Agent, config: Config):
         if user_input == "/undo":
             desc = agent.undo()
             if desc:
-                console.print(f"[yellow]Undone: {desc} ({len(agent.messages)} messages remaining)[/]")
+                console.print(f"[yellow]Undone: {desc} ({len(agent.state.persistent_history)} messages remaining)[/]")
             else:
                 console.print("[dim]Nothing to undo.[/]")
             continue
@@ -306,16 +306,16 @@ async def _repl(agent: Agent, config: Config):
             continue
         if user_input == "/compact":
             from .history.compression import estimate_tokens
-            before = estimate_tokens(agent.messages)
-            compressed = await agent.context.maybe_compress(agent.messages, agent.llm)
-            after = estimate_tokens(agent.messages)
+            before = estimate_tokens(agent.state.persistent_history)
+            compressed = await agent.context.maybe_compress(agent.state.persistent_history, agent.llm)
+            after = estimate_tokens(agent.state.persistent_history)
             if compressed:
-                console.print(f"[green]Compressed: {before} 鈫?{after} tokens ({len(agent.messages)} messages)[/]")
+                console.print(f"[green]Compressed: {before} → {after} tokens ({len(agent.state.persistent_history)} messages)[/]")
             else:
-                console.print(f"[dim]Nothing to compress ({before} tokens, {len(agent.messages)} messages)[/]")
+                console.print(f"[dim]Nothing to compress ({before} tokens, {len(agent.state.persistent_history)} messages)[/]")
             continue
         if user_input == "/save":
-            sid = save_session(agent.messages, config.model)
+            sid = save_session(agent.state, config.model)
             console.print(f"[green]Session saved: {sid}[/]")
             console.print(f"Resume with: corecoder -r {sid}")
             continue
@@ -363,7 +363,7 @@ async def _repl(agent: Agent, config: Config):
             console.print(f"[dim]> {name}({_brief(kwargs)})[/dim]")
 
         # Inject repo overview on first REPL turn so the agent has project context
-        ctx_msg = _build_repo_overview(agent) if len(agent.messages) == 0 else None
+        ctx_msg = _build_repo_overview(agent) if len(agent.state.persistent_history) == 0 else None
         try:
             response = await agent.chat(
                 user_input, context_message=ctx_msg,

@@ -78,9 +78,21 @@ class ContextManager:
         self._summarize_at = int(max_tokens * 0.70)
         self._collapse_at = int(max_tokens * 0.90)
 
-    async def maybe_compress(self, messages: list[dict], llm: LLM | None = None) -> bool:
-        """Apply compression layers as needed. Returns True if compression happened."""
-        current = estimate_tokens(messages)
+    async def maybe_compress(
+        self, messages: list[dict], llm: LLM | None = None,
+        ephemeral_overhead: int = 0,
+    ) -> bool:
+        """Apply compression layers as needed. Returns True if compression happened.
+
+        Args:
+            messages: The persistent_history list (NOT including ephemeral context).
+            llm: LLM client for summarization.
+            ephemeral_overhead: Estimated token count of the ephemeral prefix
+                (system + assistant(mem) + assistant(repo) + assistant(run)).
+                Added to the message token count so compression thresholds
+                account for total context size, not just persistent history.
+        """
+        current = estimate_tokens(messages) + ephemeral_overhead
         compressed = False
 
         # Layer 1: snip verbose tool outputs
