@@ -53,6 +53,7 @@ from corecoder.orchestration.retrieval.task_intent import TaskIntentAnalyzer
 from corecoder.orchestration.retrieval.query_planner import RetrievalQueryPlanner
 from corecoder.orchestration.retrieval.dependency_graph import build_dependency_graph
 from corecoder.orchestration.retrieval.ranker import StructuredRanker
+from corecoder.orchestration.retrieval.models import IntentFamily, ProjectCognition
 from corecoder.repo.index import should_skip_path, RepoIndex
 
 
@@ -162,6 +163,13 @@ class RepositoryContextRetriever:
         # ---- Stage 2: Query Planning ----
         query = self._query_planner.plan(intent)
 
+        # ---- Mode Switch: understanding vs execution ----
+        if intent.family == "understanding":
+            return self._retrieve_understanding(request, intent, query, opts, t0)
+
+        # === EXECUTION / NAVIGATION / EXPLANATION / PLANNING ===
+        # (existing symbol/task pipeline below)
+
         # ---- Stage 3: Symbol Routing ----
         # Find files via symbol matching (the primary signal)
         symbol_files: set[str] = set()
@@ -268,26 +276,26 @@ class RepositoryContextRetriever:
         if self._dependencies_json:
             internal = self._dependencies_json.get("internal_imports", {})
             if internal:
-                dep_lines = ["## Key Imports"]
+                dep_entries: list[str] = []
                 shown = 0
                 for rf in top_files:
                     filepath = rf.filepath
-                    # Find matching key in internal_imports
                     for f, imps in internal.items():
                         if f.replace("\\", "/") == filepath and imps:
-                            dep_lines.append(f"- {filepath} imports: {', '.join(imps[:5])}")
+                            dep_entries.append(f"- {filepath} imports: {', '.join(imps[:5])}")
                             shown += 1
                             break
                     if shown >= 10:
                         break
-                if dep_lines:
+                if dep_entries:
+                    dep_entries.insert(0, "## Key Imports")
                     fragments.append(ContextFragment(
                         source=ContextSource.DEPENDENCY_GRAPH,
                         type=ContextType.DEPENDENCY,
-                        content="\n".join(dep_lines),
+                        content="\n".join(dep_entries),
                         priority=7,
                         relevance_score=0.85,
-                        token_count=len("\n".join(dep_lines)) // 3,
+                        token_count=len("\n".join(dep_entries)) // 3,
                     ))
 
         # ---- Stage 8: Retrieval metadata (for debugging) ----
@@ -322,6 +330,230 @@ class RepositoryContextRetriever:
     def get_last_retrieval_meta(self) -> RetrievalMeta | None:
         """Return metadata about the most recent retrieval (for debugging)."""
         return self._last_retrieval_meta
+
+    # ------------------------------------------------------------------
+    # understanding retrieval pipeline
+    # ------------------------------------------------------------------
+
+    def _retrieve_understanding(
+        self,
+        request: ContextRequest,
+        intent,
+        query,
+        opts,
+        t0: float,
+    ) -> list[ContextFragment]:
+        """Understanding retrieval pipeline.
+
+        DOES NOT use symbol routing.  Instead, prioritizes:
+        - Entrypoints (main.py, cli.py, app.py)
+        - Package inits (__init__.py at shallow depth)
+        - Config files (pyproject.toml, setup.py)
+        - High-centrality modules (architectural hubs)
+        - README files
+
+        The goal is project OVERVIEW, not symbol localization.
+        """
+        fragments: list[ContextFragment] = []
+
+        # ---- Collect understanding candidates ----
+        candidates: list[str] = []
+
+        # 1. Query-specified likely files (from planner)
+        for f in query.likely_files:
+            # Search the index for files matching the name
+            for known in self._symbols_json:
+                normalized = known.replace("\\", "/")
+                if normalized.endswith(f) or normalized.split("/")[-1] == f:
+                    if normalized not in candidates:
+                        candidates.append(normalized)
+
+        # 2. Top-level and shallow-depth files (best for overview)
+        for filepath in self._symbols_json:
+            fp = filepath.replace("\\", "/")
+            if should_skip_path(fp):
+                continue
+            if fp in candidates:
+                continue
+            depth = fp.count("/")
+            fname = fp.split("/")[-1].lower()
+            # Shallow files with revealing names
+            if depth <= 2 and (
+                fname.endswith(".py")
+                or fname in ("pyproject.toml", "setup.py", "setup.cfg", "makefile")
+                or fname.startswith("readme")
+            ):
+                candidates.append(fp)
+
+        # 3. Add architectural hubs if we have centrality data
+        if hasattr(self._ranker, '_centrality') and self._ranker._centrality:
+            hubs = sorted(
+                self._ranker._centrality.items(),
+                key=lambda x: x[1].centrality,
+                reverse=True,
+            )
+            for fp, _ in hubs[:10]:
+                if fp not in candidates:
+                    candidates.append(fp)
+
+        # 4. Fallback: add all non-skipped files up to limit
+        if len(candidates) < 3:
+            for filepath in self._symbols_json:
+                fp = filepath.replace("\\", "/")
+                if fp not in candidates and not should_skip_path(filepath):
+                    candidates.append(fp)
+                if len(candidates) >= 8:
+                    break
+
+        # ---- Understanding-mode ranking ----
+        ranked = self._ranker._rank_understanding(candidates, query, intent)
+
+        # ---- Build fragments ----
+        top_files = ranked[:opts.max_files]
+
+        # Project overview fragment
+        if top_files:
+            lines = ["## Project Overview"]
+            # Generate a project cognition summary
+            cognition = self._build_project_cognition(top_files)
+            if cognition.architecture_summary:
+                lines.append(f"\n{cognition.architecture_summary}")
+            if cognition.entrypoints:
+                lines.append(f"\nEntrypoints: {', '.join(cognition.entrypoints[:5])}")
+            if cognition.major_components:
+                lines.append(f"\nMajor components: {', '.join(cognition.major_components[:8])}")
+
+            lines.append("\n## Key Files (use read_file to see contents)")
+            for rf in top_files:
+                summary = self._summary_manager.get(rf.filepath)
+                symbols = rf.symbols[:5]
+                if summary and summary.purpose:
+                    lines.append(f"- {rf.filepath} — {summary.purpose}")
+                    if symbols:
+                        lines.append(f"  symbols: {', '.join(symbols)}")
+                elif symbols:
+                    lines.append(f"- {rf.filepath} ({', '.join(symbols)})")
+                else:
+                    lines.append(f"- {rf.filepath}")
+
+            fragments.append(ContextFragment(
+                source=ContextSource.REPOSITORY,
+                type=ContextType.METADATA,
+                content="\n".join(lines),
+                priority=10,
+                relevance_score=0.95,
+                token_count=len("\n".join(lines)) // 3,
+                metadata={
+                    "retrieval_mode": "understanding",
+                    "ranked_files": [
+                        {"path": rf.filepath, "score": rf.score, "reasons": rf.reasons}
+                        for rf in top_files
+                    ],
+                },
+            ))
+
+        # Dependency relationships (lightweight — only for top files)
+        if self._dependencies_json:
+            internal = self._dependencies_json.get("internal_imports", {})
+            if internal:
+                dep_entries: list[str] = []
+                shown = 0
+                for rf in top_files[:5]:
+                    for f, imps in internal.items():
+                        if f.replace("\\", "/") == rf.filepath and imps:
+                            dep_entries.append(f"- {rf.filepath} imports: {', '.join(imps[:5])}")
+                            shown += 1
+                            break
+                    if shown >= 8:
+                        break
+                if dep_entries:
+                    dep_entries.insert(0, "## Key Dependencies")
+                    fragments.append(ContextFragment(
+                        source=ContextSource.DEPENDENCY_GRAPH,
+                        type=ContextType.DEPENDENCY,
+                        content="\n".join(dep_entries),
+                        priority=6,
+                        relevance_score=0.75,
+                        token_count=len("\n".join(dep_entries)) // 3,
+                    ))
+
+        # Retrieval metadata
+        retrieval_time_ms = (time.time() - t0) * 1000.0
+        self._last_retrieval_meta = None  # Reset for understanding mode
+        return fragments
+
+    def retrieve_project_overview(self) -> ProjectCognition:
+        """Dedicated project overview — returns a ProjectCognition struct.
+
+        Use this for onboarding, project explanation, and architecture
+        understanding queries.  Does NOT go through the retrieval pipeline.
+        """
+        self._ensure_loaded()
+        return self._build_project_cognition(
+            list(self._symbols_json.keys())
+        )
+
+    def _build_project_cognition(self, top_files: list) -> ProjectCognition:
+        """Build a ProjectCognition from ranked files or file path strings."""
+        from corecoder.orchestration.retrieval.models import ProjectCognition
+
+        entrypoints: list[str] = []
+        components: list[str] = []
+        capabilities: list[str] = []
+        frameworks: list[str] = []
+
+        for item in top_files[:15]:
+            # Accept both RankedFile objects and plain strings
+            fp = item.filepath if hasattr(item, 'filepath') else str(item)
+            fp = fp.replace("\\", "/")
+            fname = fp.split("/")[-1]
+            summary = self._summary_manager.get(fp)
+
+            # Detect entrypoints
+            if fname in ("main.py", "cli.py", "app.py", "run.py", "__main__.py", "server.py"):
+                entrypoints.append(fp)
+            elif summary and summary.category == "cli":
+                entrypoints.append(fp)
+
+            # Detect major components (shallow-depth core modules)
+            depth = fp.count("/")
+            if depth <= 2 and fp.endswith(".py") and fname not in ("__init__.py",):
+                if summary and summary.category in ("core_logic", "cli"):
+                    components.append(fp)
+                elif len(self._symbol_graph.file_symbols(fp)) >= 3:
+                    components.append(fp)
+
+            # Detect capabilities from summaries
+            if summary and summary.purpose:
+                capabilities.append(summary.purpose)
+
+        # Detect frameworks from declared dependencies
+        deps = self._dependencies_json.get("declared", [])
+        framework_set = {"fastapi", "flask", "django", "click", "typer", "rich",
+                        "sqlalchemy", "pytest", "react", "next", "express"}
+        for d in deps:
+            if d.lower() in framework_set:
+                frameworks.append(d)
+
+        # Architecture summary
+        if entrypoints:
+            arch_parts = [f"Project with {len(top_files)} files"]
+            if entrypoints:
+                arch_parts.append(f"entry via {entrypoints[0].split('/')[-1]}")
+            if frameworks:
+                arch_parts.append(f"using {', '.join(frameworks[:3])}")
+            arch_summary = "; ".join(arch_parts)
+        else:
+            arch_summary = f"Repository with {len(top_files)} indexed files"
+
+        return ProjectCognition(
+            entrypoints=entrypoints[:5],
+            major_components=components[:8],
+            architecture_summary=arch_summary,
+            execution_flow=entrypoints[:3],
+            primary_capabilities=capabilities[:6],
+            framework_hints=frameworks[:5],
+        )
 
     # ------------------------------------------------------------------
     # dependency expansion

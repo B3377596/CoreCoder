@@ -1,12 +1,13 @@
 """Query planner — converts TaskIntent into a structured RetrievalQuery.
 
-This is the "planning" step of retrieval: before looking at files,
-we decide WHAT to look for.  The planner bridges the gap between
-"the user asked to integrate sqrt into CLI" and "search for files
-containing sqrt, CLI entrypoints, and routing logic."
+Two-level planning:
+  UNDERSTANDING → architecture overview files, entrypoints, structure
+  EXECUTION     → symbol routing, dependency expansion, task-specific files
 
-Design: lightweight symbolic reasoning.  No LLM calls.  Uses task
-type heuristics to expand the search beyond direct keyword matching.
+The planner bridges the gap between "the user asked about the project"
+and "find entrypoints, architecture files, and structural overviews."
+
+Design: lightweight symbolic reasoning.  No LLM calls.
 """
 
 from __future__ import annotations
@@ -14,29 +15,24 @@ from __future__ import annotations
 from corecoder.orchestration.retrieval.models import (
     TaskIntent,
     RetrievalQuery,
+    IntentFamily,
 )
 
 
 class RetrievalQueryPlanner:
-    """Converts TaskIntent → RetrievalQuery.
-
-    Expands the search scope based on task type:
-    - bug_fix: add test files, error handlers
-    - feature_integration: add entrypoints, dispatch, wiring code
-    - cli_change: add arg parsing, command routing, main entrypoint
-    - refactor: expand dependency radius
+    """Converts TaskIntent → RetrievalQuery with mode-aware expansion.
 
     Usage:
         planner = RetrievalQueryPlanner()
         query = planner.plan(intent)
     """
 
-    # Task-type-specific search expansions
+    # ---- Task-type-specific expansions (EXECUTION family) ----
     _TYPE_EXPANSIONS: dict[str, dict] = {
         "bug_fix": {
             "extra_concepts": ["error", "exception", "validation", "edge case"],
             "extra_files": [],
-            "expand_radius": 2,  # bugs often span multiple files
+            "expand_radius": 2,
             "prioritize_tests": True,
         },
         "feature_integration": {
@@ -62,7 +58,7 @@ class RetrievalQueryPlanner:
         "refactor": {
             "extra_concepts": [],
             "extra_files": [],
-            "expand_radius": 3,  # refactoring needs broad context
+            "expand_radius": 3,
             "prioritize_tests": True,
         },
         "rename": {
@@ -98,24 +94,95 @@ class RetrievalQueryPlanner:
         },
     }
 
+    # ---- Understanding-mode file priorities ----
+    # For understanding queries, prioritize files that reveal architecture:
+    # entrypoints, top-level modules, package inits, config files.
+    _UNDERSTANDING_PRIORITY_FILES: list[str] = [
+        # Entrypoints
+        "main.py", "cli.py", "app.py", "run.py", "__main__.py", "server.py",
+        # Project metadata
+        "pyproject.toml", "setup.py", "setup.cfg", "Cargo.toml",
+        "package.json", "go.mod", "Makefile",
+        # Package structure
+        "__init__.py",
+        # Documentation
+        "README.md", "README_CN.md", "README.rst",
+    ]
+
+    # Understanding concepts → file categories to prioritize
+    _UNDERSTANDING_CONCEPT_FILE_MAP: dict[str, list[str]] = {
+        "architecture": ["__init__.py", "main.py", "cli.py", "app.py"],
+        "overview": ["main.py", "cli.py", "app.py", "__init__.py"],
+        "entrypoint": ["main.py", "cli.py", "app.py", "run.py", "__main__.py", "server.py"],
+        "capabilities": ["main.py", "cli.py", "__init__.py"],
+        "components": ["__init__.py"],
+        "modules": ["__init__.py"],
+        "purpose": ["main.py", "cli.py", "pyproject.toml", "setup.py"],
+        "execution_flow": ["main.py", "cli.py", "app.py", "__main__.py"],
+        "structure": ["__init__.py"],
+    }
+
     def plan(self, intent: TaskIntent) -> RetrievalQuery:
         """Plan a retrieval query from task intent.
 
-        Expands:
-        - concepts: adds task-type-specific concepts
-        - likely_files: adds known entrypoints/config files
-        - dependency_radius: adjusts based on task complexity
+        Routes to mode-specific planning based on the intent family.
+        """
+        if intent.family == "understanding":
+            return self._plan_understanding(intent)
+        elif intent.family == "navigation":
+            return self._plan_navigation(intent)
+        elif intent.family == "explanation":
+            return self._plan_explanation(intent)
+        elif intent.family == "planning":
+            return self._plan_planning(intent)
+        else:
+            return self._plan_execution(intent)
+
+    # ------------------------------------------------------------------
+    # Mode-specific planners
+    # ------------------------------------------------------------------
+
+    def _plan_understanding(self, intent: TaskIntent) -> RetrievalQuery:
+        """Plan for understanding queries.
+
+        Prioritizes architecture-revealing files: entrypoints, top-level
+        modules, package inits.  Does NOT do symbol routing — the user
+        wants project shape, not symbol locations.
+        """
+        # Map concepts to priority files
+        likely_files: list[str] = []
+        for concept in intent.concepts:
+            for mapped in self._UNDERSTANDING_CONCEPT_FILE_MAP.get(concept, []):
+                if mapped not in likely_files:
+                    likely_files.append(mapped)
+
+        # Always include the base understanding priority files
+        for f in self._UNDERSTANDING_PRIORITY_FILES:
+            if f not in likely_files:
+                likely_files.append(f)
+
+        return RetrievalQuery(
+            symbols=[],  # Understanding queries don't use symbol routing
+            concepts=intent.concepts,
+            likely_files=likely_files,
+            task_type=intent.type,
+            expand_dependencies=True,
+            dependency_radius=2,  # Wider radius for architecture understanding
+        )
+
+    def _plan_execution(self, intent: TaskIntent) -> RetrievalQuery:
+        """Plan for execution (task-oriented) queries.
+
+        Uses the existing type-specific expansions — symbol routing,
+        task-type file preferences, dependency expansion.
         """
         expansion = self._TYPE_EXPANSIONS.get(
             intent.type, self._TYPE_EXPANSIONS["unknown"]
         )
 
-        # Merge explicit concepts with type-expanded ones
         concepts = list(dict.fromkeys(
             intent.concepts + expansion.get("extra_concepts", [])
         ))
-
-        # Merge explicit files with type-expanded ones
         likely_files = list(dict.fromkeys(
             intent.affected_files + expansion.get("extra_files", [])
         ))
@@ -127,4 +194,46 @@ class RetrievalQueryPlanner:
             task_type=intent.type,
             expand_dependencies=expansion.get("expand_radius", 0) > 0,
             dependency_radius=expansion.get("expand_radius", 1),
+        )
+
+    def _plan_navigation(self, intent: TaskIntent) -> RetrievalQuery:
+        """Plan for navigation queries ("where is X?").
+
+        Symbols are the primary signal; concepts secondary.
+        """
+        return RetrievalQuery(
+            symbols=intent.symbols,
+            concepts=intent.concepts,
+            likely_files=intent.affected_files,
+            task_type="navigation",
+            expand_dependencies=False,
+            dependency_radius=0,
+        )
+
+    def _plan_explanation(self, intent: TaskIntent) -> RetrievalQuery:
+        """Plan for explanation queries ("how does X work?").
+
+        Deep dive: broad dependency radius, all related files.
+        """
+        return RetrievalQuery(
+            symbols=intent.symbols,
+            concepts=intent.concepts,
+            likely_files=intent.affected_files,
+            task_type="deep_dive",
+            expand_dependencies=True,
+            dependency_radius=3,
+        )
+
+    def _plan_planning(self, intent: TaskIntent) -> RetrievalQuery:
+        """Plan for planning queries ("how should I build X?").
+
+        Broad overview: entrypoints + architecture + capabilities.
+        """
+        return RetrievalQuery(
+            symbols=intent.symbols,
+            concepts=intent.concepts + ["architecture", "overview", "entrypoint"],
+            likely_files=self._UNDERSTANDING_PRIORITY_FILES,
+            task_type="planning",
+            expand_dependencies=True,
+            dependency_radius=2,
         )

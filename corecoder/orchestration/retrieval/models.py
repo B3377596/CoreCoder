@@ -13,7 +13,114 @@ Design invariants:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Any
+
+
+# ===========================================================================
+# Intent Family — high-level retrieval mode classification
+# ===========================================================================
+
+class IntentFamily(str, Enum):
+    """Top-level classification of what the user wants.
+
+    Determines the RETRIEVAL MODE, not just ranking.  Understanding
+    queries go through a fundamentally different pipeline than execution
+    queries.
+    """
+
+    EXECUTION = "execution"        # "fix the sqrt bug", "add a /login endpoint"
+    UNDERSTANDING = "understanding"  # "这个项目在干什么", "explain the architecture"
+    NAVIGATION = "navigation"      # "where is the auth logic?", "show me config"
+    EXPLANATION = "explanation"    # "how does the dispatcher work?", "why is this slow?"
+    PLANNING = "planning"          # "what do I need to build X?", initial project setup
+
+
+class RetrievalMode(str, Enum):
+    """Which retrieval pipeline to use.
+
+    EXECUTION → symbol routing + dependency expansion + task ranking
+    UNDERSTANDING → architecture overview + entrypoint discovery + topology
+    NAVIGATION → symbol lookup + file search + dependency tracing
+    EXPLANATION → deep dive on specific modules + call graph
+    PLANNING → project sketch + capability inventory
+    """
+
+    EXECUTION = "execution"
+    UNDERSTANDING = "understanding"
+    NAVIGATION = "navigation"
+    EXPLANATION = "explanation"
+    PLANNING = "planning"
+
+
+# ===========================================================================
+# Project Cognition — what the agent knows about the repository
+# ===========================================================================
+
+@dataclass
+class ProjectCognition:
+    """High-level understanding of a repository — its shape, not its details.
+
+    Built once per session and refreshed on repo change.  Powers the
+    understanding retrieval pipeline: when the user asks "what does this
+    project do?", the answer comes from here, not from symbol routing.
+    """
+
+    entrypoints: list[str] = field(default_factory=list)
+    # e.g. ["corecoder/cli.py", "corecoder/__main__.py"]
+
+    major_components: list[str] = field(default_factory=list)
+    # Top-level modules/directories that define the architecture
+    # e.g. ["corecoder/agent.py", "corecoder/orchestration/", "corecoder/tools/"]
+
+    architecture_summary: str = ""
+    # One-paragraph description of the project's architecture
+    # e.g. "CLI app with ReAct agent loop, DAG orchestration, and symbolic retrieval"
+
+    execution_flow: list[str] = field(default_factory=list)
+    # Ordered list of execution entry → main modules → exit
+    # e.g. ["cli.py:main()", "agent.py:Agent.chat()", "llm/client.py:LLM.chat()"]
+
+    primary_capabilities: list[str] = field(default_factory=list)
+    # What can this project DO?
+    # e.g. ["AI coding assistant", "DAG task orchestration", "Repository indexing"]
+
+    framework_hints: list[str] = field(default_factory=list)
+    # Detected frameworks/libraries
+    # e.g. ["FastAPI", "Click", "SQLAlchemy"]
+
+
+@dataclass
+class RepositoryTopology:
+    """Structural understanding of the repository graph.
+
+    Centrality is measured structurally (import graph), not by keyword.
+    """
+
+    architectural_hubs: list[str] = field(default_factory=list)
+    # Files with high betweenness/degree centrality in the import graph
+    # These are the "structural center" of the codebase
+
+    leaf_modules: list[str] = field(default_factory=list)
+    # Files that are imported by many but import few — utility/leaf nodes
+
+    entrypoint_paths: list[str] = field(default_factory=list)
+    # Files that are NOT imported by anyone internally (true entrypoints)
+
+    # Centrality scores per file (computed from import graph)
+    centrality_scores: dict[str, float] = field(default_factory=dict)
+
+
+@dataclass
+class ArchitecturalCentrality:
+    """Per-file structural importance metrics."""
+
+    filepath: str
+    fan_in: int = 0       # How many files import this file
+    fan_out: int = 0      # How many files this file imports
+    is_entrypoint: bool = False  # fan_in == 0 (no internal imports of this file)
+    is_leaf: bool = False       # fan_out == 0 (this file imports nothing internal)
+    centrality: float = 0.0     # Composite score 0-1
 
 
 # ===========================================================================
@@ -68,17 +175,20 @@ class FileSummary:
 class TaskIntent:
     """Analysis of what the user's task is trying to achieve.
 
-    Drives retrieval ranking: different task types prioritize different
-    kinds of files.  A CLI change should surface main.py/argparse code;
-    a bug fix should surface files with error-prone patterns.
+    Two-layer classification:
+    - family: high-level retrieval mode (IntentFamily enum or string)
+    - type: fine-grained task type (bug_fix, overview, architecture, ...)
+
+    Drives retrieval ranking: different families use fundamentally
+    different pipelines.  Understanding queries skip symbol routing
+    entirely and go to architecture overview.
     """
 
-    type: str = ""  # bug_fix, feature_addition, feature_integration,
-    # refactor, rename, dependency_change, cli_change,
-    # test_addition, documentation, unknown
+    family: str = ""  # IntentFamily: execution, understanding, navigation, ...
+    type: str = ""    # bug_fix, overview, architecture, feature_addition, ...
 
-    symbols: list[str] = field(default_factory=list)  # mentioned symbol names
-    concepts: list[str] = field(default_factory=list)  # mentioned concepts
+    symbols: list[str] = field(default_factory=list)  # code symbols (execution only)
+    concepts: list[str] = field(default_factory=list)  # domain concepts
     entrypoint_related: bool = False
     affected_files: list[str] = field(default_factory=list)  # from task hints
     confidence: float = 0.5

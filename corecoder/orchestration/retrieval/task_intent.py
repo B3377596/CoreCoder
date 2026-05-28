@@ -1,35 +1,73 @@
 """Task intent analysis — understand WHAT the user is trying to do.
 
-Analyses task text to determine:
-- Task type (bug_fix, feature_addition, cli_change, etc.)
-- Target symbols mentioned
-- Key concepts
-- Whether this is entrypoint-related
+Two-layer classification:
+  1. IntentFamily  — high-level: EXECUTION, UNDERSTANDING, NAVIGATION, ...
+  2. TaskType      — fine-grained (only for EXECUTION family)
 
-This drives retrieval ranking: different task types prioritize different
-kinds of files.  A cli_change should surface main.py and argparse code;
-a bug_fix should surface error-prone files and test files.
+The family determines the retrieval MODE.  Understanding queries go
+through an architecture/overview pipeline; execution queries go through
+the symbol/task pipeline.  They are fundamentally different systems.
 
-Analysis is purely heuristic — no LLM calls.  The output feeds into
-RetrievalQueryPlanner.
+Analysis is purely heuristic — no LLM calls.
 """
 
 from __future__ import annotations
 
 import re
-from corecoder.orchestration.retrieval.models import TaskIntent
+from corecoder.orchestration.retrieval.models import TaskIntent, IntentFamily
 
 
 class TaskIntentAnalyzer:
-    """Heuristic task intent classifier.
+    """Two-layer intent classifier: family first, then task type.
 
     Usage:
         analyzer = TaskIntentAnalyzer()
-        intent = analyzer.analyze("Integrate sqrt function into CLI")
-        # → TaskIntent(type="feature_integration", symbols=["sqrt"], ...)
+        intent = analyzer.analyze("这个项目在干什么")
+        # → TaskIntent(family=UNDERSTANDING, type="overview", concepts=["architecture", ...])
     """
 
-    # Task type detection patterns — ordered by specificity
+    # ---- Family classification patterns ----
+    # Order matters: more specific patterns checked first within each family.
+
+    _UNDERSTANDING_PATTERNS: list[str] = [
+        # Chinese understanding queries
+        "干什么", "是什么", "做什么", "有什么用", "怎么工作",
+        "介绍一下", "介绍", "概述", "总结", "说明",
+        "架构", "结构", "整体", "总体",
+        # English understanding queries
+        "what does this", "what is this", "how does this work",
+        "explain the project", "explain the codebase",
+        "explain the architecture", "explain this project",
+        "project overview", "architecture overview",
+        "understand", "overview", "summarize", "describe",
+        "architecture", "what are the", "what is the purpose",
+        "how is this organized", "how is the code", "structure",
+        "onboarding", "getting started", "walk me through",
+        "tell me about", "give me an overview",
+    ]
+
+    _NAVIGATION_PATTERNS: list[str] = [
+        "where is", "find the", "locate", "show me",
+        "which file", "file path", "where does",
+        "在哪里", "找", "哪个文件", "定位",
+    ]
+
+    _EXPLANATION_PATTERNS: list[str] = [
+        "how does", "why does", "how do", "why is",
+        "explain how", "explain why", "deep dive",
+        "怎么做到", "为什么", "如何实现",
+    ]
+
+    _PLANNING_PATTERNS: list[str] = [
+        "what do I need", "how should I", "what's the best way",
+        "plan", "approach", "strategy", "steps to",
+        "需要什么", "怎么做", "如何做", "第一步",
+    ]
+
+    # Execution patterns are the DEFAULT — if nothing else matches,
+    # the query is assumed to be a task execution request.
+
+    # ---- Task-type patterns (only used for EXECUTION family) ----
     _TYPE_PATTERNS: list[tuple[str, list[str]]] = [
         ("bug_fix", ["fix", "bug", "error", "crash", "broken", "issue", "defect",
                      "fail", "incorrect", "wrong", "not working", "doesn't work"]),
@@ -52,7 +90,49 @@ class TaskIntentAnalyzer:
                            "explain", "describe"]),
     ]
 
-    # Concept detection — extract meaningful domain terms
+    # Understanding-specific subtypes
+    _UNDERSTANDING_SUBTYPES: dict[str, list[str]] = {
+        "overview": ["干什么", "是什么", "做什么", "overview", "what does this",
+                     "what is this", "summarize", "describe the project"],
+        "architecture": ["架构", "结构", "architecture", "how is this organized",
+                         "how is the code", "design", "pattern"],
+        "capabilities": ["有什么用", "capabilities", "features", "what can",
+                         "functionality", "purpose"],
+        "components": ["modules", "components", "packages", "directories",
+                       "模块", "组件"],
+    }
+
+    # ---- Semantic query → concept mapping ----
+    # Maps natural-language understanding queries to architectural concepts.
+    # Handles Chinese, paraphrases, and open-ended questions.
+    _SEMANTIC_CONCEPT_MAP: dict[str, list[str]] = {
+        # Chinese understanding
+        "干什么": ["architecture", "overview", "capabilities", "entrypoint", "purpose"],
+        "是什么": ["architecture", "overview", "capabilities", "purpose"],
+        "做什么": ["capabilities", "overview", "entrypoint"],
+        "有什么用": ["capabilities", "purpose", "overview"],
+        "怎么工作": ["architecture", "execution_flow", "entrypoint"],
+        "架构": ["architecture", "components", "entrypoint", "structure"],
+        "结构": ["architecture", "components", "structure"],
+        "模块": ["components", "modules", "architecture"],
+        "介绍一下": ["overview", "capabilities", "architecture", "entrypoint"],
+        "介绍": ["overview", "capabilities"],
+
+        # English understanding
+        "overview": ["architecture", "overview", "entrypoint", "capabilities"],
+        "architecture": ["architecture", "components", "entrypoint", "structure"],
+        "understand": ["overview", "architecture", "entrypoint"],
+        "summarize": ["overview", "capabilities", "entrypoint"],
+        "capabilities": ["capabilities", "entrypoint", "purpose"],
+        "purpose": ["purpose", "capabilities", "entrypoint"],
+        "components": ["components", "modules", "architecture"],
+        "modules": ["components", "modules"],
+        "entrypoint": ["entrypoint", "execution_flow"],
+        "getting started": ["entrypoint", "overview", "architecture"],
+        "onboarding": ["entrypoint", "overview", "architecture", "capabilities"],
+    }
+
+    # ---- Concept extraction regex ----
     _CONCEPT_PATTERN = re.compile(
         r'\b(?:'
         r'cli|ui|api|web|http|rest|graphql|database|db|sql|nosql|'
@@ -75,59 +155,133 @@ class TaskIntentAnalyzer:
         re.IGNORECASE,
     )
 
+    # ------------------------------------------------------------------
+    # public API
+    # ------------------------------------------------------------------
+
     def analyze(
         self,
         task_title: str = "",
         task_description: str = "",
         goal: str = "",
     ) -> TaskIntent:
-        """Analyze task text and produce a TaskIntent.
+        """Analyze task text and produce a TaskIntent with family classification.
 
-        Args:
-            task_title: Short title of the task node.
-            task_description: Detailed description.
-            goal: Overall project goal.
-
-        Returns:
-            TaskIntent with type, symbols, concepts, and confidence.
+        Two-layer classification:
+        1. Determine IntentFamily (UNDERSTANDING, EXECUTION, NAVIGATION, ...)
+        2. If EXECUTION: classify task type (bug_fix, feature_addition, ...)
+           If UNDERSTANDING: classify subtype (overview, architecture, ...)
         """
         text = f"{task_title} {task_description} {goal}".lower()
         text_original = f"{task_title} {task_description} {goal}"
 
-        # 1. Determine task type
-        task_type, type_confidence = self._classify_type(text)
+        # ---- Layer 1: Intent Family ----
+        family, family_confidence = self._classify_family(text)
 
-        # 2. Extract symbol mentions (identifiers that look like code symbols)
-        symbols = self._extract_symbols(text_original)
+        # ---- Layer 2: Family-specific classification ----
+        task_type = "unknown"
+        type_confidence = 0.3
 
-        # 3. Extract concepts
-        concepts = self._extract_concepts(text)
+        if family == IntentFamily.EXECUTION:
+            task_type, type_confidence = self._classify_task_type(text)
 
-        # 4. Check entrypoint relevance
+        elif family == IntentFamily.UNDERSTANDING:
+            task_type, type_confidence = self._classify_understanding_subtype(text)
+
+        elif family == IntentFamily.NAVIGATION:
+            task_type = "navigation"
+            type_confidence = family_confidence
+
+        elif family == IntentFamily.EXPLANATION:
+            task_type = "deep_dive"
+            type_confidence = family_confidence
+
+        elif family == IntentFamily.PLANNING:
+            task_type = "planning"
+            type_confidence = family_confidence
+
+        # ---- Symbol extraction: ONLY for EXECUTION ----
+        # For understanding/navigation/explanation queries, symbol extraction
+        # is harmful — "understand" is not a code symbol.
+        symbols: list[str] = []
+        if family == IntentFamily.EXECUTION:
+            symbols = self._extract_symbols(text_original)
+
+        # ---- Concept extraction ----
+        if family == IntentFamily.UNDERSTANDING:
+            # Understanding queries: semantic mapping + regex concepts
+            concepts = self._map_semantic_concepts(text)
+            domain_concepts = self._extract_concepts(text)
+            # Merge, semantic first
+            seen = set(concepts)
+            for c in domain_concepts:
+                if c not in seen:
+                    seen.add(c)
+                    concepts.append(c)
+        else:
+            concepts = self._extract_concepts(text)
+
+        # ---- Entrypoint relevance ----
         entrypoint_related = self._is_entrypoint_related(text, symbols)
 
-        # 5. Guess affected files from task hints
+        # ---- Affected files ----
         affected_files = self._guess_affected_files(text, symbols)
 
         return TaskIntent(
+            family=family.value if hasattr(family, 'value') else str(family),
             type=task_type,
             symbols=symbols,
             concepts=concepts,
             entrypoint_related=entrypoint_related,
             affected_files=affected_files,
-            confidence=type_confidence,
+            confidence=max(type_confidence, family_confidence),
         )
 
     # ------------------------------------------------------------------
-    # classification
+    # Layer 1: Intent Family classification
     # ------------------------------------------------------------------
 
-    def _classify_type(self, text: str) -> tuple[str, float]:
-        """Classify task type by keyword pattern matching.
+    def _classify_family(self, text: str) -> tuple[IntentFamily, float]:
+        """Classify the high-level intent family.
 
-        Returns (type, confidence).  Order matters — first match wins,
-        so more specific patterns are checked first.
+        Checks understanding/navigation/explanation/planning patterns first.
+        If nothing matches, defaults to EXECUTION (the most common case).
         """
+        scores: dict[IntentFamily, int] = {}
+
+        # Check each family's patterns
+        for pat in self._UNDERSTANDING_PATTERNS:
+            if pat in text:
+                scores[IntentFamily.UNDERSTANDING] = scores.get(IntentFamily.UNDERSTANDING, 0) + 1
+
+        for pat in self._NAVIGATION_PATTERNS:
+            if pat in text:
+                scores[IntentFamily.NAVIGATION] = scores.get(IntentFamily.NAVIGATION, 0) + 1
+
+        for pat in self._EXPLANATION_PATTERNS:
+            if pat in text:
+                scores[IntentFamily.EXPLANATION] = scores.get(IntentFamily.EXPLANATION, 0) + 1
+
+        for pat in self._PLANNING_PATTERNS:
+            if pat in text:
+                scores[IntentFamily.PLANNING] = scores.get(IntentFamily.PLANNING, 0) + 1
+
+        if not scores:
+            # No non-execution patterns matched → default to EXECUTION
+            return (IntentFamily.EXECUTION, 0.6)
+
+        best_family = max(scores, key=lambda k: scores[k])
+        best_score = scores[best_family]
+        confidence = min(0.9, 0.5 + (best_score / max(1, sum(scores.values()))) * 0.4)
+
+        return (best_family, confidence)
+
+    # ------------------------------------------------------------------
+    # Layer 2a: Task type classification (EXECUTION family)
+    # ------------------------------------------------------------------
+
+    def _classify_task_type(self, text: str) -> tuple[str, float]:
+        """Classify execution task type by keyword pattern matching."""
         scores: dict[str, int] = {}
         for task_type, keywords in self._TYPE_PATTERNS:
             score = sum(1 for kw in keywords if kw in text)
@@ -137,22 +291,68 @@ class TaskIntentAnalyzer:
         if not scores:
             return ("unknown", 0.3)
 
-        # Pick the type with the most keyword matches
         best_type = max(scores, key=lambda k: scores[k])
         best_score = scores[best_type]
-        total = sum(scores.values())
-        confidence = min(0.9, 0.4 + (best_score / total) * 0.5)
-
+        confidence = min(0.9, 0.4 + (best_score / sum(scores.values())) * 0.5)
         return (best_type, confidence)
 
-    def _extract_symbols(self, text: str) -> list[str]:
-        """Extract potential symbol names from task text.
+    # ------------------------------------------------------------------
+    # Layer 2b: Understanding subtype classification
+    # ------------------------------------------------------------------
 
-        Looks for identifier-like tokens that might refer to code symbols.
-        Filters out common English words and task-type keywords.
+    def _classify_understanding_subtype(self, text: str) -> tuple[str, float]:
+        """Classify the type of understanding query."""
+        scores: dict[str, int] = {}
+        for subtype, patterns in self._UNDERSTANDING_SUBTYPES.items():
+            score = sum(1 for p in patterns if p in text)
+            if score > 0:
+                scores[subtype] = score
+
+        if not scores:
+            return ("overview", 0.5)  # Default understanding subtype
+
+        best = max(scores, key=lambda k: scores[k])
+        confidence = min(0.9, 0.5 + (scores[best] / sum(scores.values())) * 0.4)
+        return (best, confidence)
+
+    # ------------------------------------------------------------------
+    # Semantic concept mapping (for understanding queries)
+    # ------------------------------------------------------------------
+
+    def _map_semantic_concepts(self, text: str) -> list[str]:
+        """Map natural-language understanding queries to architectural concepts.
+
+        Handles Chinese, paraphrases, and open-ended questions by looking
+        up patterns in the semantic concept map — not extracting keywords.
+        """
+        concepts: list[str] = []
+        seen: set[str] = set()
+
+        for pattern, mapped in self._SEMANTIC_CONCEPT_MAP.items():
+            if pattern in text:
+                for c in mapped:
+                    if c not in seen:
+                        seen.add(c)
+                        concepts.append(c)
+
+        # If nothing matched but it's clearly an understanding query
+        # (e.g. "tell me about this codebase"), use default overview set
+        if not concepts:
+            concepts = ["architecture", "overview", "entrypoint", "capabilities"]
+
+        return concepts[:8]
+
+    # ------------------------------------------------------------------
+    # Symbol extraction — ONLY for EXECUTION family
+    # ------------------------------------------------------------------
+
+    def _extract_symbols(self, text: str) -> list[str]:
+        """Extract potential code symbol names from task text.
+
+        ONLY called for EXECUTION family queries.  Filters aggressively
+        to avoid treating natural-language words as code symbols.
         """
         identifiers = re.findall(r'\b[a-zA-Z_][a-zA-Z0-9_]{2,}\b', text)
-        # Filter out common English words and known non-symbols
         stop_words = {
             "the", "and", "for", "that", "this", "with", "from", "should",
             "when", "will", "what", "which", "where", "have", "been", "does",
@@ -165,12 +365,15 @@ class TaskIntentAnalyzer:
             "task", "code", "file", "files", "function", "module", "class",
             "project", "goal", "description", "title", "step", "work",
             "want", "like", "would", "could", "must", "shall",
-            # Task type keywords (not symbols)
+            # Task type keywords
             "integrate", "wire", "connect", "hook", "refactor", "rename",
             "install", "upgrade", "downgrade", "restructure", "reorganize",
             "introduce", "support",
+            # Understanding keywords — NOT code symbols
+            "understand", "overview", "summarize", "describe", "explain",
+            "architecture", "component", "module", "feature", "capability",
+            "purpose", "structure", "design", "pattern",
         }
-        # Deduplicate case-insensitively, preserving first occurrence
         seen: set[str] = set()
         result: list[str] = []
         for s in identifiers:
@@ -180,10 +383,13 @@ class TaskIntentAnalyzer:
                 result.append(s)
         return result[:8]
 
+    # ------------------------------------------------------------------
+    # Concept extraction (for execution/navigation queries)
+    # ------------------------------------------------------------------
+
     def _extract_concepts(self, text: str) -> list[str]:
         """Extract domain concepts from task text."""
         matches = self._CONCEPT_PATTERN.findall(text)
-        # Deduplicate while preserving order
         seen: set[str] = set()
         result: list[str] = []
         for m in matches:
@@ -193,10 +399,13 @@ class TaskIntentAnalyzer:
                 result.append(lower)
         return result[:6]
 
+    # ------------------------------------------------------------------
+    # helpers
+    # ------------------------------------------------------------------
+
     def _is_entrypoint_related(
         self, text: str, symbols: list[str]
     ) -> bool:
-        """Check if the task involves the application entry point."""
         entrypoint_keywords = {
             "main", "cli", "entry", "entrypoint", "entry_point",
             "command", "argparse", "click", "typer", "run", "start",
@@ -210,10 +419,6 @@ class TaskIntentAnalyzer:
         return False
 
     def _guess_affected_files(self, text: str, symbols: list[str]) -> list[str]:
-        """Try to guess which files are affected from task text.
-
-        Looks for file path mentions like 'calculator.py' or 'src/main.py'.
-        """
         file_pattern = re.compile(r'\b[\w/\\-]+\.(?:py|yaml|yml|toml|json|md)\b')
         matches = file_pattern.findall(text)
-        return list(dict.fromkeys(matches))[:5]  # deduplicate, preserve order
+        return list(dict.fromkeys(matches))[:5]
