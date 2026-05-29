@@ -1,4 +1,4 @@
-"""LLM provider layer — thin wrapper over OpenAI-compatible APIs.
+"""LLM provider layer ? thin wrapper over OpenAI-compatible APIs.
 
 Since most providers expose an OpenAI-compatible endpoint, we use the
 openai SDK directly.  For non-OpenAI providers, use the LiteLLM backend.
@@ -52,13 +52,9 @@ _PRICING = {
 
 # Disabled by default: dumping prompts/tool calls is useful locally but
 # too noisy and risky for everyday use.
-_DEBUG = False
+_DEBUG = True
 
 
-def set_debug(enabled: bool) -> None:
-    """Enable or disable verbose message dumps globally for this module."""
-    global _DEBUG
-    _DEBUG = enabled
 
 
 def _debug_messages(source: str, messages: list[dict]) -> None:
@@ -72,13 +68,13 @@ def _debug_messages(source: str, messages: list[dict]) -> None:
         return
     # Print a compact summary: role + content preview for each message
     print(f"\n{'='*60}")
-    print(f"[DEBUG] {source} — {len(messages)} messages")
+    print(f"[DEBUG] {source} ? {len(messages)} messages")
     for i, m in enumerate(messages):
-        role = m.get("role", "?")
+        role = m.get("role", "*")
         content = m.get("content", "") or ""
         tool_calls = m.get("tool_calls")
         if tool_calls:
-            tc_names = [tc.get("name", "?") for tc in tool_calls]
+            tc_names = [tc.get("name", "*") for tc in tool_calls]
             content = f"[tool_calls: {', '.join(tc_names)}] {content}"[:500]
         print(f"  [{i}] {role}: {content}")
     print(f"{'='*60}\n")
@@ -86,7 +82,7 @@ def _debug_messages(source: str, messages: list[dict]) -> None:
     try:
         input("[debug] Press Enter to send to LLM...")
     except (OSError, EOFError):
-        pass  # non-interactive (pytest, CI, pipe) — skip prompt
+        pass  # non-interactive (pytest, CI, pipe) ? skip prompt
 
 
 class LLM:
@@ -206,7 +202,7 @@ class LLM:
                     raise
 
     # ------------------------------------------------------------------
-    # SSE stream processing — yields tool calls as soon as they're complete
+    # SSE stream processing ? yields tool calls as soon as they're complete
     # ------------------------------------------------------------------
 
     async def _process_stream_sse(self, stream) -> AsyncGenerator[SSEEvent, None]:
@@ -269,7 +265,7 @@ class LLM:
 
                 # After accumulating deltas for this chunk, check if any
                 # tool call's arguments now form valid JSON.  If so, that
-                # tool call is complete — yield it immediately.
+                # tool call is complete ? yield it immediately.
                 for idx in sorted(tc_map):
                     entry = tc_map[idx]
                     if entry["yielded"] or not entry["name"] or not entry["args"]:
@@ -277,8 +273,8 @@ class LLM:
                     try:
                         args = json.loads(entry["args"])
                     except json.JSONDecodeError:
-                        continue  # Still being built — wait for more chunks
-                    # Valid JSON → tool call is complete
+                        continue  # Still being built ? wait for more chunks
+                    # Valid JSON ? tool call is complete
                     entry["yielded"] = True
                     yield SSEEvent(
                         type="tool_call",
@@ -294,7 +290,7 @@ class LLM:
         self.total_completion_tokens += completion_tok
 
         # Emit any tool calls that didn't parse (malformed JSON) as a
-        # best-effort fallback — use empty args
+        # best-effort fallback ? use empty args
         for idx in sorted(tc_map):
             entry = tc_map[idx]
             if not entry["yielded"] and entry["name"]:
@@ -346,7 +342,7 @@ class LLM:
                 continue
             delta = chunk.choices[0].delta
 
-            # DeepSeek / o1 reasoning tokens — must be passed back to API
+            # DeepSeek / o1 reasoning tokens ? must be passed back to API
             reasoning = getattr(delta, "reasoning_content", None)
             if reasoning:
                 reasoning_parts.append(reasoning)

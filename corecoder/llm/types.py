@@ -1,4 +1,4 @@
-"""LLM data types — ToolCall, LLMResponse, SSEEvent.
+"""LLM data types ? ToolCall, LLMResponse, SSEEvent.
 
 These are pure data structures shared between the LLM client and the
 agent loop.  Separating them from the client prevents circular imports

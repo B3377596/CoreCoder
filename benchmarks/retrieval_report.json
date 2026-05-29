@@ -1,18 +1,18 @@
 {
-  "generated_at": "2026-05-29T07:43:36.511797+00:00",
+  "generated_at": "2026-05-29T07:55:31.100175+00:00",
   "repo_root": "C:\\Users\\86159\\Documents\\agent\\CoreCoder",
   "dataset": "C:\\Users\\86159\\Documents\\agent\\CoreCoder\\benchmarks\\data\\retrieval_eval.jsonl",
   "top_k": 5,
   "summary": {
     "cases": 30,
-    "hit_at_1": 0.2,
-    "hit_at_3": 0.2667,
-    "hit_at_5": 0.3333,
-    "recall_at_5": 0.2611,
-    "mrr": 0.2483,
-    "avg_retrieval_time_ms": 0.795,
-    "avg_files_considered": 7.53,
-    "avg_files_ranked": 10.3
+    "hit_at_1": 0.4333,
+    "hit_at_3": 0.6,
+    "hit_at_5": 0.7,
+    "recall_at_5": 0.6056,
+    "mrr": 0.5289,
+    "avg_retrieval_time_ms": 0.659,
+    "avg_files_considered": 8.77,
+    "avg_files_ranked": 9.87
   },
   "results": [
     {
@@ -48,7 +48,7 @@
         "intent_type": "overview",
         "total_files_considered": 42,
         "total_files_ranked": 42,
-        "retrieval_time_ms": 1.002,
+        "retrieval_time_ms": 1.404,
         "pipeline_stages": [
           "intent_analysis",
           "query_planning",
@@ -69,14 +69,14 @@
       "retrieved_files": [
         "corecoder/cli.py",
         "corecoder/mcp/client.py",
-        "corecoder.history.compression.count_tokens",
-        "corecoder/orchestration/viz.py",
-        "corecoder.orchestration.context.layers.ExecutionPolicyContextLayer",
-        "corecoder.orchestration.context.layers.derive_task_stop",
-        "ast",
-        "rich.markdown.Markdown",
-        "typing.Any",
-        "agent.Agent"
+        "corecoder/tools/grep.py",
+        "tests/test_core.py",
+        "tests/test_orchestration.py",
+        "corecoder/orchestration/engine/planner.py",
+        "corecoder/tools/bash.py",
+        "corecoder/runtime/state.py",
+        "corecoder/llm/types.py",
+        "corecoder/orchestration/context/pipeline.py"
       ],
       "metrics": {
         "hit_at_1": 1.0,
@@ -88,9 +88,9 @@
       "retrieval_meta": {
         "intent_family": "explanation",
         "intent_type": "deep_dive",
-        "total_files_considered": 5,
+        "total_files_considered": 3,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 1.007,
+        "retrieval_time_ms": 1.587,
         "pipeline_stages": [
           "intent_analysis",
           "query_planning",
@@ -109,22 +109,25 @@
         "corecoder/history/session.py"
       ],
       "retrieved_files": [
-        "tests/test_session.py",
         "corecoder/history/session.py",
-        "corecoder/runtime/state.py"
+        "tests/test_session.py",
+        "tests/test_core.py",
+        "corecoder/runtime/state.py",
+        "corecoder/repo/shadow.py",
+        "tests/test_orchestration.py"
       ],
       "metrics": {
-        "hit_at_1": 0.0,
+        "hit_at_1": 1.0,
         "hit_at_3": 1.0,
         "hit_at_5": 1.0,
         "recall_at_5": 1.0,
-        "mrr": 0.5
+        "mrr": 1.0
       },
       "retrieval_meta": {
         "intent_family": "navigation",
         "intent_type": "navigation",
-        "total_files_considered": 3,
-        "total_files_ranked": 3,
+        "total_files_considered": 6,
+        "total_files_ranked": 6,
         "retrieval_time_ms": 0.0,
         "pipeline_stages": [
           "intent_analysis",
@@ -144,16 +147,16 @@
         "corecoder/history/compression.py"
       ],
       "retrieved_files": [
-        "corecoder/orchestration/viz.py",
-        "ast",
-        "rich.markdown.Markdown",
-        "typing.Any",
-        "agent.Agent",
-        "tests/test_tools.py",
-        "tempfile",
+        "corecoder/orchestration/context/layers.py",
+        "corecoder/orchestration/context/models.py",
+        "corecoder/tools/grep.py",
+        "tests/test_core.py",
+        "tests/test_orchestration.py",
+        "corecoder/orchestration/engine/planner.py",
         "corecoder/tools/bash.py",
-        "corecoder.tools.get_tool",
-        "corecoder.__version__"
+        "corecoder/runtime/state.py",
+        "corecoder/llm/types.py",
+        "corecoder/orchestration/context/pipeline.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
@@ -165,9 +168,9 @@
       "retrieval_meta": {
         "intent_family": "explanation",
         "intent_type": "deep_dive",
-        "total_files_considered": 5,
+        "total_files_considered": 4,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 4.996,
+        "retrieval_time_ms": 1.061,
         "pipeline_stages": [
           "intent_analysis",
           "query_planning",
@@ -186,24 +189,26 @@
         "corecoder/orchestration/retrieval/query_planner.py"
       ],
       "retrieved_files": [
-        "corecoder/cli.py",
-        "corecoder/prompt.py",
-        "corecoder/config.py",
-        "benchmarks/run_retrieval_benchmark.py",
-        "corecoder/agent.py"
+        "corecoder/orchestration/retrieval/query_planner.py",
+        "tests/test_retrieval_improvements.py",
+        "corecoder/orchestration/retrieval/models.py",
+        "corecoder/orchestration/context/retriever.py",
+        "corecoder/orchestration/orchestrator.py",
+        "tests/test_orchestration.py",
+        "corecoder/orchestration/context/ranker.py"
       ],
       "metrics": {
-        "hit_at_1": 0.0,
-        "hit_at_3": 0.0,
-        "hit_at_5": 0.0,
-        "recall_at_5": 0.0,
-        "mrr": 0.0
+        "hit_at_1": 1.0,
+        "hit_at_3": 1.0,
+        "hit_at_5": 1.0,
+        "recall_at_5": 1.0,
+        "mrr": 1.0
       },
       "retrieval_meta": {
         "intent_family": "navigation",
         "intent_type": "navigation",
-        "total_files_considered": 5,
-        "total_files_ranked": 5,
+        "total_files_considered": 7,
+        "total_files_ranked": 7,
         "retrieval_time_ms": 0.0,
         "pipeline_stages": [
           "intent_analysis",
@@ -223,16 +228,16 @@
         "corecoder/repo/index.py"
       ],
       "retrieved_files": [
-        "corecoder/orchestration/viz.py",
-        "ast",
-        "rich.markdown.Markdown",
-        "typing.Any",
-        "agent.Agent",
-        "tests/test_tools.py",
-        "tempfile",
+        "corecoder/tools/grep.py",
+        "tests/test_core.py",
+        "tests/test_orchestration.py",
+        "corecoder/orchestration/engine/planner.py",
         "corecoder/tools/bash.py",
-        "corecoder.tools.get_tool",
-        "corecoder.__version__"
+        "corecoder/runtime/state.py",
+        "corecoder/llm/types.py",
+        "corecoder/orchestration/context/pipeline.py",
+        "tests/test_litellm.py",
+        "corecoder/tools/agent.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
@@ -244,9 +249,9 @@
       "retrieval_meta": {
         "intent_family": "explanation",
         "intent_type": "deep_dive",
-        "total_files_considered": 5,
+        "total_files_considered": 3,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 1.006,
+        "retrieval_time_ms": 1.008,
         "pipeline_stages": [
           "intent_analysis",
           "query_planning",
@@ -265,18 +270,18 @@
         "corecoder/tools/bash.py"
       ],
       "retrieved_files": [
+        "tests/test_tools.py",
         "corecoder/cli.py",
-        "corecoder/prompt.py",
-        "corecoder/config.py",
+        "corecoder/tools/bash.py",
         "benchmarks/run_retrieval_benchmark.py",
         "corecoder/agent.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
-        "hit_at_3": 0.0,
-        "hit_at_5": 0.0,
-        "recall_at_5": 0.0,
-        "mrr": 0.0
+        "hit_at_3": 1.0,
+        "hit_at_5": 1.0,
+        "recall_at_5": 1.0,
+        "mrr": 0.3333333333333333
       },
       "retrieval_meta": {
         "intent_family": "navigation",
@@ -302,16 +307,16 @@
         "corecoder/history/session.py"
       ],
       "retrieved_files": [
-        "corecoder/orchestration/viz.py",
-        "ast",
-        "rich.markdown.Markdown",
-        "typing.Any",
-        "agent.Agent",
-        "tests/test_tools.py",
-        "tempfile",
+        "tests/test_orchestration.py",
         "corecoder/tools/bash.py",
-        "corecoder.tools.get_tool",
-        "corecoder.__version__"
+        "tests/test_litellm.py",
+        "corecoder/mcp/client.py",
+        "tests/test_tools.py",
+        "tests/test_context_orchestrator.py",
+        "tests/test_session.py",
+        "corecoder/orchestration/viz.py",
+        "corecoder/orchestration/storage.py",
+        "corecoder/repo/shadow.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
@@ -323,9 +328,9 @@
       "retrieval_meta": {
         "intent_family": "explanation",
         "intent_type": "deep_dive",
-        "total_files_considered": 5,
+        "total_files_considered": 4,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 0.995,
+        "retrieval_time_ms": 0.999,
         "pipeline_stages": [
           "intent_analysis",
           "query_planning",
@@ -346,30 +351,25 @@
         "corecoder/orchestration/engine/scheduler.py"
       ],
       "retrieved_files": [
-        "time",
-        "__future__.annotations",
-        "typing.Any",
-        "enum.auto",
-        "dataclasses.field",
-        "dataclasses.dataclass",
-        "enum.Enum",
-        "logging",
-        "__version__",
-        "rich.markdown.Markdown"
+        "corecoder/orchestration/observability.py",
+        "tests/test_orchestration.py",
+        "corecoder/orchestration/orchestrator.py",
+        "corecoder/orchestration/storage.py",
+        "corecoder/orchestration/viz.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
-        "hit_at_3": 0.0,
-        "hit_at_5": 0.0,
-        "recall_at_5": 0.0,
-        "mrr": 0.0
+        "hit_at_3": 1.0,
+        "hit_at_5": 1.0,
+        "recall_at_5": 0.3333333333333333,
+        "mrr": 0.3333333333333333
       },
       "retrieval_meta": {
         "intent_family": "execution",
         "intent_type": "feature_addition",
         "total_files_considered": 5,
-        "total_files_ranked": 10,
-        "retrieval_time_ms": 0.0,
+        "total_files_ranked": 5,
+        "retrieval_time_ms": 1.0,
         "pipeline_stages": [
           "intent_analysis",
           "query_planning",
@@ -388,16 +388,16 @@
         "corecoder/agent.py"
       ],
       "retrieved_files": [
-        "corecoder/orchestration/viz.py",
-        "ast",
-        "rich.markdown.Markdown",
-        "typing.Any",
-        "agent.Agent",
-        "tests/test_tools.py",
-        "tempfile",
-        "corecoder/tools/bash.py",
-        "corecoder.tools.get_tool",
-        "corecoder.__version__"
+        "corecoder/tools/grep.py",
+        "tests/test_core.py",
+        "tests/test_orchestration.py",
+        "corecoder/orchestration/engine/planner.py",
+        "corecoder/runtime/state.py",
+        "corecoder/llm/types.py",
+        "corecoder/orchestration/context/pipeline.py",
+        "tests/test_litellm.py",
+        "corecoder/history/session.py",
+        "corecoder/tools/repo_info.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
@@ -409,9 +409,9 @@
       "retrieval_meta": {
         "intent_family": "explanation",
         "intent_type": "deep_dive",
-        "total_files_considered": 5,
+        "total_files_considered": 7,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 1.0,
+        "retrieval_time_ms": 0.0,
         "pipeline_stages": [
           "intent_analysis",
           "query_planning",
@@ -430,30 +430,24 @@
         "corecoder/runtime/assembler.py"
       ],
       "retrieved_files": [
-        "sys",
-        "openai.RateLimitError",
-        "corecoder.llm.types.ToolCall",
-        "json",
-        "typing.AsyncGenerator",
-        "__future__.annotations",
-        "openai.APIError",
-        "openai.APITimeoutError",
-        "litellm",
-        "corecoder.llm.types.LLMResponse"
+        "corecoder/cli.py",
+        "corecoder/llm/client.py",
+        "corecoder/runtime/assembler.py",
+        "corecoder/agent.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
-        "hit_at_3": 0.0,
-        "hit_at_5": 0.0,
-        "recall_at_5": 0.0,
-        "mrr": 0.0
+        "hit_at_3": 1.0,
+        "hit_at_5": 1.0,
+        "recall_at_5": 1.0,
+        "mrr": 0.3333333333333333
       },
       "retrieval_meta": {
         "intent_family": "execution",
         "intent_type": "unknown",
         "total_files_considered": 4,
-        "total_files_ranked": 10,
-        "retrieval_time_ms": 0.993,
+        "total_files_ranked": 4,
+        "retrieval_time_ms": 1.0,
         "pipeline_stages": [
           "intent_analysis",
           "query_planning",
@@ -472,24 +466,29 @@
         "corecoder/tools/repo_info.py"
       ],
       "retrieved_files": [
-        "corecoder/cli.py",
-        "corecoder/prompt.py",
-        "corecoder/config.py",
-        "benchmarks/run_retrieval_benchmark.py",
-        "corecoder/agent.py"
+        "corecoder/mcp/client.py",
+        "tests/test_tools.py",
+        "corecoder/tools/base.py",
+        "corecoder/tools/glob_tool.py",
+        "corecoder/tools/repo_info.py",
+        "corecoder/llm/types.py",
+        "corecoder/tools/agent.py",
+        "corecoder/tools/bash.py",
+        "corecoder/tools/edit.py",
+        "corecoder/tools/grep.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
         "hit_at_3": 0.0,
-        "hit_at_5": 0.0,
-        "recall_at_5": 0.0,
-        "mrr": 0.0
+        "hit_at_5": 1.0,
+        "recall_at_5": 1.0,
+        "mrr": 0.2
       },
       "retrieval_meta": {
         "intent_family": "navigation",
         "intent_type": "navigation",
-        "total_files_considered": 5,
-        "total_files_ranked": 5,
+        "total_files_considered": 12,
+        "total_files_ranked": 12,
         "retrieval_time_ms": 0.0,
         "pipeline_stages": [
           "intent_analysis",
@@ -510,16 +509,16 @@
         "corecoder/cli.py"
       ],
       "retrieved_files": [
-        "corecoder/orchestration/viz.py",
-        "ast",
-        "rich.markdown.Markdown",
-        "typing.Any",
-        "agent.Agent",
-        "tests/test_tools.py",
-        "tempfile",
+        "corecoder/tools/grep.py",
+        "tests/test_core.py",
+        "tests/test_orchestration.py",
+        "corecoder/orchestration/engine/planner.py",
         "corecoder/tools/bash.py",
-        "corecoder.tools.get_tool",
-        "corecoder.__version__"
+        "corecoder/runtime/state.py",
+        "corecoder/llm/types.py",
+        "corecoder/orchestration/context/pipeline.py",
+        "corecoder/history/session.py",
+        "corecoder/tools/repo_info.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
@@ -533,7 +532,7 @@
         "intent_type": "deep_dive",
         "total_files_considered": 5,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 1.007,
+        "retrieval_time_ms": 1.01,
         "pipeline_stages": [
           "intent_analysis",
           "query_planning",
@@ -552,24 +551,22 @@
         "corecoder/llm/client.py"
       ],
       "retrieved_files": [
-        "corecoder/cli.py",
-        "corecoder/prompt.py",
-        "corecoder/config.py",
-        "benchmarks/run_retrieval_benchmark.py",
-        "corecoder/agent.py"
+        "tests/test_litellm.py",
+        "corecoder/llm/client.py",
+        "corecoder/mcp/client.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
-        "hit_at_3": 0.0,
-        "hit_at_5": 0.0,
-        "recall_at_5": 0.0,
-        "mrr": 0.0
+        "hit_at_3": 1.0,
+        "hit_at_5": 1.0,
+        "recall_at_5": 1.0,
+        "mrr": 0.5
       },
       "retrieval_meta": {
         "intent_family": "navigation",
         "intent_type": "navigation",
-        "total_files_considered": 5,
-        "total_files_ranked": 5,
+        "total_files_considered": 3,
+        "total_files_ranked": 3,
         "retrieval_time_ms": 0.0,
         "pipeline_stages": [
           "intent_analysis",
@@ -590,16 +587,10 @@
         "corecoder/config.py"
       ],
       "retrieved_files": [
-        "sys",
-        "corecoder.tools.ALL_TOOLS",
-        "tempfile",
-        "pathlib.Path",
-        "shutil",
-        "os",
-        "corecoder.tools.get_tool",
-        "__version__",
-        "rich.markdown.Markdown",
-        "__future__.annotations"
+        "corecoder/cli.py",
+        "tests/test_litellm.py",
+        "tests/test_tools.py",
+        "tests/test_retrieval_improvements.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
@@ -611,9 +602,9 @@
       "retrieval_meta": {
         "intent_family": "execution",
         "intent_type": "unknown",
-        "total_files_considered": 3,
-        "total_files_ranked": 10,
-        "retrieval_time_ms": 0.0,
+        "total_files_considered": 4,
+        "total_files_ranked": 4,
+        "retrieval_time_ms": 0.983,
         "pipeline_stages": [
           "intent_analysis",
           "query_planning",
@@ -633,24 +624,22 @@
         "corecoder/agent.py"
       ],
       "retrieved_files": [
-        "corecoder/cli.py",
-        "corecoder/prompt.py",
-        "corecoder/config.py",
-        "benchmarks/run_retrieval_benchmark.py",
+        "corecoder/repo/shadow.py",
+        "corecoder/orchestration/engine/verifier.py",
         "corecoder/agent.py"
       ],
       "metrics": {
-        "hit_at_1": 0.0,
-        "hit_at_3": 0.0,
+        "hit_at_1": 1.0,
+        "hit_at_3": 1.0,
         "hit_at_5": 1.0,
-        "recall_at_5": 0.5,
-        "mrr": 0.2
+        "recall_at_5": 1.0,
+        "mrr": 1.0
       },
       "retrieval_meta": {
         "intent_family": "navigation",
         "intent_type": "navigation",
-        "total_files_considered": 5,
-        "total_files_ranked": 5,
+        "total_files_considered": 3,
+        "total_files_ranked": 3,
         "retrieval_time_ms": 0.0,
         "pipeline_stages": [
           "intent_analysis",
@@ -671,15 +660,15 @@
       ],
       "retrieved_files": [
         "corecoder/orchestration/retrieval/task_intent.py",
-        "corecoder/orchestration/observability.py",
-        "corecoder/orchestration/context/layers.py",
-        "corecoder/orchestration/dag/graph.py",
-        "corecoder/orchestration/dag/models.py",
-        "corecoder/orchestration/engine/executor.py",
-        "corecoder.history.compression.count_tokens",
-        "corecoder/orchestration/viz.py",
-        "corecoder.orchestration.context.layers.ExecutionPolicyContextLayer",
-        "corecoder.orchestration.context.layers.derive_task_stop"
+        "corecoder/orchestration/retrieval/models.py",
+        "tests/test_retrieval_improvements.py",
+        "corecoder/tools/grep.py",
+        "corecoder/orchestration/engine/planner.py",
+        "corecoder/tools/bash.py",
+        "corecoder/runtime/state.py",
+        "corecoder/llm/types.py",
+        "corecoder/orchestration/context/pipeline.py",
+        "corecoder/history/session.py"
       ],
       "metrics": {
         "hit_at_1": 1.0,
@@ -691,9 +680,9 @@
       "retrieval_meta": {
         "intent_family": "explanation",
         "intent_type": "deep_dive",
-        "total_files_considered": 6,
+        "total_files_considered": 8,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 2.0,
+        "retrieval_time_ms": 1.0,
         "pipeline_stages": [
           "intent_analysis",
           "query_planning",
@@ -735,7 +724,7 @@
         "intent_type": "overview",
         "total_files_considered": 42,
         "total_files_ranked": 42,
-        "retrieval_time_ms": 0.924,
+        "retrieval_time_ms": 1.003,
         "pipeline_stages": [
           "intent_analysis",
           "query_planning",
@@ -754,30 +743,26 @@
         "corecoder/orchestration/context/retriever.py"
       ],
       "retrieved_files": [
-        "corecoder.orchestration.retrieval.query_planner.RetrievalQueryPlanner",
-        "__future__.annotations",
-        "typing.Any",
-        "corecoder.orchestration.context.models.ContextSource",
-        "corecoder.orchestration.retrieval.models.ProjectCognition",
-        "corecoder.orchestration.retrieval.ranker.StructuredRanker",
-        "corecoder.repo.index.RepoIndex",
-        "corecoder.orchestration.context.models.ContextRequest",
-        "corecoder.orchestration.context.models.ContextType",
-        "corecoder.repo.index.should_skip_path"
+        "corecoder/orchestration/context/retriever.py",
+        "corecoder/orchestration/retrieval/models.py",
+        "corecoder/orchestration/retrieval/query_planner.py",
+        "corecoder/cli.py",
+        "corecoder/repo/index.py",
+        "corecoder/orchestration/dag/graph.py"
       ],
       "metrics": {
-        "hit_at_1": 0.0,
-        "hit_at_3": 0.0,
-        "hit_at_5": 0.0,
-        "recall_at_5": 0.0,
-        "mrr": 0.0
+        "hit_at_1": 1.0,
+        "hit_at_3": 1.0,
+        "hit_at_5": 1.0,
+        "recall_at_5": 0.5,
+        "mrr": 1.0
       },
       "retrieval_meta": {
         "intent_family": "execution",
         "intent_type": "unknown",
         "total_files_considered": 6,
-        "total_files_ranked": 10,
-        "retrieval_time_ms": 0.0,
+        "total_files_ranked": 6,
+        "retrieval_time_ms": 0.999,
         "pipeline_stages": [
           "intent_analysis",
           "query_planning",
@@ -796,25 +781,25 @@
         "corecoder/orchestration/retrieval/symbol_index.py"
       ],
       "retrieved_files": [
+        "corecoder/orchestration/retrieval/symbol_index.py",
         "corecoder/cli.py",
-        "corecoder/prompt.py",
-        "corecoder/config.py",
+        "corecoder/orchestration/retrieval/models.py",
         "benchmarks/run_retrieval_benchmark.py",
         "corecoder/agent.py"
       ],
       "metrics": {
-        "hit_at_1": 0.0,
-        "hit_at_3": 0.0,
-        "hit_at_5": 0.0,
-        "recall_at_5": 0.0,
-        "mrr": 0.0
+        "hit_at_1": 1.0,
+        "hit_at_3": 1.0,
+        "hit_at_5": 1.0,
+        "recall_at_5": 1.0,
+        "mrr": 1.0
       },
       "retrieval_meta": {
         "intent_family": "navigation",
         "intent_type": "navigation",
         "total_files_considered": 5,
         "total_files_ranked": 5,
-        "retrieval_time_ms": 1.287,
+        "retrieval_time_ms": 0.0,
         "pipeline_stages": [
           "intent_analysis",
           "query_planning",
@@ -834,15 +819,10 @@
       ],
       "retrieved_files": [
         "corecoder/orchestration/retrieval/summaries.py",
-        "__future__.annotations",
-        "typing.Any",
-        "dataclasses.field",
-        "dataclasses.dataclass",
-        "enum.Enum",
-        "corecoder.repo.index.should_skip_path",
-        "json",
-        "pathlib.Path",
-        "asyncio"
+        "corecoder/orchestration/retrieval/models.py",
+        "corecoder/orchestration/context/retriever.py",
+        "corecoder/orchestration/retrieval/query_planner.py",
+        "corecoder/cli.py"
       ],
       "metrics": {
         "hit_at_1": 1.0,
@@ -855,8 +835,8 @@
         "intent_family": "execution",
         "intent_type": "unknown",
         "total_files_considered": 5,
-        "total_files_ranked": 10,
-        "retrieval_time_ms": 0.591,
+        "total_files_ranked": 5,
+        "retrieval_time_ms": 1.0,
         "pipeline_stages": [
           "intent_analysis",
           "query_planning",
@@ -876,11 +856,10 @@
         "corecoder/orchestration/context/pipeline.py"
       ],
       "retrieved_files": [
-        "corecoder/cli.py",
-        "corecoder/prompt.py",
-        "corecoder/config.py",
-        "benchmarks/run_retrieval_benchmark.py",
-        "corecoder/agent.py"
+        "corecoder/orchestration/orchestrator.py",
+        "corecoder/orchestration/context/models.py",
+        "corecoder/orchestration/context/layers.py",
+        "corecoder/history/compression.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
@@ -892,8 +871,8 @@
       "retrieval_meta": {
         "intent_family": "navigation",
         "intent_type": "navigation",
-        "total_files_considered": 5,
-        "total_files_ranked": 5,
+        "total_files_considered": 4,
+        "total_files_ranked": 4,
         "retrieval_time_ms": 0.0,
         "pipeline_stages": [
           "intent_analysis",
@@ -913,30 +892,30 @@
         "corecoder/orchestration/engine/scheduler.py"
       ],
       "retrieved_files": [
-        "corecoder.history.compression.count_tokens",
-        "corecoder/orchestration/viz.py",
-        "corecoder.orchestration.context.layers.ExecutionPolicyContextLayer",
-        "corecoder.orchestration.context.layers.derive_task_stop",
-        "corecoder/cli.py",
-        "ast",
-        "rich.markdown.Markdown",
-        "typing.Any",
-        "agent.Agent",
-        "tempfile"
+        "corecoder/orchestration/engine/scheduler.py",
+        "tests/test_orchestration.py",
+        "corecoder/orchestration/observability.py",
+        "corecoder/tools/grep.py",
+        "tests/test_core.py",
+        "corecoder/orchestration/engine/planner.py",
+        "corecoder/tools/bash.py",
+        "corecoder/runtime/state.py",
+        "corecoder/llm/types.py",
+        "corecoder/orchestration/context/pipeline.py"
       ],
       "metrics": {
-        "hit_at_1": 0.0,
-        "hit_at_3": 0.0,
-        "hit_at_5": 0.0,
-        "recall_at_5": 0.0,
-        "mrr": 0.0
+        "hit_at_1": 1.0,
+        "hit_at_3": 1.0,
+        "hit_at_5": 1.0,
+        "recall_at_5": 1.0,
+        "mrr": 1.0
       },
       "retrieval_meta": {
         "intent_family": "explanation",
         "intent_type": "deep_dive",
-        "total_files_considered": 7,
+        "total_files_considered": 13,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 1.054,
+        "retrieval_time_ms": 1.002,
         "pipeline_stages": [
           "intent_analysis",
           "query_planning",
@@ -955,25 +934,25 @@
         "corecoder/orchestration/engine/verifier.py"
       ],
       "retrieved_files": [
-        "corecoder/cli.py",
-        "corecoder/prompt.py",
-        "corecoder/config.py",
-        "benchmarks/run_retrieval_benchmark.py",
-        "corecoder/agent.py"
+        "corecoder/orchestration/dag/models.py",
+        "corecoder/orchestration/context/layers.py",
+        "corecoder/orchestration/observability.py",
+        "corecoder/orchestration/engine/verifier.py",
+        "corecoder/orchestration/context/models.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
         "hit_at_3": 0.0,
-        "hit_at_5": 0.0,
-        "recall_at_5": 0.0,
-        "mrr": 0.0
+        "hit_at_5": 1.0,
+        "recall_at_5": 1.0,
+        "mrr": 0.25
       },
       "retrieval_meta": {
         "intent_family": "navigation",
         "intent_type": "navigation",
         "total_files_considered": 5,
         "total_files_ranked": 5,
-        "retrieval_time_ms": 0.999,
+        "retrieval_time_ms": 0.0,
         "pipeline_stages": [
           "intent_analysis",
           "query_planning",
@@ -993,30 +972,30 @@
         "corecoder/orchestration/dag/graph.py"
       ],
       "retrieved_files": [
-        "corecoder/orchestration/retrieval/task_intent.py",
-        "corecoder/orchestration/observability.py",
-        "corecoder/orchestration/context/layers.py",
-        "corecoder/orchestration/dag/graph.py",
-        "corecoder/orchestration/dag/models.py",
-        "corecoder/orchestration/engine/executor.py",
-        "corecoder.history.compression.count_tokens",
-        "corecoder/orchestration/viz.py",
-        "corecoder.orchestration.context.layers.ExecutionPolicyContextLayer",
-        "corecoder.orchestration.context.layers.derive_task_stop"
+        "corecoder/orchestration/engine/planner.py",
+        "corecoder/orchestration/retrieval/query_planner.py",
+        "corecoder/tools/grep.py",
+        "corecoder/tools/bash.py",
+        "corecoder/runtime/state.py",
+        "corecoder/llm/types.py",
+        "corecoder/orchestration/context/pipeline.py",
+        "corecoder/tools/repo_info.py",
+        "corecoder/mcp/client.py",
+        "corecoder/llm/client.py"
       ],
       "metrics": {
-        "hit_at_1": 0.0,
-        "hit_at_3": 0.0,
+        "hit_at_1": 1.0,
+        "hit_at_3": 1.0,
         "hit_at_5": 1.0,
         "recall_at_5": 0.5,
-        "mrr": 0.25
+        "mrr": 1.0
       },
       "retrieval_meta": {
         "intent_family": "explanation",
         "intent_type": "deep_dive",
-        "total_files_considered": 6,
+        "total_files_considered": 12,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 0.999,
+        "retrieval_time_ms": 0.997,
         "pipeline_stages": [
           "intent_analysis",
           "query_planning",
@@ -1036,12 +1015,12 @@
       ],
       "retrieved_files": [
         "corecoder/runtime/state.py",
-        "tests/test_session.py",
-        "corecoder/history/session.py",
-        "corecoder/orchestration/context/models.py",
-        "corecoder/orchestration/context/pipeline.py",
+        "tests/test_core.py",
         "corecoder/orchestration/context/policies.py",
-        "corecoder/orchestration/dag/recovery.py"
+        "corecoder/cli.py",
+        "tests/test_litellm.py",
+        "tests/test_context_orchestrator.py",
+        "corecoder/repo/shadow.py"
       ],
       "metrics": {
         "hit_at_1": 1.0,
@@ -1055,7 +1034,7 @@
         "intent_type": "navigation",
         "total_files_considered": 7,
         "total_files_ranked": 7,
-        "retrieval_time_ms": 0.0,
+        "retrieval_time_ms": 1.035,
         "pipeline_stages": [
           "intent_analysis",
           "query_planning",
@@ -1074,25 +1053,30 @@
         "corecoder/tools/edit.py"
       ],
       "retrieved_files": [
+        "tests/test_tools.py",
+        "corecoder/mcp/client.py",
         "corecoder/orchestration/retrieval/summaries.py",
         "corecoder/tools/edit.py",
         "corecoder/tools/read.py",
         "corecoder/tools/write.py",
-        "corecoder/orchestration/retrieval/symbol_index.py"
+        "corecoder/tools/glob_tool.py",
+        "corecoder/tools/base.py",
+        "corecoder/orchestration/retrieval/symbol_index.py",
+        "corecoder/llm/types.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
-        "hit_at_3": 1.0,
+        "hit_at_3": 0.0,
         "hit_at_5": 1.0,
         "recall_at_5": 1.0,
-        "mrr": 0.5
+        "mrr": 0.25
       },
       "retrieval_meta": {
         "intent_family": "navigation",
         "intent_type": "navigation",
-        "total_files_considered": 5,
-        "total_files_ranked": 5,
-        "retrieval_time_ms": 1.0,
+        "total_files_considered": 14,
+        "total_files_ranked": 14,
+        "retrieval_time_ms": 1.101,
         "pipeline_stages": [
           "intent_analysis",
           "query_planning",
@@ -1112,29 +1096,26 @@
         "corecoder/tools/write.py"
       ],
       "retrieved_files": [
-        "corecoder/tools/read.py",
         "tests/test_tools.py",
+        "corecoder/tools/read.py",
+        "corecoder/mcp/client.py",
         "corecoder/tools/edit.py",
         "corecoder/tools/write.py",
         "corecoder/orchestration/retrieval/summaries.py",
-        "sys",
-        "corecoder.tools.ALL_TOOLS",
-        "tempfile",
-        "pathlib.Path",
-        "shutil"
+        "corecoder/orchestration/storage.py"
       ],
       "metrics": {
-        "hit_at_1": 1.0,
+        "hit_at_1": 0.0,
         "hit_at_3": 1.0,
         "hit_at_5": 1.0,
         "recall_at_5": 1.0,
-        "mrr": 1.0
+        "mrr": 0.5
       },
       "retrieval_meta": {
         "intent_family": "execution",
         "intent_type": "feature_addition",
         "total_files_considered": 7,
-        "total_files_ranked": 10,
+        "total_files_ranked": 7,
         "retrieval_time_ms": 0.0,
         "pipeline_stages": [
           "intent_analysis",
@@ -1154,30 +1135,30 @@
         "corecoder/tools/agent.py"
       ],
       "retrieved_files": [
-        "abc.ABC",
-        "abc.abstractmethod",
-        "__version__",
-        "rich.markdown.Markdown",
-        "__future__.annotations",
-        "mcp.client.MCPClient",
-        "agent.Agent",
-        "prompt_toolkit.history.FileHistory",
-        "history.session.save_session",
-        "rich.logging.RichHandler"
+        "tests/test_tools.py",
+        "corecoder/mcp/client.py",
+        "corecoder/tools/glob_tool.py",
+        "corecoder/tools/base.py",
+        "corecoder/llm/types.py",
+        "corecoder/tools/agent.py",
+        "corecoder/tools/bash.py",
+        "corecoder/tools/edit.py",
+        "corecoder/tools/grep.py",
+        "corecoder/tools/read.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
         "hit_at_3": 0.0,
         "hit_at_5": 0.0,
         "recall_at_5": 0.0,
-        "mrr": 0.0
+        "mrr": 0.16666666666666666
       },
       "retrieval_meta": {
         "intent_family": "execution",
         "intent_type": "unknown",
-        "total_files_considered": 3,
+        "total_files_considered": 14,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 1.0,
+        "retrieval_time_ms": 1.113,
         "pipeline_stages": [
           "intent_analysis",
           "query_planning",
@@ -1196,30 +1177,30 @@
         "corecoder/config.py"
       ],
       "retrieved_files": [
-        "corecoder/orchestration/viz.py",
-        "ast",
-        "rich.markdown.Markdown",
-        "typing.Any",
-        "agent.Agent",
-        "tests/test_tools.py",
-        "tempfile",
+        "corecoder/config.py",
+        "tests/test_orchestration.py",
         "corecoder/tools/bash.py",
-        "corecoder.tools.get_tool",
-        "corecoder.__version__"
+        "tests/test_litellm.py",
+        "corecoder/mcp/client.py",
+        "tests/test_tools.py",
+        "tests/test_context_orchestrator.py",
+        "tests/test_session.py",
+        "corecoder/orchestration/viz.py",
+        "corecoder/orchestration/storage.py"
       ],
       "metrics": {
-        "hit_at_1": 0.0,
-        "hit_at_3": 0.0,
-        "hit_at_5": 0.0,
-        "recall_at_5": 0.0,
-        "mrr": 0.0
+        "hit_at_1": 1.0,
+        "hit_at_3": 1.0,
+        "hit_at_5": 1.0,
+        "recall_at_5": 1.0,
+        "mrr": 1.0
       },
       "retrieval_meta": {
         "intent_family": "explanation",
         "intent_type": "deep_dive",
-        "total_files_considered": 5,
+        "total_files_considered": 4,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 1.993,
+        "retrieval_time_ms": 0.483,
         "pipeline_stages": [
           "intent_analysis",
           "query_planning",

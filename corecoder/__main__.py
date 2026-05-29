@@ -1,3 +1,3 @@
-from corecoder.cli import main
-
-main()
+from corecoder.cli import main
+
+main()

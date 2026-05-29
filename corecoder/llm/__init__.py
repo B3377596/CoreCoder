@@ -1,4 +1,4 @@
-"""LLM client interface — OpenAI-compatible + LiteLLM backends."""
+"""LLM client interface ? OpenAI-compatible + LiteLLM backends."""
 
 from corecoder.llm.types import ToolCall, SSEEvent, LLMResponse
 from corecoder.llm.client import LLM, LiteLLM

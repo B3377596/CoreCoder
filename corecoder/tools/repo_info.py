@@ -1,7 +1,7 @@
-"""Repository info tool — query the structured codebase index.
+"""Repository info tool ? query the structured codebase index.
 
-Lets the agent ask: "where is class X defined?", "what imports module Y?",
-"what are the declared dependencies?", without needing to grep blindly.
+Lets the agent ask: "where is class X defined*", "what imports module Y*",
+"what are the declared dependencies*", without needing to grep blindly.
 """
 
 from __future__ import annotations
