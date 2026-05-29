@@ -53,7 +53,7 @@ from corecoder.orchestration.retrieval.task_intent import TaskIntentAnalyzer
 from corecoder.orchestration.retrieval.query_planner import RetrievalQueryPlanner
 from corecoder.orchestration.retrieval.dependency_graph import build_dependency_graph
 from corecoder.orchestration.retrieval.ranker import StructuredRanker
-from corecoder.orchestration.retrieval.models import IntentFamily, ProjectCognition
+from corecoder.orchestration.retrieval.models import ProjectCognition
 from corecoder.repo.index import should_skip_path, RepoIndex
 
 
@@ -113,6 +113,9 @@ class RepositoryContextRetriever:
         self._dependencies_json: dict[str, Any] = {}
         self._summary: str = ""
         self._loaded = False
+        self._known_files_normalized: list[str] = []
+        self._known_file_set: set[str] = set()
+        self._basename_to_paths: dict[str, list[str]] = {}
 
         # New retrieval components
         self._symbol_graph = SymbolOwnershipGraph()
@@ -185,12 +188,9 @@ class RepositoryContextRetriever:
 
         # Add query-specified likely files that exist
         for f in query.likely_files:
-            if f not in candidates:
-                # Check if this file exists in the symbol index
-                for known in self._symbols_json:
-                    if known.replace("\\", "/").endswith(f):
-                        candidates.append(known)
-                        break
+            for match in self._match_likely_file(f):
+                if match not in candidates:
+                    candidates.append(match)
 
         # If too few candidates from symbol routing, use semantic summary
         # matching via FileSummaryManager instead of raw keyword grep.
@@ -362,9 +362,7 @@ class RepositoryContextRetriever:
         # 1. Query-specified likely files (from planner)
         for f in query.likely_files:
             # Search the index for files matching the name
-            for known in self._symbols_json:
-                normalized = known.replace("\\", "/")
-                if normalized.endswith(f) or normalized.split("/")[-1] == f:
+                for normalized in self._match_likely_file(f):
                     if normalized not in candidates:
                         candidates.append(normalized)
 
@@ -386,9 +384,10 @@ class RepositoryContextRetriever:
                 candidates.append(fp)
 
         # 3. Add architectural hubs if we have centrality data
-        if hasattr(self._ranker, '_centrality') and self._ranker._centrality:
+        centrality = self._ranker.get_centrality() if self._ranker else {}
+        if centrality:
             hubs = sorted(
-                self._ranker._centrality.items(),
+                centrality.items(),
                 key=lambda x: x[1].centrality,
                 reverse=True,
             )
@@ -406,7 +405,7 @@ class RepositoryContextRetriever:
                     break
 
         # ---- Understanding-mode ranking ----
-        ranked = self._ranker._rank_understanding(candidates, query, intent)
+        ranked = self._ranker.rank_understanding(candidates, query, intent)
 
         # ---- Build fragments ----
         top_files = ranked[:opts.max_files]
@@ -479,7 +478,20 @@ class RepositoryContextRetriever:
 
         # Retrieval metadata
         retrieval_time_ms = (time.time() - t0) * 1000.0
-        self._last_retrieval_meta = None  # Reset for understanding mode
+        self._last_retrieval_meta = RetrievalMeta(
+            query=query,
+            intent=intent,
+            total_files_considered=len(candidates),
+            total_files_ranked=len(ranked),
+            retrieval_time_ms=retrieval_time_ms,
+            pipeline_stages=[
+                "intent_analysis",
+                "query_planning",
+                "understanding_candidate_collection",
+                "understanding_ranking",
+                "fragment_assembly",
+            ],
+        )
         return fragments
 
     def retrieve_project_overview(self) -> ProjectCognition:
@@ -606,6 +618,39 @@ class RepositoryContextRetriever:
     # helpers
     # ------------------------------------------------------------------
 
+    def _rebuild_file_indexes(self) -> None:
+        """Build normalized path indexes for fast likely-file lookup."""
+        self._known_files_normalized = [
+            p.replace("\\", "/") for p in self._symbols_json.keys()
+        ]
+        self._known_file_set = set(self._known_files_normalized)
+        self._basename_to_paths = {}
+        for p in self._known_files_normalized:
+            base = p.split("/")[-1].lower()
+            self._basename_to_paths.setdefault(base, []).append(p)
+
+    def _match_likely_file(self, hint: str) -> list[str]:
+        """Resolve likely file hints to indexed normalized repository paths."""
+        if not hint:
+            return []
+        normalized_hint = hint.replace("\\", "/")
+        hint_lower = normalized_hint.lower()
+        basename = hint_lower.split("/")[-1]
+
+        matches: list[str] = []
+        direct = self._basename_to_paths.get(basename, [])
+        for p in direct:
+            if p not in matches:
+                matches.append(p)
+
+        if "/" in normalized_hint:
+            for p in self._known_files_normalized:
+                pl = p.lower()
+                if pl.endswith(hint_lower):
+                    if p not in matches:
+                        matches.append(p)
+        return matches
+
     # ------------------------------------------------------------------
     # index loading
     # ------------------------------------------------------------------
@@ -650,6 +695,7 @@ class RepositoryContextRetriever:
                     self._summary = ""
 
         # ---- Build new retrieval components ----
+        self._rebuild_file_indexes()
 
         # 1. Symbol ownership graph
         if self._symbols_json:
@@ -678,6 +724,9 @@ class RepositoryContextRetriever:
         self._symbols_json = {}
         self._dependencies_json = {}
         self._summary = ""
+        self._known_files_normalized = []
+        self._known_file_set = set()
+        self._basename_to_paths = {}
         self._symbol_graph = SymbolOwnershipGraph()
         self._summary_manager = FileSummaryManager(str(self._working_dir))
         self._dep_graph = None

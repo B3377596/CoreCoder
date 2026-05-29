@@ -80,6 +80,20 @@ class StructuredRanker:
         else:
             return self._rank_execution(candidate_files, query, intent)
 
+    def rank_understanding(
+        self,
+        candidate_files: list[str],
+        query: RetrievalQuery,
+        intent: TaskIntent,
+    ) -> list[RankedFile]:
+        """Public understanding-mode ranking API."""
+        return self._rank_understanding(candidate_files, query, intent)
+
+    def get_centrality(self) -> dict[str, ArchitecturalCentrality]:
+        """Return cached centrality, computing it lazily if needed."""
+        self._ensure_centrality()
+        return self._centrality
+
     # ------------------------------------------------------------------
     # execution mode ranking (existing logic)
     # ------------------------------------------------------------------
@@ -357,67 +371,6 @@ class StructuredRanker:
             ],
             summary_match=summary_score > 0,
             dependency_neighbor=False,
-            symbols=symbol_names[:8],
-            score_breakdown=breakdown,
-        )
-
-    def _score_one(
-        self,
-        filepath: str,
-        query: RetrievalQuery,
-        intent: TaskIntent,
-    ) -> RankedFile:
-        """Score a single file on all dimensions."""
-        filepath = filepath.replace("\\", "/")
-        summary = self._summaries.get(filepath)
-        symbols = self._symbol_graph.file_symbols(filepath)
-        symbol_names = [s.name for s in symbols]
-
-        reasons: list[str] = []
-        breakdown: dict[str, float] = {}
-
-        # 1. Symbol match score
-        symbol_score = self._score_symbols(filepath, symbol_names, query, reasons)
-        breakdown["symbol_match"] = symbol_score
-
-        # 2. Semantic summary score
-        summary_score = self._score_summary(summary, query, reasons)
-        breakdown["summary_match"] = summary_score
-
-        # 3. Filename score
-        filename_score = self._score_filename(filepath, query, reasons)
-        breakdown["filename_match"] = filename_score
-
-        # 4. Task intent bonus (preliminary — dependency bonus applied later)
-        intent_bonus = self._score_task_intent(
-            filepath, summary, symbol_names, intent, reasons
-        )
-        breakdown["task_intent"] = intent_bonus
-
-        # Weighted total
-        total = (
-            symbol_score * WEIGHT_SYMBOL_MATCH
-            + summary_score * WEIGHT_SUMMARY_MATCH
-            + filename_score * WEIGHT_FILENAME_MATCH
-            + intent_bonus * WEIGHT_TASK_INTENT_BONUS
-        )
-
-        # Baseline: every file gets a tiny score based on prominence.
-        # Prevents all files scoring 0 when the query has no matching
-        # symbols/concepts (e.g. "what does this project do?").
-        baseline = self._baseline_score(filepath, summary)
-        total = max(total, baseline)
-
-        return RankedFile(
-            filepath=filepath,
-            score=round(total, 4),
-            reasons=reasons,
-            symbol_matches=[
-                qs for qs in query.symbols
-                if any(qs.lower() in sn.lower() for sn in symbol_names)
-            ],
-            summary_match=summary_score > 0,
-            dependency_neighbor=False,  # set in phase 2
             symbols=symbol_names[:8],
             score_breakdown=breakdown,
         )

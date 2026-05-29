@@ -440,60 +440,45 @@ async def _run_plan(agent: Agent, goal: str):
 
     planner = LLMPlanner(llm_call=llm_call, model=agent.llm.model)
 
-    # Build a lightweight project sketch for the planner.
-    # Key principle: this is a SKETCH, not a semantic dump.
-    # IMPORTANT: if the project is empty, SAY SO explicitly so the agent
-    # doesn't waste tool calls exploring nothing.
+    # Build a structured project sketch for the planner using the
+    # retrieval pipeline's understanding mode.  This gives the LLM
+    # Planner structured cognition (entrypoints, components, capabilities)
+    # instead of a hand-assembled file dump.
     cwd = os.getcwd()
     planning_ctx = {"working_dir": cwd}
-
     has_any_content = False
 
     try:
-        ri = agent.repo_index
+        from .orchestration.context.retriever import RepositoryContextRetriever
+        ret = RepositoryContextRetriever(working_dir=cwd, repo_index=agent.repo_index)
+        cognition = ret.retrieve_project_overview()
 
-        # 1. Framework + language hints (strip symbol details, they go in modules)
-        summary = ri.summary if hasattr(ri, 'summary') else ""
-        if summary:
-            lines = str(summary).strip().split("\n")
-            # Take only framework/entry point info, stop before symbols section
-            key_lines = []
-            for l in lines[:20]:
-                if l.strip().startswith("## Key Symbols") or l.strip().startswith("## Dependencies"):
-                    break
-                if l.strip() and not l.startswith("#"):
-                    key_lines.append(l)
-            if key_lines:
-                planning_ctx["project"] = "\n".join(key_lines)[:500]
-                has_any_content = True
+        parts: list[str] = []
+        if cognition.architecture_summary:
+            parts.append(cognition.architecture_summary)
+        if cognition.entrypoints:
+            parts.append(f"Entrypoints: {', '.join(cognition.entrypoints[:5])}")
+        if cognition.major_components:
+            parts.append(f"Major components: {', '.join(cognition.major_components[:10])}")
+        if cognition.framework_hints:
+            parts.append(f"Frameworks: {', '.join(cognition.framework_hints)}")
 
-        # 2. Module list
-        if hasattr(ri, '_symbols') and ri._symbols:
-            modules = list(ri._symbols.keys())[:15]
+        if parts:
+            planning_ctx["project"] = "\n".join(parts)[:600]
+            has_any_content = True
+
+        # Module list for more fine-grained planning
+        if hasattr(agent.repo_index, '_symbols') and agent.repo_index._symbols:
+            modules = list(agent.repo_index._symbols.keys())[:15]
             if modules:
                 planning_ctx["modules"] = modules
-                has_any_content = True
 
-        # 3. Declared packages
-        if hasattr(ri, '_deps') and isinstance(ri._deps, dict):
-            declared = ri._deps.get("declared", [])
+        # Declared packages
+        if hasattr(agent.repo_index, '_deps') and isinstance(agent.repo_index._deps, dict):
+            declared = agent.repo_index._deps.get("declared", [])
             if declared:
                 planning_ctx["packages"] = declared[:10]
-                has_any_content = True
 
-    except Exception:
-        pass
-
-    # 4. Top-level file listing
-    try:
-        entries = []
-        for entry in os.scandir(cwd):
-            if not entry.name.startswith("."):
-                suffix = "/" if entry.is_dir() else ""
-                entries.append(entry.name + suffix)
-        if entries:
-            planning_ctx["top_files"] = sorted(entries)[:30]
-            has_any_content = True
     except Exception:
         pass
 

@@ -12,11 +12,18 @@ Design: lightweight symbolic reasoning.  No LLM calls.
 
 from __future__ import annotations
 
+from typing import TypedDict
+
 from corecoder.orchestration.retrieval.models import (
     TaskIntent,
     RetrievalQuery,
-    IntentFamily,
 )
+
+
+class TypeExpansion(TypedDict):
+    extra_concepts: list[str]
+    extra_files: list[str]
+    expand_radius: int
 
 
 class RetrievalQueryPlanner:
@@ -28,69 +35,59 @@ class RetrievalQueryPlanner:
     """
 
     # ---- Task-type-specific expansions (EXECUTION family) ----
-    _TYPE_EXPANSIONS: dict[str, dict] = {
+    _TYPE_EXPANSIONS: dict[str, TypeExpansion] = {
         "bug_fix": {
             "extra_concepts": ["error", "exception", "validation", "edge case"],
             "extra_files": [],
             "expand_radius": 2,
-            "prioritize_tests": True,
         },
         "feature_integration": {
             "extra_concepts": ["dispatch", "route", "entrypoint", "interface",
                                "integration", "wiring"],
             "extra_files": ["main.py", "cli.py", "app.py", "__init__.py"],
             "expand_radius": 2,
-            "prioritize_tests": False,
         },
         "feature_addition": {
             "extra_concepts": [],
             "extra_files": [],
             "expand_radius": 1,
-            "prioritize_tests": False,
         },
         "cli_change": {
             "extra_concepts": ["argparse", "click", "typer", "command", "argument",
                                "flag", "option", "terminal", "console"],
             "extra_files": ["main.py", "cli.py", "app.py", "run.py", "__main__.py"],
             "expand_radius": 1,
-            "prioritize_tests": False,
         },
         "refactor": {
             "extra_concepts": [],
             "extra_files": [],
             "expand_radius": 3,
-            "prioritize_tests": True,
         },
         "rename": {
             "extra_concepts": [],
             "extra_files": [],
             "expand_radius": 2,
-            "prioritize_tests": True,
         },
         "dependency_change": {
             "extra_concepts": ["import", "dependency", "package", "install"],
             "extra_files": ["pyproject.toml", "setup.py", "requirements.txt",
                             "setup.cfg", "__init__.py"],
             "expand_radius": 1,
-            "prioritize_tests": False,
         },
         "test_addition": {
             "extra_concepts": ["test", "assert", "mock", "fixture", "coverage"],
             "extra_files": [],
             "expand_radius": 1,
-            "prioritize_tests": True,
         },
         "documentation": {
             "extra_concepts": [],
             "extra_files": [],
             "expand_radius": 0,
-            "prioritize_tests": False,
         },
         "unknown": {
             "extra_concepts": [],
             "extra_files": [],
             "expand_radius": 1,
-            "prioritize_tests": False,
         },
     }
 
@@ -180,20 +177,16 @@ class RetrievalQueryPlanner:
             intent.type, self._TYPE_EXPANSIONS["unknown"]
         )
 
-        concepts = list(dict.fromkeys(
-            intent.concepts + expansion.get("extra_concepts", [])
-        ))
-        likely_files = list(dict.fromkeys(
-            intent.affected_files + expansion.get("extra_files", [])
-        ))
+        concepts = list(dict.fromkeys(intent.concepts + expansion["extra_concepts"]))
+        likely_files = list(dict.fromkeys(intent.affected_files + expansion["extra_files"]))
 
         return RetrievalQuery(
             symbols=intent.symbols,
             concepts=concepts,
             likely_files=likely_files,
             task_type=intent.type,
-            expand_dependencies=expansion.get("expand_radius", 0) > 0,
-            dependency_radius=expansion.get("expand_radius", 1),
+            expand_dependencies=expansion["expand_radius"] > 0,
+            dependency_radius=expansion["expand_radius"],
         )
 
     def _plan_navigation(self, intent: TaskIntent) -> RetrievalQuery:
