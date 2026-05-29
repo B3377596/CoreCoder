@@ -19,6 +19,7 @@ from typing import Any, Callable
 from corecoder.orchestration.dag.models import (
     TaskNode,
     TaskStatus,
+    RetryPolicy,
     VerificationResult,
 )
 
@@ -187,6 +188,10 @@ class RecoveryManager:
         """Wait for the backoff period before retrying."""
         if backoff_ms > 0:
             await asyncio.sleep(backoff_ms / 1000.0)
+
+
+class DefaultRetryPolicy(RetryPolicy):
+    """Backward-compatible alias for the historical recovery API."""
 
 
 def resume_graph_state(graph, from_dict: dict) -> list[str]:

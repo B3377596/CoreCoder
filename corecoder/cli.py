@@ -19,7 +19,7 @@ from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding import KeyBindings
 
 from .agent import Agent
-from .llm.client import LLM, LiteLLM
+from .llm.client import LLM, LiteLLM, set_debug as set_llm_debug
 from .llm.types import LLMResponse
 from .config import Config
 from .mcp.client import MCPClient
@@ -83,6 +83,7 @@ def _build_repl_state_updates(agent, user_input: str) -> dict:
 
         return updates
     except Exception:
+        logger.exception("Failed to build retrieval-backed REPL state")
         return {}
 
 
@@ -154,8 +155,11 @@ def main():
         config.base_url = args.base_url
     if args.api_key:
         config.api_key = args.api_key
+    if args.debug:
+        config.debug = True
 
-    setup_logging(args.debug)
+    setup_logging(config.debug)
+    set_llm_debug(config.debug)
 
     if not config.api_key:
         console.print("[red bold]No API key found.[/]")

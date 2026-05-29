@@ -50,8 +50,15 @@ _PRICING = {
     "kimi-k2.5": (0.6, 3),
 }
 
-# Set to False to disable debug message dumps and Enter-to-continue prompts
-_DEBUG = True
+# Disabled by default: dumping prompts/tool calls is useful locally but
+# too noisy and risky for everyday use.
+_DEBUG = False
+
+
+def set_debug(enabled: bool) -> None:
+    """Enable or disable verbose message dumps globally for this module."""
+    global _DEBUG
+    _DEBUG = enabled
 
 
 def _debug_messages(source: str, messages: list[dict]) -> None:

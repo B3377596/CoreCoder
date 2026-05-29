@@ -10,9 +10,9 @@
 
 [中文](README_CN.md) | [English](README.md) | [Claude Code Architecture Deep Dive (7 articles)](article/)
 
-**512,000 lines of TypeScript → ~1,400 lines of Python.**
+**Claude Code's core agent patterns, distilled into a compact Python codebase.**
 
-I spent two days reverse-engineering the leaked Claude Code source — all half a million lines. Then I stripped it down to the load-bearing walls and rebuilt them in Python. The result: **every key architectural pattern from Claude Code, in a codebase you can read in one sitting.**
+I spent two days reverse-engineering the leaked Claude Code source, then stripped it down to the load-bearing walls and rebuilt the core ideas in Python. The result is a compact codebase that keeps the main architectural patterns readable and hackable.
 
 CoreCoder is not another AI coding tool. It's a **blueprint** — the [nanoGPT](https://github.com/karpathy/nanoGPT) of coding agents. Read it, fork it, build your own.
 
@@ -37,7 +37,7 @@ Fixed: halper → helper.
 
 ## What You Get
 
-Claude Code's 512K lines distilled into ~1,400 lines across 7 patterns that actually matter:
+The project focuses on 7 patterns that matter for a practical coding agent:
 
 | Pattern | Claude Code | CoreCoder |
 |---|---|---|
@@ -49,7 +49,7 @@ Claude Code's 512K lines distilled into ~1,400 lines across 7 patterns that actu
 | Session persistence | QueryEngine (1,295 lines) | `session.py` — 65 lines |
 | Dynamic system prompt | prompts.ts (914 lines) | `prompt.py` — 35 lines |
 
-Every pattern is a real, runnable implementation — not a diagram or a blog post.
+Every pattern is a real, runnable implementation, not just a diagram or a blog post.
 
 ## Install
 
@@ -105,35 +105,28 @@ LiteLLM routes through to 100+ providers (Bedrock, Vertex AI, Cohere, Groq, Repl
 
 ## Architecture
 
-The whole thing fits in your head:
+The architecture is still organized around a small set of readable modules:
 
 ```
 corecoder/
-├── cli.py            REPL + commands               218 lines
-├── agent.py          Agent loop + parallel tools    122 lines
-├── llm.py            Streaming client + retry       156 lines
-├── context.py        3-layer compression            196 lines
-├── session.py        Save/resume                     68 lines
-├── prompt.py         System prompt                   33 lines
-├── config.py         Env config                      55 lines
-└── tools/
-    ├── bash.py       Shell + safety + cd tracking   115 lines
-    ├── edit.py       Search-replace + diff            85 lines
-    ├── read.py       File reading                     53 lines
-    ├── write.py      File writing                     36 lines
-    ├── glob_tool.py  File search                      47 lines
-    ├── grep.py       Content search                   78 lines
-    └── agent.py      Sub-agent spawning               58 lines
+├── cli.py                    REPL + commands
+├── agent.py                  Agent loop + tool orchestration
+├── llm/                      Streaming client + provider adapters
+├── history/                  Context compression + session persistence
+├── repo/                     Repository indexing + shadow git
+├── orchestration/            Planning, retrieval, DAG execution
+└── tools/                    File, shell, search, and agent tools
 ```
 
 ## Use as a Library
 
 ```python
 from corecoder import Agent, LLM
+import asyncio
 
 llm = LLM(model="kimi-k2.5", api_key="your-key", base_url="https://api.moonshot.ai/v1")
 agent = Agent(llm=llm)
-response = agent.chat("find all TODO comments in this project and list them")
+response = asyncio.run(agent.chat("find all TODO comments in this project and list them"))
 ```
 
 ## Add Your Own Tools (~20 lines)
@@ -171,7 +164,7 @@ Saved session IDs are sanitized before they become filenames, so resume data sta
 
 |  | Claude Code | Claw-Code | Aider | CoreCoder |
 |---|---|---|---|---|
-| Code | 512K lines (closed) | 100K+ lines | 50K+ lines | **~1,400 lines** |
+| Code | 512K lines (closed) | 100K+ lines | 50K+ lines | **compact, source-readable Python codebase** |
 | Models | Anthropic only | Multi | Multi | **Any OpenAI-compatible** |
 | Readable? | No | Hard | Medium | **One afternoon** |
 | Purpose | Use it | Use it | Use it | **Understand it, build yours** |
@@ -184,7 +177,7 @@ I wrote [7 articles](article/) breaking down Claude Code's architecture — the 
 
 **Does CoreCoder support Skills / Subagents / MCP?**
 
-No, and that's intentional. CoreCoder is the minimal runnable core — agent loop, tools, streaming, compaction. Skills, Subagents, MCP, hooks, and plugins are upper-layer features that Claude Code layers on top; if CoreCoder had them too it would stop being a teaching artifact. The architecture articles above cover how those systems work in Claude Code, so you can add them yourself if you need to.
+Skills and plugin-style layers are still intentionally out of scope. MCP support is lightweight and optional: if you configure MCP servers, CoreCoder will register their tools at startup, but the project is still centered on the minimal agent loop, tools, streaming, compaction, and repository cognition core.
 
 If you want Skills specifically, the recipe is small: scan `~/.claude/skills/*.md` at startup, list their titles in the system prompt, and let the agent ask for a skill by name before you inline that file's body into the conversation.
 

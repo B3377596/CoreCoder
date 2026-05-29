@@ -198,7 +198,7 @@ class Agent:
         try:
             self.repo_index.build()
         except Exception:
-            pass
+            logger.exception("Failed to rebuild repo index after chat turn")
 
         return result_text or "(reached maximum tool-call rounds)"
 

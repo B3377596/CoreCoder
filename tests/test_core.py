@@ -49,6 +49,19 @@ def test_config_defaults():
             os.environ[k] = v
 
 
+def test_config_debug_flag_from_env():
+    saved = os.environ.get("CORECODER_DEBUG")
+    os.environ["CORECODER_DEBUG"] = "true"
+    try:
+        c = Config.from_env()
+        assert c.debug is True
+    finally:
+        if saved is None:
+            os.environ.pop("CORECODER_DEBUG", None)
+        else:
+            os.environ["CORECODER_DEBUG"] = saved
+
+
 # --- Context ---
 
 def test_estimate_tokens():

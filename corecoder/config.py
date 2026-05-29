@@ -44,6 +44,14 @@ def _load_dotenv():
         pass  # python-dotenv not installed, silently skip
 
 
+def _env_flag(name: str, default: bool = False) -> bool:
+    """Parse a boolean env var using common truthy/falsey spellings."""
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
 @dataclass
 class Config:
     model: str = "gpt-4o"
@@ -74,4 +82,5 @@ class Config:
             temperature=float(os.getenv("CORECODER_TEMPERATURE", "0")),
             max_context_tokens=int(os.getenv("CORECODER_MAX_CONTEXT", "128000")),
             provider=os.getenv("CORECODER_PROVIDER", "openai"),
+            debug=_env_flag("CORECODER_DEBUG"),
         )

@@ -1,0 +1,30 @@
+{"id":"project_overview","query":"What does this project do?","expected_files":["corecoder/cli.py","corecoder/agent.py","corecoder/orchestration/context/retriever.py"],"notes":"High-level overview should surface the main entrypoint, agent loop, and repository cognition layer."}
+{"id":"cli_flow","query":"How does the CLI work?","expected_files":["corecoder/cli.py","corecoder/__main__.py"],"notes":"CLI-related understanding query."}
+{"id":"session_persistence","query":"Where is session persistence implemented?","expected_files":["corecoder/history/session.py"],"notes":"Navigation query for save/resume logic."}
+{"id":"context_compression","query":"How does context compression work?","expected_files":["corecoder/history/compression.py"],"notes":"Deep-dive query for context budget management."}
+{"id":"query_planner","query":"Where is the retrieval query planner?","expected_files":["corecoder/orchestration/retrieval/query_planner.py"],"notes":"Navigation query for retrieval planning."}
+{"id":"repo_indexing","query":"How does repository indexing work?","expected_files":["corecoder/repo/index.py"],"notes":"Explanation query for structured repository memory."}
+{"id":"bash_safety","query":"Where is the bash safety logic?","expected_files":["corecoder/tools/bash.py"],"notes":"Navigation query for dangerous command blocking."}
+{"id":"session_sanitization","query":"How do saved sessions get sanitized?","expected_files":["corecoder/history/session.py"],"notes":"Should point at filename/session-id normalization code."}
+{"id":"orchestration_modules","query":"What modules implement orchestration?","expected_files":["corecoder/orchestration/orchestrator.py","corecoder/orchestration/engine/planner.py","corecoder/orchestration/engine/scheduler.py"],"notes":"Overview of planning/execution orchestration."}
+{"id":"agent_tool_execution","query":"How does the agent loop execute tools?","expected_files":["corecoder/agent.py"],"notes":"Execution loop and tool dispatch."}
+{"id":"runtime_message_assembly","query":"How are runtime messages assembled before sending to the LLM?","expected_files":["corecoder/runtime/assembler.py"],"notes":"Prompt assembly and ephemeral context layering."}
+{"id":"repo_info_tool","query":"Where is the repo_info tool implemented?","expected_files":["corecoder/tools/repo_info.py"],"notes":"Navigation query for structured repo index tool."}
+{"id":"mcp_support","query":"How does MCP integration work?","expected_files":["corecoder/mcp/client.py","corecoder/cli.py"],"notes":"Optional MCP startup and tool registration path."}
+{"id":"llm_provider_layer","query":"Where is the OpenAI-compatible LLM client implemented?","expected_files":["corecoder/llm/client.py"],"notes":"Provider abstraction and streaming client."}
+{"id":"litellm_provider","query":"How are non-OpenAI providers supported?","expected_files":["corecoder/llm/client.py","corecoder/config.py"],"notes":"LiteLLM backend and provider selection."}
+{"id":"shadow_git","query":"Where is shadow git checkpointing implemented?","expected_files":["corecoder/repo/shadow.py","corecoder/agent.py"],"notes":"Checkpoint, undo, and diff tracking."}
+{"id":"task_intent_analysis","query":"How does task intent analysis classify retrieval requests?","expected_files":["corecoder/orchestration/retrieval/task_intent.py"],"notes":"Intent family and task-type classifier."}
+{"id":"structured_ranker","query":"Where is the structured retrieval ranker?","expected_files":["corecoder/orchestration/retrieval/ranker.py"],"notes":"Multi-factor ranking with reasons."}
+{"id":"dependency_graph","query":"How are repository dependencies expanded during retrieval?","expected_files":["corecoder/orchestration/retrieval/dependency_graph.py","corecoder/orchestration/context/retriever.py"],"notes":"Dependency neighborhood expansion path."}
+{"id":"symbol_index","query":"Where is symbol ownership routing implemented?","expected_files":["corecoder/orchestration/retrieval/symbol_index.py"],"notes":"Symbol to file routing backbone."}
+{"id":"file_summaries","query":"How are file summaries generated for retrieval?","expected_files":["corecoder/orchestration/retrieval/summaries.py"],"notes":"Heuristic semantic summaries without embeddings."}
+{"id":"context_orchestrator","query":"Where is the context orchestrator implemented?","expected_files":["corecoder/orchestration/context/orchestrator.py","corecoder/orchestration/context/pipeline.py"],"notes":"Context pipeline coordination."}
+{"id":"scheduler_logic","query":"How does the orchestration scheduler decide what task to run next?","expected_files":["corecoder/orchestration/engine/scheduler.py"],"notes":"Task scheduling and retries."}
+{"id":"verifier_logic","query":"Where is execution verification implemented?","expected_files":["corecoder/orchestration/engine/verifier.py"],"notes":"Patch-aware verifier and policy engine."}
+{"id":"planner_logic","query":"How does the planner build task graphs?","expected_files":["corecoder/orchestration/engine/planner.py","corecoder/orchestration/dag/graph.py"],"notes":"Planning and DAG construction."}
+{"id":"session_state","query":"Where is the state-centric session model defined?","expected_files":["corecoder/runtime/state.py"],"notes":"SessionState and runtime fields."}
+{"id":"tool_editing","query":"Where is the search-and-replace file editing tool?","expected_files":["corecoder/tools/edit.py"],"notes":"Editing primitive for code modification."}
+{"id":"read_write_tools","query":"Where are the file read and write tools implemented?","expected_files":["corecoder/tools/read.py","corecoder/tools/write.py"],"notes":"Basic file IO tools."}
+{"id":"agent_subtool","query":"How are sub-agents exposed as a tool?","expected_files":["corecoder/tools/agent.py"],"notes":"Agent tool wrapper and isolated context."}
+{"id":"config_loading","query":"How does configuration load from env and dotenv files?","expected_files":["corecoder/config.py"],"notes":"Config precedence and parsing."}
