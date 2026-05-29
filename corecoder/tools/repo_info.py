@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 from .base import Tool
 
 if TYPE_CHECKING:
-    from ..repo.index import RepoIndex
+    from codebase.indexing import RepoIndex
 
 
 class RepoInfoTool(Tool):

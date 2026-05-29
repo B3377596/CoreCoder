@@ -7,7 +7,7 @@ Generates FileSummary objects from structural code analysis:
 - Module structure ?*infer responsibilities
 
 All summaries are cached in .corecoder/file_summaries.json.
-Each summary is ~50-100 tokens ?*designed for agent reasoning loops.
+Each summary is ~50-100 tokens designed for agent reasoning loops.
 """
 
 from __future__ import annotations

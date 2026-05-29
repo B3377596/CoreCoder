@@ -12,9 +12,9 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from corecoder.orchestration.context.models import ContextRequest
-from corecoder.orchestration.context.retriever import RepositoryContextRetriever
-from corecoder.repo.index import RepoIndex
+from corecoder.context.models import ContextRequest
+from corecoder.context.retriever import RepositoryContextRetriever
+from corecoder.codebase.indexing.index import RepoIndex
 
 DEFAULT_DATASET = REPO_ROOT / "benchmarks" / "data" / "retrieval_eval.jsonl"
 DEFAULT_OUTPUT = REPO_ROOT / "benchmarks" / "retrieval_report.json"
