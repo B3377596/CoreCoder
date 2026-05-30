@@ -32,7 +32,7 @@ from corecoder.retrieval.repository_graph import build_repository_graph
 from corecoder.retrieval.evaluation import summarize_metrics
 from corecoder.retrieval.symbol_index import SymbolOwnershipGraph
 from corecoder.retrieval.summaries import FileSummaryManager
-from corecoder.retrieval.task_intent import TaskUnderstandingAnalyzer
+from corecoder.retrieval.task_understanding import TaskUnderstandingAnalyzer
 from corecoder.retrieval.query_planner import RetrievalQueryPlanner
 from corecoder.retrieval.retrieval_planner import RetrievalPlanner
 from corecoder.retrieval.dependency_graph import build_dependency_graph

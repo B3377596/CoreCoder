@@ -50,6 +50,7 @@ from corecoder.context.policies import (
     get_retrieval_options,
     StatePolicy,
 )
+from corecoder.agent.runtime.staged import stage_to_execution_state
 
 
 @dataclass
@@ -73,7 +74,6 @@ class AssemblyResult:
     state_updates: dict = field(default_factory=dict)
     assembly_time_ms: float = 0.0
     fragment_counts: dict[str, int] = field(default_factory=dict)
-
 
 class ContextOrchestrator:
     """Central context orchestration engine.
@@ -408,6 +408,68 @@ class ContextOrchestrator:
             dependency_ids=dependency_ids or [],
             completed_artifact_map=completed_artifacts or {},
             metadata=meta,
+        )
+        return self.build_context(request)
+
+    def build_for_stage(
+        self,
+        stage: str,
+        objective: str,
+        target_files: list[str],
+        retrieval_focus: str,
+        global_state: Any,
+        context_policy: str = "",
+        allowed_tools: list[str] | None = None,
+        stage_plan: Any | None = None,
+    ) -> AssemblyResult:
+        """Build context using stage-aware policies for the Think-Execute runtime."""
+        execution_state = stage_to_execution_state(stage)
+        focus_files = list(dict.fromkeys(
+            list(target_files or [])
+            + list(getattr(global_state, "active_files", []))
+            + list(getattr(global_state, "changed_files", []))
+        ))[:12]
+
+        working_memory_items: list[str] = []
+        working_memory = getattr(global_state, "working_memory", {}) or {}
+        for item in working_memory.get("stage_summaries", [])[-4:]:
+            if isinstance(item, dict) and item.get("summary"):
+                working_memory_items.append(str(item["summary"]))
+        last_obs = working_memory.get("last_observations", [])[-4:]
+        working_memory_items.extend(str(x) for x in last_obs)
+
+        completed_artifacts: dict[str, dict[str, Any]] = {}
+        for idx, result in enumerate(getattr(global_state, "execution_history", [])[-4:], start=1):
+            completed_artifacts[f"stage_{idx}"] = {
+                "description": getattr(result, "summary", ""),
+                "all_changed": list(getattr(result, "changed_files", [])),
+            }
+
+        request = ContextRequest(
+            task_id=f"stage_{stage}",
+            task_title=f"{stage}: {objective}",
+            task_description=objective,
+            goal=getattr(global_state, "user_request", objective),
+            execution_state=execution_state,
+            working_dir=self._working_dir,
+            focus_files=focus_files,
+            focus_symbols=[],
+            recent_errors=list(getattr(global_state, "failures", [])[-6:]),
+            constraints=list(working_memory.get("constraints", [])),
+            assumptions=list(working_memory.get("assumptions", [])),
+            completed_artifact_map=completed_artifacts,
+            retrieval_context=None,
+            metadata={
+                "stage": stage,
+                "context_policy": context_policy,
+                "retrieval_focus": retrieval_focus,
+                "active_files": list(getattr(global_state, "active_files", [])),
+                "previous_failures": list(getattr(global_state, "failures", [])[-6:]),
+                "working_memory": working_memory_items,
+                "task_allowed": list(allowed_tools or []),
+                "task_stop_when": "; ".join(getattr(stage_plan, "exit_conditions", []) or []),
+                "stage_plan": stage_plan,
+            },
         )
         return self.build_context(request)
 

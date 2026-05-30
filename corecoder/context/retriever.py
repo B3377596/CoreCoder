@@ -45,7 +45,7 @@ from corecoder.retrieval.models import (
 from corecoder.retrieval.repository_graph import build_repository_graph
 from corecoder.retrieval.symbol_index import SymbolOwnershipGraph
 from corecoder.retrieval.summaries import FileSummaryManager
-from corecoder.retrieval.task_intent import TaskUnderstandingAnalyzer
+from corecoder.retrieval.task_understanding import TaskUnderstandingAnalyzer
 from corecoder.retrieval.query_planner import RetrievalQueryPlanner
 from corecoder.retrieval.retrieval_planner import RetrievalPlanner
 from corecoder.retrieval.dependency_graph import build_dependency_graph
@@ -379,13 +379,26 @@ class RepositoryContextRetriever:
                 working_memory.append(str(desc))
         working_memory.extend(str(x) for x in metadata.get("working_memory", []))
 
+        stage_plan = metadata.get("stage_plan")
+        if stage_plan is not None:
+            working_memory.extend(
+                str(part)
+                for part in (
+                    getattr(stage_plan, "objective", ""),
+                    getattr(stage_plan, "rationale", ""),
+                    getattr(stage_plan, "retrieval_focus", ""),
+                )
+                if part
+            )
+
         plan = metadata.get("retrieval_plan")
         if not isinstance(plan, type(None)) and not hasattr(plan, "primary_symbols"):
             plan = None
 
+        stage_targets = list(getattr(stage_plan, "target_files", []) or [])
         return RetrievalContext(
             user_query=request.goal or request.task_description or request.task_title,
-            active_files=list(dict.fromkeys(request.focus_files + metadata.get("active_files", []))),
+            active_files=list(dict.fromkeys(request.focus_files + metadata.get("active_files", []) + stage_targets)),
             active_symbols=list(dict.fromkeys(request.focus_symbols + metadata.get("active_symbols", []))),
             current_plan=plan,
             working_memory=working_memory[:12],

@@ -1,4 +1,4 @@
-"""Task understanding for Retrieval V2."""
+"""Task understanding and retrieval-hint inference for Retrieval V2."""
 
 from __future__ import annotations
 
@@ -13,7 +13,14 @@ from corecoder.retrieval.models import (
 
 
 class TaskUnderstandingAnalyzer:
-    """Extract rich task semantics without collapsing into a legacy intent."""
+    """Extract task semantics and project retrieval-facing hints.
+
+    This module is no longer an "intent classifier" in the old sense.
+    Its job is to:
+    - build a richer TaskUnderstanding object
+    - infer lightweight retrieval-routing hints
+    - project code-oriented query hints for planner/ranker use
+    """
 
     _UNDERSTANDING_HINTS = (
         "what does this",
@@ -188,7 +195,7 @@ class TaskUnderstandingAnalyzer:
             understanding = self._apply_low_confidence_fallback(understanding, text_original, canonical_text)
         return understanding
 
-    def infer_family(self, understanding: TaskUnderstanding) -> IntentFamily:
+    def infer_retrieval_family(self, understanding: TaskUnderstanding) -> IntentFamily:
         text = self._canonicalize_text(self._normalize_text(understanding.goal))
         if any(hint in text for hint in self._NAVIGATION_HINTS):
             return IntentFamily.NAVIGATION
@@ -200,8 +207,8 @@ class TaskUnderstandingAnalyzer:
             return IntentFamily.PLANNING
         return IntentFamily.EXECUTION
 
-    def infer_task_type(self, understanding: TaskUnderstanding) -> str:
-        family = self.infer_family(understanding)
+    def infer_retrieval_task_type(self, understanding: TaskUnderstanding) -> str:
+        family = self.infer_retrieval_family(understanding)
         if family == IntentFamily.NAVIGATION:
             return "navigation"
         if family == IntentFamily.EXPLANATION:
@@ -214,7 +221,7 @@ class TaskUnderstandingAnalyzer:
             return "overview"
         return "general_task"
 
-    def build_query_hints(self, understanding: TaskUnderstanding) -> tuple[list[str], list[str], list[str]]:
+    def build_retrieval_hints(self, understanding: TaskUnderstanding) -> tuple[list[str], list[str], list[str]]:
         symbols = [
             entity.name
             for entity in understanding.entities
@@ -223,6 +230,22 @@ class TaskUnderstandingAnalyzer:
         concepts = list(dict.fromkeys(understanding.query_terms + understanding.likely_modules))[:8]
         likely_files = self._guess_affected_files(understanding)
         return symbols[:8], concepts, likely_files
+
+    # ------------------------------------------------------------------
+    # Legacy compatibility wrappers
+    # ------------------------------------------------------------------
+
+    def infer_family(self, understanding: TaskUnderstanding) -> IntentFamily:
+        """Backward-compatible wrapper for older retrieval code."""
+        return self.infer_retrieval_family(understanding)
+
+    def infer_task_type(self, understanding: TaskUnderstanding) -> str:
+        """Backward-compatible wrapper for older retrieval code."""
+        return self.infer_retrieval_task_type(understanding)
+
+    def build_query_hints(self, understanding: TaskUnderstanding) -> tuple[list[str], list[str], list[str]]:
+        """Backward-compatible wrapper for older retrieval code."""
+        return self.build_retrieval_hints(understanding)
 
     def _extract_entities(self, text_original: str) -> list[TaskEntity]:
         entities: list[TaskEntity] = []
@@ -350,8 +373,9 @@ class TaskUnderstandingAnalyzer:
             "仓库索引": "index.py",
             "dependency graph": "dependency_graph.py",
             "依赖图": "dependency_graph.py",
-            "task intent": "task_intent.py",
-            "任务理解": "task_intent.py",
+            "task understanding": "task_understanding.py",
+            "task intent": "task_understanding.py",
+            "任务理解": "task_understanding.py",
             "repo info": "repo_info.py",
             "仓库信息": "repo_info.py",
             "runtime state": "state.py",

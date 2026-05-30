@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from corecoder.retrieval.models import RetrievalPlan, RetrievalQuery, TaskUnderstanding
-from corecoder.retrieval.task_intent import TaskUnderstandingAnalyzer
+from corecoder.retrieval.task_understanding import TaskUnderstandingAnalyzer
 
 
 class RetrievalQueryPlanner:
@@ -17,7 +17,7 @@ class RetrievalQueryPlanner:
         understanding: TaskUnderstanding,
         plan: RetrievalPlan,
     ) -> RetrievalQuery:
-        symbols, concepts, likely_files = self._analyzer.build_query_hints(understanding)
+        symbols, concepts, likely_files = self._analyzer.build_retrieval_hints(understanding)
         return self.from_plan(plan, symbols=symbols, concepts=concepts, likely_files=likely_files)
 
     @staticmethod

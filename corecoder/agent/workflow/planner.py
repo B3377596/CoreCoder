@@ -258,7 +258,7 @@ Return ONLY JSON:
         ctx_str = json.dumps(context or {}, indent=2, ensure_ascii=False, default=str)
         prompt = self.PLANNING_PROMPT.replace("{goal}", goal).replace("{context}", ctx_str)
         # debug log,don't remove
-        print(f"LLMPlanner: Sending prompt to LLM (model={self._model}):\n{prompt}\n")  
+        #print(f"LLMPlanner: Sending prompt to LLM (model={self._model}):\n{prompt}\n")  
         messages = [{"role": "user", "content": prompt}]
         response = await self._llm_call(messages)
 

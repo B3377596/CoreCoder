@@ -10,5 +10,33 @@ It cleanly separates:
 
 from corecoder.agent.runtime.state import SessionState
 from corecoder.agent.runtime.assembler import build_runtime_messages, estimate_ephemeral_tokens
+from corecoder.agent.runtime.staged import (
+    AgentRuntime,
+    ExecutionResult,
+    GlobalStateManager,
+    GlobalTaskState,
+    LocalReactExecutor,
+    RuntimeEvaluation,
+    StageEvaluator,
+    StageExecutor,
+    StagePlan,
+    ThinkDecision,
+    ThinkEngine,
+)
 
-__all__ = ["SessionState", "build_runtime_messages", "estimate_ephemeral_tokens"]
+__all__ = [
+    "SessionState",
+    "build_runtime_messages",
+    "estimate_ephemeral_tokens",
+    "StagePlan",
+    "ExecutionResult",
+    "GlobalTaskState",
+    "ThinkDecision",
+    "RuntimeEvaluation",
+    "ThinkEngine",
+    "LocalReactExecutor",
+    "StageExecutor",
+    "StageEvaluator",
+    "GlobalStateManager",
+    "AgentRuntime",
+]

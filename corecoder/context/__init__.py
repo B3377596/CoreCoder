@@ -64,7 +64,7 @@ from corecoder.retrieval.models import (
 )
 from corecoder.retrieval.symbol_index import SymbolOwnershipGraph
 from corecoder.retrieval.summaries import FileSummaryManager
-from corecoder.retrieval.task_intent import TaskUnderstandingAnalyzer
+from corecoder.retrieval.task_understanding import TaskUnderstandingAnalyzer
 from corecoder.retrieval.query_planner import RetrievalQueryPlanner
 from corecoder.retrieval.ranker import StructuredRanker
 

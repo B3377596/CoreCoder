@@ -39,7 +39,6 @@ import asyncio
 import inspect
 import logging
 import os
-import json
 from typing import TYPE_CHECKING
 
 from ..tools import ALL_TOOLS, get_tool
@@ -55,6 +54,13 @@ from .runtime.assembler import (
 from ..context.compression import ContextManager
 from ..codebase.shadow import ShadowGit
 from ..codebase.indexing.index import RepoIndex
+from .runtime.staged import (
+    AgentRuntime,
+    GlobalStateManager,
+    StageEvaluator,
+    StageExecutor,
+    ThinkEngine,
+)
 
 if TYPE_CHECKING:
     from ..llm.client import LLM
@@ -151,7 +157,6 @@ class Agent:
         )
 
         result_text: str | None = None
-
         for _ in range(self.max_rounds):
             if self.tools:
                 text = await self._execute_turn_sse(on_token, on_tool)
@@ -200,6 +205,29 @@ class Agent:
             logger.exception("Failed to rebuild repo index after chat turn")
 
         return result_text or "(reached maximum tool-call rounds)"
+
+    async def run_staged(
+        self,
+        user_request: str,
+        context_orchestrator=None,
+        max_stages: int = 8,
+        on_token=None,
+        on_tool=None,
+    ):
+        """Run the agent with an outer Think-Execute loop and inner local ReAct stages."""
+        stage_executor = StageExecutor(
+            agent=self,
+            context_orchestrator=context_orchestrator,
+            working_dir=self.working_dir,
+        )
+        runtime = AgentRuntime(
+            think_engine=ThinkEngine(),
+            stage_executor=stage_executor,
+            state_manager=GlobalStateManager(),
+            evaluator=StageEvaluator(agent=self, working_dir=self.working_dir),
+            max_stages=max_stages,
+        )
+        return await runtime.run_state(user_request, on_token=on_token, on_tool=on_tool)
 
     def reset(self):
         """Clear conversation history and checkpoints.  Fresh SessionState."""

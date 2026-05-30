@@ -38,6 +38,10 @@ WEIGHT_GRAPH_RELEVANCE = 0.20
 WEIGHT_STATE_ALIGNMENT = 0.18
 WEIGHT_PLAN_ALIGNMENT = 0.12
 
+DEFAULT_TEST_FILE_PENALTY = 0.22
+DEFAULT_DOC_FILE_PENALTY = 0.18
+UNDERSTANDING_DOC_FILE_PENALTY = 0.08
+
 # Score component weights (understanding mode)
 WEIGHT_UNDERSTANDING_CENTRALITY = 0.40
 WEIGHT_UNDERSTANDING_ENTRYPOINT = 0.25
@@ -220,6 +224,16 @@ class StructuredRanker:
         # Ensure minimum baseline so files aren't all at 0
         baseline = self._baseline_score(filepath, summary)
         total = max(total, baseline)
+        content_penalty = self._score_content_type_penalty(
+            filepath,
+            summary,
+            query,
+            understanding,
+            understanding_mode=True,
+            reasons=reasons,
+        )
+        breakdown["content_type_penalty"] = content_penalty
+        total = max(0.0, total - content_penalty)
 
         return RankedFile(
             filepath=filepath,
@@ -396,6 +410,16 @@ class StructuredRanker:
 
         baseline = self._baseline_score(filepath, summary)
         total = max(total, baseline)
+        content_penalty = self._score_content_type_penalty(
+            filepath,
+            summary,
+            query,
+            understanding,
+            understanding_mode=False,
+            reasons=reasons,
+        )
+        breakdown["content_type_penalty"] = content_penalty
+        total = max(0.0, total - content_penalty)
 
         return RankedFile(
             filepath=filepath,
@@ -783,6 +807,141 @@ class StructuredRanker:
                     break
 
         return round(min(1.0, score), 4)
+
+    def _score_content_type_penalty(
+        self,
+        filepath: str,
+        summary: FileSummary | None,
+        query: RetrievalQuery,
+        understanding: TaskUnderstanding | None,
+        understanding_mode: bool,
+        reasons: list[str],
+    ) -> float:
+        """Apply default downranking for test/doc files unless the query wants them."""
+        if self._should_prefer_test_files(query, understanding):
+            allow_test_files = True
+        else:
+            allow_test_files = False
+
+        if self._should_prefer_doc_files(query, understanding, understanding_mode):
+            allow_doc_files = True
+        else:
+            allow_doc_files = False
+
+        penalty = 0.0
+        if self._is_test_like_file(filepath, summary) and not allow_test_files:
+            penalty = max(penalty, DEFAULT_TEST_FILE_PENALTY)
+            reasons.append("default downrank for test file")
+
+        if self._is_doc_like_file(filepath, summary) and not allow_doc_files:
+            doc_penalty = (
+                UNDERSTANDING_DOC_FILE_PENALTY
+                if understanding_mode
+                else DEFAULT_DOC_FILE_PENALTY
+            )
+            penalty = max(penalty, doc_penalty)
+            reasons.append("default downrank for documentation/article")
+
+        return round(penalty, 4)
+
+    def _should_prefer_test_files(
+        self,
+        query: RetrievalQuery,
+        understanding: TaskUnderstanding | None,
+    ) -> bool:
+        task_type = query.task_type or (query.plan.task_type if query.plan else "")
+        if task_type in {"bug_fix", "failure_investigation", "test_addition"}:
+            return True
+        text = self._query_text_blob(query, understanding)
+        return any(
+            token in text
+            for token in (
+                "test",
+                "tests",
+                "pytest",
+                "unittest",
+                "fixture",
+                "coverage",
+                "测试",
+                "单测",
+                "用例",
+            )
+        )
+
+    def _should_prefer_doc_files(
+        self,
+        query: RetrievalQuery,
+        understanding: TaskUnderstanding | None,
+        understanding_mode: bool,
+    ) -> bool:
+        if understanding_mode:
+            return True
+
+        text = self._query_text_blob(query, understanding)
+        return any(
+            token in text
+            for token in (
+                "readme",
+                "doc",
+                "docs",
+                "document",
+                "documentation",
+                "article",
+                "markdown",
+                "文档",
+                "说明",
+                "教程",
+            )
+        )
+
+    @staticmethod
+    def _is_test_like_file(filepath: str, summary: FileSummary | None) -> bool:
+        normalized = filepath.replace("\\", "/").lower()
+        fname = normalized.split("/")[-1]
+        if summary and summary.category == "test":
+            return True
+        return (
+            normalized.startswith("tests/")
+            or "/tests/" in normalized
+            or fname.startswith("test_")
+            or fname.endswith("_test.py")
+        )
+
+    @staticmethod
+    def _is_doc_like_file(filepath: str, summary: FileSummary | None) -> bool:
+        normalized = filepath.replace("\\", "/").lower()
+        fname = normalized.split("/")[-1]
+        if fname.startswith("readme"):
+            return True
+        if summary and summary.file_type == "markdown":
+            return True
+        return (
+            normalized.startswith("article/")
+            or normalized.startswith("docs/")
+            or "/article/" in normalized
+            or "/docs/" in normalized
+            or normalized.endswith(".md")
+        )
+
+    @staticmethod
+    def _query_text_blob(
+        query: RetrievalQuery,
+        understanding: TaskUnderstanding | None,
+    ) -> str:
+        parts: list[str] = []
+        parts.extend(query.concepts)
+        parts.extend(query.symbols)
+        parts.extend(query.likely_files)
+        if query.plan:
+            parts.append(query.plan.objective)
+            parts.extend(query.plan.retrieval_scopes)
+            parts.extend(query.plan.required_context)
+        if understanding:
+            parts.append(understanding.goal)
+            parts.append(understanding.objective)
+            parts.extend(understanding.query_terms)
+            parts.extend(understanding.likely_modules)
+        return " ".join(part for part in parts if part).lower()
 
     # ------------------------------------------------------------------
     # architectural centrality

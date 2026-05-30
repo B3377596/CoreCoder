@@ -24,50 +24,9 @@ from .context.session import save_session, load_session, list_sessions
 from . import __version__
 from .infra.viz import status_icon
 from .context.retriever import RepositoryContextRetriever
-from .context.models import ContextRequest, ExecutionState
 
 console = Console()
 logger = logging.getLogger("corecoder")
-
-def _build_repl_state_updates(agent, user_input: str) -> dict:
-    """Build structured state_updates for REPL/one-shot mode.
-
-    Uses the retriever with the user's actual message — not a static
-    "Understand the project" prompt. The retriever internally runs
-    intent analysis, query planning, symbol routing, and ranking.
-    """
-    try:
-        ret = RepositoryContextRetriever(working_dir=agent.working_dir, repo_index=agent.repo_index)
-        req = ContextRequest(
-            task_title=user_input[:80],
-            task_description=user_input,
-            goal=user_input,
-            execution_state=ExecutionState.CODING,
-        )
-        frags = ret.retrieve(req)
-        if not frags:
-            return {}
-        repo_parts = []
-        active_files = []
-        for f in frags:
-            if f.content:
-                repo_parts.append(f.content)
-            for rf in f.metadata.get("ranked_files", []):
-                active_files.append(rf["path"])
-        updates: dict = {}
-        if repo_parts:
-            updates["repo_summary"] = "\n\n".join(repo_parts)
-        if active_files:
-            updates["active_files"] = active_files[:15]
-        if agent.state.active_files:
-            existing = set(agent.state.active_files)
-            for f in active_files:
-                existing.add(f)
-            updates["active_files"] = list(existing)[:15]
-        return updates
-    except Exception:
-        logger.exception("Failed to build retrieval-backed REPL state")
-        return {}
 
 # ------------------------------------------------------------------
 # argument parsing
@@ -193,12 +152,15 @@ async def _run_once(agent: Agent, prompt: str):
         streamed.append(tok)
     def on_tool(name, kwargs):
         console.print(f"[dim]> {name}({_brief(kwargs)})[/dim]")
-    state_updates = _build_repl_state_updates(agent, prompt)
-    response = await agent.chat(
-        prompt, state_updates=state_updates,
-        on_token=on_token, on_tool=on_tool,
+    from .context.orchestrator import ContextOrchestrator
+    orch = ContextOrchestrator(working_dir=agent.working_dir, repo_index=agent.repo_index)
+    state = await agent.run_staged(
+        prompt,
+        context_orchestrator=orch,
+        on_token=on_token,
+        on_tool=on_tool,
     )
-    output = "".join(streamed) or response
+    output = "".join(streamed) or state.final_answer or ""
     if output:
         console.print(Markdown(output))
 
@@ -324,16 +286,19 @@ async def _repl(agent: Agent, config: Config):
             streamed.append(tok)
         def on_tool(name, kwargs):
             console.print(f"[dim]> {name}({_brief(kwargs)})[/dim]")
-        state_updates = _build_repl_state_updates(agent, user_input)
         try:
-            response = await agent.chat(
-                user_input, state_updates=state_updates,
-                on_token=on_token, on_tool=on_tool,
+            from .context.orchestrator import ContextOrchestrator
+            orch = ContextOrchestrator(working_dir=agent.working_dir, repo_index=agent.repo_index)
+            state = await agent.run_staged(
+                user_input,
+                context_orchestrator=orch,
+                on_token=on_token,
+                on_tool=on_tool,
             )
-            output = "".join(streamed) or response
+            output = "".join(streamed) or state.final_answer or ""
             if output:
                 console.print(Markdown(output))
-            elif not streamed and not response:
+            elif not streamed and not state.final_answer:
                 pass
         except KeyboardInterrupt:
             console.print("\n[yellow]Interrupted.[/]")
