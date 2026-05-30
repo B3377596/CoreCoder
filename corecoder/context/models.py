@@ -330,6 +330,7 @@ class ContextRequest:
 
     # Extra metadata (e.g., downstream task titles for contract generation)
     metadata: dict[str, Any] = field(default_factory=dict)
+    retrieval_context: Any | None = None
 
     # Constraints
     constraints: list[str] = field(default_factory=list)

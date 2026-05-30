@@ -59,6 +59,7 @@ class SessionState:
 
     # === Retrieval cache (session-long, invalidated on repo change) ===
     retrieval_cache: dict = field(default_factory=dict)
+    retrieval_requests: list[dict[str, Any]] = field(default_factory=list)
 
     # ------------------------------------------------------------------
     # state mutation
@@ -148,6 +149,25 @@ class SessionState:
             self.failures = self.failures[-10:]
             changed = True
         return changed
+
+    def request_more_context(
+        self,
+        reason: str,
+        additional_scopes: list[str] | None = None,
+        missing_symbols: list[str] | None = None,
+        requested_files: list[str] | None = None,
+    ) -> None:
+        """Record a retrieval follow-up request for adaptive context expansion."""
+        self.retrieval_requests.append(
+            {
+                "reason": reason,
+                "additional_scopes": list(additional_scopes or []),
+                "missing_symbols": list(missing_symbols or []),
+                "requested_files": list(requested_files or []),
+            }
+        )
+        if len(self.retrieval_requests) > 10:
+            self.retrieval_requests = self.retrieval_requests[-10:]
 
     # ------------------------------------------------------------------
     # serialization

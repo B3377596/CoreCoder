@@ -37,13 +37,17 @@ from corecoder.context.models import (
 
 # New retrieval subpackage
 from corecoder.retrieval.models import (
+    RetrievalContext,
+    RetrievalMetrics,
     RankedFile,
     RetrievalMeta,
 )
+from corecoder.retrieval.repository_graph import build_repository_graph
 from corecoder.retrieval.symbol_index import SymbolOwnershipGraph
 from corecoder.retrieval.summaries import FileSummaryManager
 from corecoder.retrieval.task_intent import TaskIntentAnalyzer
 from corecoder.retrieval.query_planner import RetrievalQueryPlanner
+from corecoder.retrieval.retrieval_planner import RetrievalPlanner
 from corecoder.retrieval.dependency_graph import build_dependency_graph
 from corecoder.retrieval.ranker import StructuredRanker
 from corecoder.retrieval.models import ProjectCognition
@@ -115,8 +119,10 @@ class RepositoryContextRetriever:
         self._summary_manager = FileSummaryManager(str(working_dir))
         self._dep_graph = None  # Lazy: built after loading
         self._intent_analyzer = TaskIntentAnalyzer()
+        self._retrieval_planner = RetrievalPlanner()
         self._query_planner = RetrievalQueryPlanner()
         self._ranker: StructuredRanker | None = None  # Lazy: built after loading
+        self._repository_graph = None
 
         # Cache
         self._last_retrieval_meta: RetrievalMeta | None = None
@@ -149,74 +155,52 @@ class RepositoryContextRetriever:
         if not self._symbol_graph.is_built:
             return fragments
 
-        # ---- Stage 1: Task Intent Analysis ----
+        # ---- Stage 1: Task Understanding ----
+        understanding = self._intent_analyzer.understand(
+            task_title=request.task_title,
+            task_description=request.task_description,
+            goal=request.goal,
+        )
         intent = self._intent_analyzer.analyze(
             task_title=request.task_title,
             task_description=request.task_description,
             goal=request.goal,
         )
+        retrieval_context = self._build_retrieval_context(request)
 
-        # ---- Stage 2: Query Planning ----
-        query = self._query_planner.plan(intent)
+        # ---- Stage 2: Retrieval Planning ----
+        plan = self._retrieval_planner.plan(understanding, retrieval_context)
+        retrieval_context.current_plan = plan
+        query = self._query_planner.from_plan(plan, intent)
 
         # ---- Mode Switch: understanding vs execution ----
         if intent.family == "understanding":
             return self._retrieve_understanding(request, intent, query, opts, t0)
 
-        # === EXECUTION / NAVIGATION / EXPLANATION / PLANNING ===
-        # (existing symbol/task pipeline below)
+        # ---- Stage 3: Graph-aware candidate collection ----
+        candidates = self._collect_candidates(query, retrieval_context)
 
-        # ---- Stage 3: Symbol Routing ----
-        # Find files via symbol matching (the primary signal)
-        symbol_files: set[str] = set()
-        if query.symbols:
-            for sym in query.symbols:
-                matches = self._symbol_graph.fuzzy_search(sym, limit=5)
-                for si in matches:
-                    symbol_files.add(si.defined_in)
+        # ---- Stage 4: Structured ranking ----
+        ranked = self._ranker.rank(candidates, query, intent, retrieval_context)
 
-        # ---- Stage 4: Candidate Collection ----
-        # Start with symbol-matched files, add likely files, then all known files
-        candidates: list[str] = list(symbol_files)
+        # ---- Stage 5: Adaptive retrieval ----
+        if (not ranked or ranked[0].score < 0.2) and not retrieval_context.requested_more_context:
+            missing_symbols = [
+                symbol for symbol in plan.primary_symbols
+                if not self._symbol_graph.lookup(symbol) and not self._symbol_graph.fuzzy_search(symbol, limit=1)
+            ]
+            retrieval_context.request_more_context(
+                reason="low_confidence_initial_retrieval",
+                additional_scopes=plan.retrieval_scopes[:3],
+                missing_symbols=missing_symbols,
+                requested_files=plan.target_files[:3],
+            )
+            plan = self._retrieval_planner.plan(understanding, retrieval_context)
+            query = self._query_planner.from_plan(plan, intent)
+            candidates = self._collect_candidates(query, retrieval_context)
+            ranked = self._ranker.rank(candidates, query, intent, retrieval_context)
 
-        # Add query-specified likely files that exist
-        for f in query.likely_files:
-            for match in self._match_likely_file(f):
-                if match not in candidates:
-                    candidates.append(match)
-
-        # If too few candidates from symbol routing, use semantic summary
-        # matching via FileSummaryManager instead of raw keyword grep.
-        if len(candidates) < 5 and (query.concepts or intent.concepts):
-            all_concepts = set(c.lower() for c in (query.concepts + intent.concepts))
-            for filepath in self._symbols_json:
-                if should_skip_path(filepath):
-                    continue
-                fp = filepath.replace("\\", "/")
-                if fp in candidates:
-                    continue
-                summary = self._summary_manager.get(fp)
-                if summary is None:
-                    continue
-                search_text = (
-                    summary.purpose + " " + " ".join(summary.responsibilities)
-                ).lower()
-                if any(c in search_text for c in all_concepts):
-                    candidates.append(fp)
-
-        # Still too few ?*add all non-skipped files as last resort
-        if len(candidates) < 3:
-            for filepath in self._symbols_json:
-                fp = filepath.replace("\\", "/")
-                if fp not in candidates and not should_skip_path(filepath):
-                    candidates.append(fp)
-                if len(candidates) >= 5:
-                    break
-
-        # ---- Stage 5: Structured Ranking ----
-        ranked = self._ranker.rank(candidates, query, intent)
-
-        # ---- Stage 6: Dependency Expansion ----
+        # ---- Stage 6: Graph expansion ----
         if self._dep_graph and query.expand_dependencies:
             ranked = self._expand_by_dependencies(
                 ranked, query.dependency_radius, opts.max_files
@@ -296,26 +280,22 @@ class RepositoryContextRetriever:
         self._last_retrieval_meta = RetrievalMeta(
             query=query,
             intent=intent,
+            understanding=understanding,
+            plan=plan,
+            retrieval_context=retrieval_context,
             total_files_considered=len(candidates),
             total_files_ranked=len(ranked),
             retrieval_time_ms=retrieval_time_ms,
             pipeline_stages=[
-                "intent_analysis",
-                "query_planning",
-                "symbol_routing",
+                "task_understanding",
+                "retrieval_planning",
+                "graph_candidate_collection",
                 "structured_ranking",
-                "dependency_expansion",
+                "adaptive_retrieval",
+                "graph_expansion",
                 "fragment_assembly",
             ],
-        )
-
-        # Print debug info
-        print(
-            f"[Retriever] intent={intent.type} confidence={intent.confidence:.2f}, "
-            f"symbols={query.symbols}, concepts={query.concepts}, "
-            f"candidates={len(candidates)}, ranked={len(ranked)}, "
-            f"top_files={[rf.filepath for rf in top_files[:5]]}, "
-            f"time={retrieval_time_ms:.1f}ms"
+            notes=[reason.reason for reason in retrieval_context.followup_requests],
         )
 
         return fragments
@@ -323,6 +303,119 @@ class RepositoryContextRetriever:
     def get_last_retrieval_meta(self) -> RetrievalMeta | None:
         """Return metadata about the most recent retrieval (for debugging)."""
         return self._last_retrieval_meta
+
+    def evaluate_ranking(
+        self,
+        expected_files: set[str],
+        ranked_files: list[str],
+        token_cost: int = 0,
+    ) -> RetrievalMetrics:
+        """Build RetrievalMetrics for a ranked file list."""
+        return RetrievalMetrics.from_rankings(
+            expected=expected_files,
+            retrieved=ranked_files,
+            token_cost=token_cost,
+        )
+
+    def _build_retrieval_context(self, request: ContextRequest) -> RetrievalContext:
+        """Build state-aware retrieval inputs from a ContextRequest."""
+        if isinstance(request.retrieval_context, RetrievalContext):
+            return request.retrieval_context
+
+        metadata = request.metadata or {}
+        working_memory = []
+        for artifact in request.completed_artifact_map.values():
+            desc = artifact.get("description")
+            if desc:
+                working_memory.append(str(desc))
+        working_memory.extend(str(x) for x in metadata.get("working_memory", []))
+
+        plan = metadata.get("retrieval_plan")
+        if not isinstance(plan, type(None)) and not hasattr(plan, "primary_symbols"):
+            plan = None
+
+        return RetrievalContext(
+            user_query=request.goal or request.task_description or request.task_title,
+            active_files=list(dict.fromkeys(request.focus_files + metadata.get("active_files", []))),
+            active_symbols=list(dict.fromkeys(request.focus_symbols + metadata.get("active_symbols", []))),
+            current_plan=plan,
+            working_memory=working_memory[:12],
+            previous_failures=list(dict.fromkeys(request.recent_errors + metadata.get("previous_failures", []))),
+            previous_queries=list(metadata.get("previous_queries", [])),
+            metadata=metadata,
+        )
+
+    def _collect_candidates(
+        self,
+        query,
+        retrieval_context: RetrievalContext,
+    ) -> list[str]:
+        """Collect repository candidates using RetrievalPlan + RepositoryGraph."""
+        candidates: list[str] = []
+        seen: set[str] = set()
+        plan = query.plan
+
+        def add(path: str) -> None:
+            normalized = path.replace("\\", "/")
+            if (
+                normalized
+                and normalized in self._known_file_set
+                and normalized not in seen
+                and not should_skip_path(normalized)
+            ):
+                seen.add(normalized)
+                candidates.append(normalized)
+
+        for active in retrieval_context.active_files:
+            add(active)
+
+        for symbol in query.symbols:
+            for si in self._symbol_graph.fuzzy_search(symbol, limit=6):
+                add(si.defined_in)
+            if self._repository_graph is not None:
+                for path in self._repository_graph.related_files(symbol, depth=query.dependency_radius):
+                    add(path)
+
+        for filepath in query.likely_files:
+            for match in self._match_likely_file(filepath):
+                add(match)
+
+        scopes = list(query.concepts)
+        if plan is not None:
+            scopes.extend(plan.retrieval_scopes)
+        for scope in scopes:
+            scope_lower = scope.lower()
+            for filepath in self._known_files_normalized:
+                stem = filepath.split("/")[-1].lower()
+                if scope_lower in stem:
+                    add(filepath)
+                    continue
+                summary = self._summary_manager.get(filepath)
+                if summary is None:
+                    continue
+                search_text = (
+                    summary.purpose + " " + " ".join(summary.responsibilities) + " " + summary.category
+                ).lower()
+                if scope_lower in search_text:
+                    add(filepath)
+
+        if plan is not None and self._repository_graph is not None:
+            for symbol in plan.primary_symbols[:6]:
+                for path in self._repository_graph.related_files(symbol, depth=plan.expansion_depth):
+                    add(path)
+            for filepath in plan.target_files[:6]:
+                for match in self._match_likely_file(filepath):
+                    add(match)
+                    for path in self._repository_graph.related_files(match, depth=plan.expansion_depth):
+                        add(path)
+
+        if len(candidates) < 5:
+            for filepath in self._known_files_normalized:
+                add(filepath)
+                if len(candidates) >= 8:
+                    break
+
+        return candidates
 
     # ------------------------------------------------------------------
     # understanding retrieval pipeline
@@ -360,7 +453,12 @@ class RepositoryContextRetriever:
                         candidates.append(normalized)
 
         # 2. Top-level and shallow-depth files (best for overview)
-        for filepath in self._symbols_json:
+        filepaths = (
+            [node.name for node in self._repository_graph.file_nodes()]
+            if self._repository_graph is not None
+            else list(self._symbols_json.keys())
+        )
+        for filepath in filepaths:
             fp = filepath.replace("\\", "/")
             if should_skip_path(fp):
                 continue
@@ -390,7 +488,7 @@ class RepositoryContextRetriever:
 
         # 4. Fallback: add all non-skipped files up to limit
         if len(candidates) < 3:
-            for filepath in self._symbols_json:
+            for filepath in filepaths:
                 fp = filepath.replace("\\", "/")
                 if fp not in candidates and not should_skip_path(filepath):
                     candidates.append(fp)
@@ -398,7 +496,7 @@ class RepositoryContextRetriever:
                     break
 
         # ---- Understanding-mode ranking ----
-        ranked = self._ranker.rank_understanding(candidates, query, intent)
+        ranked = self._ranker.rank_understanding(candidates, query, intent, None)
 
         # ---- Build fragments ----
         top_files = ranked[:opts.max_files]
@@ -615,9 +713,15 @@ class RepositoryContextRetriever:
 
     def _rebuild_file_indexes(self) -> None:
         """Build normalized path indexes for fast likely-file lookup."""
-        self._known_files_normalized = [
-            p.replace("\\", "/") for p in self._symbols_json.keys()
-        ]
+        indexed_files = {p.replace("\\", "/") for p in self._symbols_json.keys()}
+        for path in self._working_dir.rglob("*"):
+            if not path.is_file():
+                continue
+            rel = str(path.relative_to(self._working_dir)).replace("\\", "/")
+            if should_skip_path(rel):
+                continue
+            indexed_files.add(rel)
+        self._known_files_normalized = sorted(indexed_files)
         self._known_file_set = set(self._known_files_normalized)
         self._basename_to_paths = {}
         for p in self._known_files_normalized:
@@ -706,11 +810,19 @@ class RepositoryContextRetriever:
         if self._dependencies_json:
             self._dep_graph = build_dependency_graph(self._dependencies_json)
 
+        # 3.5 Unified repository graph
+        if self._symbols_json:
+            self._repository_graph = build_repository_graph(
+                self._symbols_json,
+                self._dependencies_json,
+            )
+
         # 4. Structured ranker
         self._ranker = StructuredRanker(
             symbol_graph=self._symbol_graph,
             summaries=self._summary_manager.all_summaries(),
             dep_graph=self._dep_graph,
+            repository_graph=self._repository_graph,
         )
 
     def invalidate_cache(self) -> None:
@@ -726,4 +838,5 @@ class RepositoryContextRetriever:
         self._summary_manager = FileSummaryManager(str(self._working_dir))
         self._dep_graph = None
         self._ranker = None
+        self._repository_graph = None
         self._last_retrieval_meta = None

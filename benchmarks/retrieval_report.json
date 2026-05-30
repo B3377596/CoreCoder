@@ -1,18 +1,18 @@
 {
-  "generated_at": "2026-05-29T07:55:31.100175+00:00",
+  "generated_at": "2026-05-30T01:00:26.867137+00:00",
   "repo_root": "C:\\Users\\86159\\Documents\\agent\\CoreCoder",
   "dataset": "C:\\Users\\86159\\Documents\\agent\\CoreCoder\\benchmarks\\data\\retrieval_eval.jsonl",
   "top_k": 5,
   "summary": {
-    "cases": 30,
-    "hit_at_1": 0.4333,
-    "hit_at_3": 0.6,
-    "hit_at_5": 0.7,
-    "recall_at_5": 0.6056,
-    "mrr": 0.5289,
-    "avg_retrieval_time_ms": 0.659,
-    "avg_files_considered": 8.77,
-    "avg_files_ranked": 9.87
+    "cases": 50,
+    "hit_at_1": 0.22,
+    "hit_at_3": 0.36,
+    "hit_at_5": 0.48,
+    "recall_at_5": 0.3013,
+    "mrr": 0.3259,
+    "avg_retrieval_time_ms": 2.356,
+    "avg_files_considered": 9.86,
+    "avg_files_ranked": 10.7
   },
   "results": [
     {
@@ -21,34 +21,34 @@
       "notes": "High-level overview should surface the main entrypoint, agent loop, and repository cognition layer.",
       "expected_files": [
         "corecoder/cli.py",
-        "corecoder/agent.py",
-        "corecoder/orchestration/context/retriever.py"
+        "corecoder/agent/core.py",
+        "corecoder/context/retriever.py"
       ],
       "retrieved_files": [
-        "corecoder/cli.py",
         "corecoder/__init__.py",
-        "corecoder/orchestration/__init__.py",
-        "corecoder/mcp/client.py",
+        "corecoder/context/__init__.py",
+        "corecoder/retrieval/__init__.py",
+        "corecoder/cli.py",
+        "corecoder/agent/dag/__init__.py",
         "corecoder/tools/__init__.py",
-        "corecoder/orchestration/context/__init__.py",
-        "corecoder/orchestration/orchestrator.py",
-        "corecoder/llm/client.py",
-        "corecoder/orchestration/engine/scheduler.py",
-        "corecoder/orchestration/context/orchestrator.py"
+        "corecoder/mcp/client.py",
+        "corecoder/context/retriever.py",
+        "tests/test_orchestration.py",
+        "tests/test_retrieval_improvements.py"
       ],
       "metrics": {
-        "hit_at_1": 1.0,
-        "hit_at_3": 1.0,
+        "hit_at_1": 0.0,
+        "hit_at_3": 0.0,
         "hit_at_5": 1.0,
         "recall_at_5": 0.3333333333333333,
-        "mrr": 1.0
+        "mrr": 0.25
       },
       "retrieval_meta": {
         "intent_family": "understanding",
         "intent_type": "overview",
-        "total_files_considered": 42,
-        "total_files_ranked": 42,
-        "retrieval_time_ms": 1.404,
+        "total_files_considered": 54,
+        "total_files_ranked": 54,
+        "retrieval_time_ms": 4.001,
         "pipeline_stages": [
           "intent_analysis",
           "query_planning",
@@ -69,14 +69,14 @@
       "retrieved_files": [
         "corecoder/cli.py",
         "corecoder/mcp/client.py",
-        "corecoder/tools/grep.py",
+        "corecoder/llm/client.py",
         "tests/test_core.py",
-        "tests/test_orchestration.py",
-        "corecoder/orchestration/engine/planner.py",
-        "corecoder/tools/bash.py",
-        "corecoder/runtime/state.py",
-        "corecoder/llm/types.py",
-        "corecoder/orchestration/context/pipeline.py"
+        "corecoder/__init__.py",
+        "corecoder/llm/__init__.py",
+        "corecoder/mcp/__init__.py",
+        "corecoder/context/ranker.py",
+        "corecoder/retrieval/__init__.py",
+        "corecoder/context/__init__.py"
       ],
       "metrics": {
         "hit_at_1": 1.0,
@@ -88,15 +88,16 @@
       "retrieval_meta": {
         "intent_family": "explanation",
         "intent_type": "deep_dive",
-        "total_files_considered": 3,
+        "total_files_considered": 8,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 1.587,
+        "retrieval_time_ms": 2.538,
         "pipeline_stages": [
-          "intent_analysis",
-          "query_planning",
-          "symbol_routing",
+          "task_understanding",
+          "retrieval_planning",
+          "graph_candidate_collection",
           "structured_ranking",
-          "dependency_expansion",
+          "adaptive_retrieval",
+          "graph_expansion",
           "fragment_assembly"
         ]
       }
@@ -104,37 +105,43 @@
     {
       "id": "session_persistence",
       "query": "Where is session persistence implemented?",
-      "notes": "Navigation query for save/resume logic.",
+      "notes": "Navigation query for save/resume logic and runtime state persistence.",
       "expected_files": [
-        "corecoder/history/session.py"
+        "corecoder/context/session.py",
+        "corecoder/agent/runtime/state.py"
       ],
       "retrieved_files": [
-        "corecoder/history/session.py",
         "tests/test_session.py",
+        "corecoder/context/__init__.py",
+        "corecoder/__init__.py",
+        "corecoder/agent/runtime/state.py",
         "tests/test_core.py",
-        "corecoder/runtime/state.py",
-        "corecoder/repo/shadow.py",
-        "tests/test_orchestration.py"
+        "corecoder/context/session.py",
+        ".claude/settings.local.json",
+        ".env",
+        ".gitignore",
+        "LICENSE"
       ],
       "metrics": {
-        "hit_at_1": 1.0,
-        "hit_at_3": 1.0,
+        "hit_at_1": 0.0,
+        "hit_at_3": 0.0,
         "hit_at_5": 1.0,
-        "recall_at_5": 1.0,
-        "mrr": 1.0
+        "recall_at_5": 0.5,
+        "mrr": 0.25
       },
       "retrieval_meta": {
         "intent_family": "navigation",
         "intent_type": "navigation",
-        "total_files_considered": 6,
-        "total_files_ranked": 6,
+        "total_files_considered": 8,
+        "total_files_ranked": 10,
         "retrieval_time_ms": 0.0,
         "pipeline_stages": [
-          "intent_analysis",
-          "query_planning",
-          "symbol_routing",
+          "task_understanding",
+          "retrieval_planning",
+          "graph_candidate_collection",
           "structured_ranking",
-          "dependency_expansion",
+          "adaptive_retrieval",
+          "graph_expansion",
           "fragment_assembly"
         ]
       }
@@ -144,19 +151,20 @@
       "query": "How does context compression work?",
       "notes": "Deep-dive query for context budget management.",
       "expected_files": [
-        "corecoder/history/compression.py"
+        "corecoder/context/compression.py",
+        "corecoder/context/orchestrator.py"
       ],
       "retrieved_files": [
-        "corecoder/orchestration/context/layers.py",
-        "corecoder/orchestration/context/models.py",
-        "corecoder/tools/grep.py",
+        "tests/test_context_orchestrator.py",
+        "article/04-context-compression.md",
+        "article/04-context-compression_EN.md",
+        "corecoder/retrieval/dependency_graph.py",
         "tests/test_core.py",
-        "tests/test_orchestration.py",
-        "corecoder/orchestration/engine/planner.py",
-        "corecoder/tools/bash.py",
-        "corecoder/runtime/state.py",
-        "corecoder/llm/types.py",
-        "corecoder/orchestration/context/pipeline.py"
+        "corecoder/__init__.py",
+        "corecoder/llm/__init__.py",
+        "corecoder/mcp/__init__.py",
+        "corecoder/retrieval/evaluation.py",
+        "corecoder/context/session.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
@@ -168,15 +176,16 @@
       "retrieval_meta": {
         "intent_family": "explanation",
         "intent_type": "deep_dive",
-        "total_files_considered": 4,
+        "total_files_considered": 5,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 1.061,
+        "retrieval_time_ms": 0.0,
         "pipeline_stages": [
-          "intent_analysis",
-          "query_planning",
-          "symbol_routing",
+          "task_understanding",
+          "retrieval_planning",
+          "graph_candidate_collection",
           "structured_ranking",
-          "dependency_expansion",
+          "adaptive_retrieval",
+          "graph_expansion",
           "fragment_assembly"
         ]
       }
@@ -186,36 +195,41 @@
       "query": "Where is the retrieval query planner?",
       "notes": "Navigation query for retrieval planning.",
       "expected_files": [
-        "corecoder/orchestration/retrieval/query_planner.py"
+        "corecoder/retrieval/query_planner.py",
+        "corecoder/retrieval/retrieval_planner.py"
       ],
       "retrieved_files": [
-        "corecoder/orchestration/retrieval/query_planner.py",
         "tests/test_retrieval_improvements.py",
-        "corecoder/orchestration/retrieval/models.py",
-        "corecoder/orchestration/context/retriever.py",
-        "corecoder/orchestration/orchestrator.py",
-        "tests/test_orchestration.py",
-        "corecoder/orchestration/context/ranker.py"
+        "corecoder/retrieval/query_planner.py",
+        "corecoder/retrieval/retrieval_planner.py",
+        "corecoder/retrieval/models.py",
+        "corecoder/__init__.py",
+        "corecoder/retrieval/task_intent.py",
+        "corecoder/context/__init__.py",
+        "corecoder/context/retriever.py",
+        "corecoder/retrieval/__init__.py",
+        "corecoder/context/models.py"
       ],
       "metrics": {
-        "hit_at_1": 1.0,
+        "hit_at_1": 0.0,
         "hit_at_3": 1.0,
         "hit_at_5": 1.0,
         "recall_at_5": 1.0,
-        "mrr": 1.0
+        "mrr": 0.5
       },
       "retrieval_meta": {
         "intent_family": "navigation",
         "intent_type": "navigation",
-        "total_files_considered": 7,
-        "total_files_ranked": 7,
+        "total_files_considered": 8,
+        "total_files_ranked": 10,
         "retrieval_time_ms": 0.0,
         "pipeline_stages": [
-          "intent_analysis",
-          "query_planning",
-          "symbol_routing",
+          "task_understanding",
+          "retrieval_planning",
+          "graph_candidate_collection",
           "structured_ranking",
-          "dependency_expansion",
+          "adaptive_retrieval",
+          "graph_expansion",
           "fragment_assembly"
         ]
       }
@@ -225,19 +239,20 @@
       "query": "How does repository indexing work?",
       "notes": "Explanation query for structured repository memory.",
       "expected_files": [
-        "corecoder/repo/index.py"
+        "corecoder/codebase/indexing/index.py",
+        "corecoder/context/retriever.py"
       ],
       "retrieved_files": [
-        "corecoder/tools/grep.py",
+        "corecoder/retrieval/dependency_graph.py",
         "tests/test_core.py",
-        "tests/test_orchestration.py",
-        "corecoder/orchestration/engine/planner.py",
-        "corecoder/tools/bash.py",
-        "corecoder/runtime/state.py",
-        "corecoder/llm/types.py",
-        "corecoder/orchestration/context/pipeline.py",
-        "tests/test_litellm.py",
-        "corecoder/tools/agent.py"
+        "corecoder/__init__.py",
+        "corecoder/llm/__init__.py",
+        "corecoder/mcp/__init__.py",
+        "corecoder/retrieval/evaluation.py",
+        "corecoder/context/session.py",
+        "corecoder/agent/workflow/planner.py",
+        "corecoder/agent/dag/graph.py",
+        "corecoder/retrieval/__init__.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
@@ -249,15 +264,16 @@
       "retrieval_meta": {
         "intent_family": "explanation",
         "intent_type": "deep_dive",
-        "total_files_considered": 3,
+        "total_files_considered": 8,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 1.008,
+        "retrieval_time_ms": 0.0,
         "pipeline_stages": [
-          "intent_analysis",
-          "query_planning",
-          "symbol_routing",
+          "task_understanding",
+          "retrieval_planning",
+          "graph_candidate_collection",
           "structured_ranking",
-          "dependency_expansion",
+          "adaptive_retrieval",
+          "graph_expansion",
           "fragment_assembly"
         ]
       }
@@ -270,31 +286,35 @@
         "corecoder/tools/bash.py"
       ],
       "retrieved_files": [
-        "tests/test_tools.py",
-        "corecoder/cli.py",
         "corecoder/tools/bash.py",
-        "benchmarks/run_retrieval_benchmark.py",
-        "corecoder/agent.py"
+        ".claude/settings.local.json",
+        ".env",
+        ".gitignore",
+        "LICENSE",
+        "README.md",
+        "README_CN.md",
+        "article/00-index.md"
       ],
       "metrics": {
-        "hit_at_1": 0.0,
+        "hit_at_1": 1.0,
         "hit_at_3": 1.0,
         "hit_at_5": 1.0,
         "recall_at_5": 1.0,
-        "mrr": 0.3333333333333333
+        "mrr": 1.0
       },
       "retrieval_meta": {
         "intent_family": "navigation",
         "intent_type": "navigation",
-        "total_files_considered": 5,
-        "total_files_ranked": 5,
+        "total_files_considered": 8,
+        "total_files_ranked": 8,
         "retrieval_time_ms": 0.0,
         "pipeline_stages": [
-          "intent_analysis",
-          "query_planning",
-          "symbol_routing",
+          "task_understanding",
+          "retrieval_planning",
+          "graph_candidate_collection",
           "structured_ranking",
-          "dependency_expansion",
+          "adaptive_retrieval",
+          "graph_expansion",
           "fragment_assembly"
         ]
       }
@@ -302,21 +322,20 @@
     {
       "id": "session_sanitization",
       "query": "How do saved sessions get sanitized?",
-      "notes": "Should point at filename/session-id normalization code.",
+      "notes": "Should point at filename and session-id normalization code.",
       "expected_files": [
-        "corecoder/history/session.py"
+        "corecoder/context/session.py"
       ],
       "retrieved_files": [
-        "tests/test_orchestration.py",
-        "corecoder/tools/bash.py",
-        "tests/test_litellm.py",
-        "corecoder/mcp/client.py",
-        "tests/test_tools.py",
-        "tests/test_context_orchestrator.py",
-        "tests/test_session.py",
-        "corecoder/orchestration/viz.py",
-        "corecoder/orchestration/storage.py",
-        "corecoder/repo/shadow.py"
+        "corecoder/__main__.py",
+        "corecoder/cli.py",
+        ".claude/settings.local.json",
+        ".env",
+        ".gitignore",
+        "LICENSE",
+        "README.md",
+        "README_CN.md",
+        "article/00-index.md"
       ],
       "metrics": {
         "hit_at_1": 0.0,
@@ -328,15 +347,16 @@
       "retrieval_meta": {
         "intent_family": "explanation",
         "intent_type": "deep_dive",
-        "total_files_considered": 4,
-        "total_files_ranked": 10,
-        "retrieval_time_ms": 0.999,
+        "total_files_considered": 8,
+        "total_files_ranked": 9,
+        "retrieval_time_ms": 0.0,
         "pipeline_stages": [
-          "intent_analysis",
-          "query_planning",
-          "symbol_routing",
+          "task_understanding",
+          "retrieval_planning",
+          "graph_candidate_collection",
           "structured_ranking",
-          "dependency_expansion",
+          "adaptive_retrieval",
+          "graph_expansion",
           "fragment_assembly"
         ]
       }
@@ -344,38 +364,46 @@
     {
       "id": "orchestration_modules",
       "query": "What modules implement orchestration?",
-      "notes": "Overview of planning/execution orchestration.",
+      "notes": "Overview of planning and execution orchestration.",
       "expected_files": [
-        "corecoder/orchestration/orchestrator.py",
-        "corecoder/orchestration/engine/planner.py",
-        "corecoder/orchestration/engine/scheduler.py"
+        "corecoder/agent/workflow/orchestrator.py",
+        "corecoder/agent/workflow/planner.py",
+        "corecoder/agent/workflow/scheduler.py",
+        "corecoder/agent/workflow/executor.py",
+        "corecoder/agent/workflow/verifier.py"
       ],
       "retrieved_files": [
-        "corecoder/orchestration/observability.py",
         "tests/test_orchestration.py",
-        "corecoder/orchestration/orchestrator.py",
-        "corecoder/orchestration/storage.py",
-        "corecoder/orchestration/viz.py"
+        "corecoder/agent/workflow/executor.py",
+        "corecoder/agent/workflow/verifier.py",
+        "corecoder/infra/viz.py",
+        "corecoder/__init__.py",
+        "corecoder/agent/dag/recovery.py",
+        "corecoder/agent/dag/models.py",
+        "corecoder/agent/dag/__init__.py",
+        "corecoder/agent/dag/memory.py",
+        "corecoder/infra/storage.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
         "hit_at_3": 1.0,
         "hit_at_5": 1.0,
-        "recall_at_5": 0.3333333333333333,
-        "mrr": 0.3333333333333333
+        "recall_at_5": 0.4,
+        "mrr": 0.5
       },
       "retrieval_meta": {
         "intent_family": "execution",
-        "intent_type": "feature_addition",
-        "total_files_considered": 5,
-        "total_files_ranked": 5,
-        "retrieval_time_ms": 1.0,
+        "intent_type": "general_task",
+        "total_files_considered": 8,
+        "total_files_ranked": 10,
+        "retrieval_time_ms": 0.0,
         "pipeline_stages": [
-          "intent_analysis",
-          "query_planning",
-          "symbol_routing",
+          "task_understanding",
+          "retrieval_planning",
+          "graph_candidate_collection",
           "structured_ranking",
-          "dependency_expansion",
+          "adaptive_retrieval",
+          "graph_expansion",
           "fragment_assembly"
         ]
       }
@@ -385,19 +413,20 @@
       "query": "How does the agent loop execute tools?",
       "notes": "Execution loop and tool dispatch.",
       "expected_files": [
-        "corecoder/agent.py"
+        "corecoder/agent/core.py",
+        "corecoder/tools/base.py"
       ],
       "retrieved_files": [
+        "corecoder/tools/agent.py",
+        "corecoder/tools/bash.py",
+        "corecoder/tools/edit.py",
+        "corecoder/tools/glob_tool.py",
         "corecoder/tools/grep.py",
-        "tests/test_core.py",
-        "tests/test_orchestration.py",
-        "corecoder/orchestration/engine/planner.py",
-        "corecoder/runtime/state.py",
-        "corecoder/llm/types.py",
-        "corecoder/orchestration/context/pipeline.py",
-        "tests/test_litellm.py",
-        "corecoder/history/session.py",
-        "corecoder/tools/repo_info.py"
+        "corecoder/tools/read.py",
+        "corecoder/tools/repo_info.py",
+        "corecoder/tools/write.py",
+        "tests/test_tools.py",
+        "article/02-agent-loop.md"
       ],
       "metrics": {
         "hit_at_1": 0.0,
@@ -409,15 +438,16 @@
       "retrieval_meta": {
         "intent_family": "explanation",
         "intent_type": "deep_dive",
-        "total_files_considered": 7,
+        "total_files_considered": 16,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 0.0,
+        "retrieval_time_ms": 16.134,
         "pipeline_stages": [
-          "intent_analysis",
-          "query_planning",
-          "symbol_routing",
+          "task_understanding",
+          "retrieval_planning",
+          "graph_candidate_collection",
           "structured_ranking",
-          "dependency_expansion",
+          "adaptive_retrieval",
+          "graph_expansion",
           "fragment_assembly"
         ]
       }
@@ -425,35 +455,43 @@
     {
       "id": "runtime_message_assembly",
       "query": "How are runtime messages assembled before sending to the LLM?",
-      "notes": "Prompt assembly and ephemeral context layering.",
+      "notes": "Prompt assembly and message sending path.",
       "expected_files": [
-        "corecoder/runtime/assembler.py"
+        "corecoder/agent/runtime/assembler.py",
+        "corecoder/llm/client.py"
       ],
       "retrieved_files": [
-        "corecoder/cli.py",
+        "tests/test_litellm.py",
         "corecoder/llm/client.py",
-        "corecoder/runtime/assembler.py",
-        "corecoder/agent.py"
+        "corecoder/cli.py",
+        "corecoder/__init__.py",
+        "corecoder/llm/__init__.py",
+        "corecoder/config.py",
+        "corecoder/llm/types.py",
+        "corecoder/__main__.py",
+        "tests/test_core.py",
+        "corecoder/context/compression.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
         "hit_at_3": 1.0,
         "hit_at_5": 1.0,
-        "recall_at_5": 1.0,
-        "mrr": 0.3333333333333333
+        "recall_at_5": 0.5,
+        "mrr": 0.5
       },
       "retrieval_meta": {
         "intent_family": "execution",
-        "intent_type": "unknown",
-        "total_files_considered": 4,
-        "total_files_ranked": 4,
-        "retrieval_time_ms": 1.0,
+        "intent_type": "general_task",
+        "total_files_considered": 6,
+        "total_files_ranked": 10,
+        "retrieval_time_ms": 0.0,
         "pipeline_stages": [
-          "intent_analysis",
-          "query_planning",
-          "symbol_routing",
+          "task_understanding",
+          "retrieval_planning",
+          "graph_candidate_collection",
           "structured_ranking",
-          "dependency_expansion",
+          "adaptive_retrieval",
+          "graph_expansion",
           "fragment_assembly"
         ]
       }
@@ -466,36 +504,37 @@
         "corecoder/tools/repo_info.py"
       ],
       "retrieved_files": [
-        "corecoder/mcp/client.py",
-        "tests/test_tools.py",
-        "corecoder/tools/base.py",
-        "corecoder/tools/glob_tool.py",
         "corecoder/tools/repo_info.py",
-        "corecoder/llm/types.py",
+        "corecoder/tools/glob_tool.py",
+        "tests/test_tools.py",
         "corecoder/tools/agent.py",
+        "corecoder/tools/base.py",
         "corecoder/tools/bash.py",
         "corecoder/tools/edit.py",
-        "corecoder/tools/grep.py"
+        "corecoder/tools/grep.py",
+        "corecoder/tools/read.py",
+        "corecoder/tools/write.py"
       ],
       "metrics": {
-        "hit_at_1": 0.0,
-        "hit_at_3": 0.0,
+        "hit_at_1": 1.0,
+        "hit_at_3": 1.0,
         "hit_at_5": 1.0,
         "recall_at_5": 1.0,
-        "mrr": 0.2
+        "mrr": 1.0
       },
       "retrieval_meta": {
         "intent_family": "navigation",
         "intent_type": "navigation",
-        "total_files_considered": 12,
-        "total_files_ranked": 12,
+        "total_files_considered": 14,
+        "total_files_ranked": 10,
         "retrieval_time_ms": 0.0,
         "pipeline_stages": [
-          "intent_analysis",
-          "query_planning",
-          "symbol_routing",
+          "task_understanding",
+          "retrieval_planning",
+          "graph_candidate_collection",
           "structured_ranking",
-          "dependency_expansion",
+          "adaptive_retrieval",
+          "graph_expansion",
           "fragment_assembly"
         ]
       }
@@ -509,36 +548,37 @@
         "corecoder/cli.py"
       ],
       "retrieved_files": [
-        "corecoder/tools/grep.py",
+        "corecoder/mcp/client.py",
+        "corecoder/__main__.py",
         "tests/test_core.py",
-        "tests/test_orchestration.py",
-        "corecoder/orchestration/engine/planner.py",
-        "corecoder/tools/bash.py",
-        "corecoder/runtime/state.py",
-        "corecoder/llm/types.py",
-        "corecoder/orchestration/context/pipeline.py",
-        "corecoder/history/session.py",
-        "corecoder/tools/repo_info.py"
+        "corecoder/__init__.py",
+        "corecoder/llm/__init__.py",
+        "corecoder/mcp/__init__.py",
+        "corecoder/context/ranker.py",
+        "corecoder/retrieval/__init__.py",
+        "corecoder/llm/client.py",
+        "corecoder/context/__init__.py"
       ],
       "metrics": {
-        "hit_at_1": 0.0,
-        "hit_at_3": 0.0,
-        "hit_at_5": 0.0,
-        "recall_at_5": 0.0,
-        "mrr": 0.0
+        "hit_at_1": 1.0,
+        "hit_at_3": 1.0,
+        "hit_at_5": 1.0,
+        "recall_at_5": 0.5,
+        "mrr": 1.0
       },
       "retrieval_meta": {
         "intent_family": "explanation",
         "intent_type": "deep_dive",
-        "total_files_considered": 5,
+        "total_files_considered": 8,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 1.01,
+        "retrieval_time_ms": 0.0,
         "pipeline_stages": [
-          "intent_analysis",
-          "query_planning",
-          "symbol_routing",
+          "task_understanding",
+          "retrieval_planning",
+          "graph_candidate_collection",
           "structured_ranking",
-          "dependency_expansion",
+          "adaptive_retrieval",
+          "graph_expansion",
           "fragment_assembly"
         ]
       }
@@ -551,29 +591,37 @@
         "corecoder/llm/client.py"
       ],
       "retrieved_files": [
-        "tests/test_litellm.py",
         "corecoder/llm/client.py",
-        "corecoder/mcp/client.py"
+        "tests/test_litellm.py",
+        "corecoder/mcp/client.py",
+        "corecoder/__init__.py",
+        "corecoder/llm/__init__.py",
+        "corecoder/config.py",
+        "corecoder/llm/types.py",
+        "corecoder/mcp/__init__.py",
+        "corecoder/cli.py",
+        "tests/test_core.py"
       ],
       "metrics": {
-        "hit_at_1": 0.0,
+        "hit_at_1": 1.0,
         "hit_at_3": 1.0,
         "hit_at_5": 1.0,
         "recall_at_5": 1.0,
-        "mrr": 0.5
+        "mrr": 1.0
       },
       "retrieval_meta": {
         "intent_family": "navigation",
         "intent_type": "navigation",
-        "total_files_considered": 3,
-        "total_files_ranked": 3,
+        "total_files_considered": 7,
+        "total_files_ranked": 10,
         "retrieval_time_ms": 0.0,
         "pipeline_stages": [
-          "intent_analysis",
-          "query_planning",
-          "symbol_routing",
+          "task_understanding",
+          "retrieval_planning",
+          "graph_candidate_collection",
           "structured_ranking",
-          "dependency_expansion",
+          "adaptive_retrieval",
+          "graph_expansion",
           "fragment_assembly"
         ]
       }
@@ -587,10 +635,15 @@
         "corecoder/config.py"
       ],
       "retrieved_files": [
+        "corecoder/__main__.py",
         "corecoder/cli.py",
-        "tests/test_litellm.py",
-        "tests/test_tools.py",
-        "tests/test_retrieval_improvements.py"
+        ".claude/settings.local.json",
+        ".env",
+        ".gitignore",
+        "LICENSE",
+        "README.md",
+        "README_CN.md",
+        "article/00-index.md"
       ],
       "metrics": {
         "hit_at_1": 0.0,
@@ -601,16 +654,17 @@
       },
       "retrieval_meta": {
         "intent_family": "execution",
-        "intent_type": "unknown",
-        "total_files_considered": 4,
-        "total_files_ranked": 4,
-        "retrieval_time_ms": 0.983,
+        "intent_type": "general_task",
+        "total_files_considered": 8,
+        "total_files_ranked": 9,
+        "retrieval_time_ms": 15.261,
         "pipeline_stages": [
-          "intent_analysis",
-          "query_planning",
-          "symbol_routing",
+          "task_understanding",
+          "retrieval_planning",
+          "graph_candidate_collection",
           "structured_ranking",
-          "dependency_expansion",
+          "adaptive_retrieval",
+          "graph_expansion",
           "fragment_assembly"
         ]
       }
@@ -620,33 +674,41 @@
       "query": "Where is shadow git checkpointing implemented?",
       "notes": "Checkpoint, undo, and diff tracking.",
       "expected_files": [
-        "corecoder/repo/shadow.py",
-        "corecoder/agent.py"
+        "corecoder/codebase/shadow.py",
+        "corecoder/agent/core.py"
       ],
       "retrieved_files": [
-        "corecoder/repo/shadow.py",
-        "corecoder/orchestration/engine/verifier.py",
-        "corecoder/agent.py"
+        "corecoder/__init__.py",
+        "corecoder/agent/dag/graph.py",
+        "corecoder/agent/workflow/executor.py",
+        "corecoder/agent/dag/recovery.py",
+        "corecoder/agent/dag/__init__.py",
+        "corecoder/agent/workflow/scheduler.py",
+        "corecoder/infra/observability.py",
+        "corecoder/agent/dag/models.py",
+        "corecoder/agent/dag/memory.py",
+        "corecoder/codebase/indexing/__init__.py"
       ],
       "metrics": {
-        "hit_at_1": 1.0,
-        "hit_at_3": 1.0,
-        "hit_at_5": 1.0,
-        "recall_at_5": 1.0,
-        "mrr": 1.0
+        "hit_at_1": 0.0,
+        "hit_at_3": 0.0,
+        "hit_at_5": 0.0,
+        "recall_at_5": 0.0,
+        "mrr": 0.0
       },
       "retrieval_meta": {
         "intent_family": "navigation",
         "intent_type": "navigation",
-        "total_files_considered": 3,
-        "total_files_ranked": 3,
+        "total_files_considered": 8,
+        "total_files_ranked": 10,
         "retrieval_time_ms": 0.0,
         "pipeline_stages": [
-          "intent_analysis",
-          "query_planning",
-          "symbol_routing",
+          "task_understanding",
+          "retrieval_planning",
+          "graph_candidate_collection",
           "structured_ranking",
-          "dependency_expansion",
+          "adaptive_retrieval",
+          "graph_expansion",
           "fragment_assembly"
         ]
       }
@@ -654,41 +716,43 @@
     {
       "id": "task_intent_analysis",
       "query": "How does task intent analysis classify retrieval requests?",
-      "notes": "Intent family and task-type classifier.",
+      "notes": "Task understanding and compatibility intent layer.",
       "expected_files": [
-        "corecoder/orchestration/retrieval/task_intent.py"
+        "corecoder/retrieval/task_intent.py",
+        "corecoder/retrieval/models.py"
       ],
       "retrieved_files": [
-        "corecoder/orchestration/retrieval/task_intent.py",
-        "corecoder/orchestration/retrieval/models.py",
         "tests/test_retrieval_improvements.py",
-        "corecoder/tools/grep.py",
-        "corecoder/orchestration/engine/planner.py",
-        "corecoder/tools/bash.py",
-        "corecoder/runtime/state.py",
-        "corecoder/llm/types.py",
-        "corecoder/orchestration/context/pipeline.py",
-        "corecoder/history/session.py"
+        "corecoder/retrieval/task_intent.py",
+        "corecoder/retrieval/dependency_graph.py",
+        "tests/test_core.py",
+        "corecoder/__init__.py",
+        "corecoder/llm/__init__.py",
+        "corecoder/mcp/__init__.py",
+        "corecoder/retrieval/evaluation.py",
+        "corecoder/context/session.py",
+        "corecoder/agent/workflow/planner.py"
       ],
       "metrics": {
-        "hit_at_1": 1.0,
+        "hit_at_1": 0.0,
         "hit_at_3": 1.0,
         "hit_at_5": 1.0,
-        "recall_at_5": 1.0,
-        "mrr": 1.0
+        "recall_at_5": 0.5,
+        "mrr": 0.5
       },
       "retrieval_meta": {
         "intent_family": "explanation",
         "intent_type": "deep_dive",
         "total_files_considered": 8,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 1.0,
+        "retrieval_time_ms": 0.0,
         "pipeline_stages": [
-          "intent_analysis",
-          "query_planning",
-          "symbol_routing",
+          "task_understanding",
+          "retrieval_planning",
+          "graph_candidate_collection",
           "structured_ranking",
-          "dependency_expansion",
+          "adaptive_retrieval",
+          "graph_expansion",
           "fragment_assembly"
         ]
       }
@@ -698,19 +762,19 @@
       "query": "Where is the structured retrieval ranker?",
       "notes": "Multi-factor ranking with reasons.",
       "expected_files": [
-        "corecoder/orchestration/retrieval/ranker.py"
+        "corecoder/retrieval/ranker.py"
       ],
       "retrieved_files": [
-        "corecoder/cli.py",
+        "tests/test_retrieval_improvements.py",
+        "corecoder/context/models.py",
+        "corecoder/retrieval/models.py",
+        "corecoder/retrieval/dependency_graph.py",
+        "corecoder/retrieval/repository_graph.py",
         "corecoder/__init__.py",
-        "corecoder/orchestration/__init__.py",
-        "corecoder/mcp/client.py",
-        "corecoder/tools/__init__.py",
-        "corecoder/orchestration/context/__init__.py",
-        "corecoder/orchestration/orchestrator.py",
-        "corecoder/llm/client.py",
-        "corecoder/orchestration/engine/scheduler.py",
-        "corecoder/orchestration/context/orchestrator.py"
+        "corecoder/retrieval/query_planner.py",
+        "corecoder/retrieval/task_intent.py",
+        "corecoder/retrieval/symbol_index.py",
+        "corecoder/context/retriever.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
@@ -720,16 +784,18 @@
         "mrr": 0.0
       },
       "retrieval_meta": {
-        "intent_family": "understanding",
-        "intent_type": "overview",
-        "total_files_considered": 42,
-        "total_files_ranked": 42,
-        "retrieval_time_ms": 1.003,
+        "intent_family": "navigation",
+        "intent_type": "navigation",
+        "total_files_considered": 8,
+        "total_files_ranked": 10,
+        "retrieval_time_ms": 0.0,
         "pipeline_stages": [
-          "intent_analysis",
-          "query_planning",
-          "understanding_candidate_collection",
-          "understanding_ranking",
+          "task_understanding",
+          "retrieval_planning",
+          "graph_candidate_collection",
+          "structured_ranking",
+          "adaptive_retrieval",
+          "graph_expansion",
           "fragment_assembly"
         ]
       }
@@ -737,38 +803,44 @@
     {
       "id": "dependency_graph",
       "query": "How are repository dependencies expanded during retrieval?",
-      "notes": "Dependency neighborhood expansion path.",
+      "notes": "Dependency neighborhood expansion and graph-aware retrieval path.",
       "expected_files": [
-        "corecoder/orchestration/retrieval/dependency_graph.py",
-        "corecoder/orchestration/context/retriever.py"
+        "corecoder/retrieval/dependency_graph.py",
+        "corecoder/context/retriever.py",
+        "corecoder/retrieval/repository_graph.py"
       ],
       "retrieved_files": [
-        "corecoder/orchestration/context/retriever.py",
-        "corecoder/orchestration/retrieval/models.py",
-        "corecoder/orchestration/retrieval/query_planner.py",
-        "corecoder/cli.py",
-        "corecoder/repo/index.py",
-        "corecoder/orchestration/dag/graph.py"
+        "tests/test_retrieval_improvements.py",
+        "corecoder/context/models.py",
+        "corecoder/retrieval/models.py",
+        "corecoder/retrieval/dependency_graph.py",
+        "corecoder/retrieval/ranker.py",
+        "corecoder/__init__.py",
+        "corecoder/retrieval/query_planner.py",
+        "corecoder/retrieval/task_intent.py",
+        "corecoder/retrieval/symbol_index.py",
+        "corecoder/context/retriever.py"
       ],
       "metrics": {
-        "hit_at_1": 1.0,
-        "hit_at_3": 1.0,
+        "hit_at_1": 0.0,
+        "hit_at_3": 0.0,
         "hit_at_5": 1.0,
-        "recall_at_5": 0.5,
-        "mrr": 1.0
+        "recall_at_5": 0.3333333333333333,
+        "mrr": 0.25
       },
       "retrieval_meta": {
         "intent_family": "execution",
-        "intent_type": "unknown",
-        "total_files_considered": 6,
-        "total_files_ranked": 6,
-        "retrieval_time_ms": 0.999,
+        "intent_type": "general_task",
+        "total_files_considered": 8,
+        "total_files_ranked": 10,
+        "retrieval_time_ms": 0.0,
         "pipeline_stages": [
-          "intent_analysis",
-          "query_planning",
-          "symbol_routing",
+          "task_understanding",
+          "retrieval_planning",
+          "graph_candidate_collection",
           "structured_ranking",
-          "dependency_expansion",
+          "adaptive_retrieval",
+          "graph_expansion",
           "fragment_assembly"
         ]
       }
@@ -778,88 +850,19 @@
       "query": "Where is symbol ownership routing implemented?",
       "notes": "Symbol to file routing backbone.",
       "expected_files": [
-        "corecoder/orchestration/retrieval/symbol_index.py"
+        "corecoder/retrieval/symbol_index.py"
       ],
       "retrieved_files": [
-        "corecoder/orchestration/retrieval/symbol_index.py",
-        "corecoder/cli.py",
-        "corecoder/orchestration/retrieval/models.py",
-        "benchmarks/run_retrieval_benchmark.py",
-        "corecoder/agent.py"
-      ],
-      "metrics": {
-        "hit_at_1": 1.0,
-        "hit_at_3": 1.0,
-        "hit_at_5": 1.0,
-        "recall_at_5": 1.0,
-        "mrr": 1.0
-      },
-      "retrieval_meta": {
-        "intent_family": "navigation",
-        "intent_type": "navigation",
-        "total_files_considered": 5,
-        "total_files_ranked": 5,
-        "retrieval_time_ms": 0.0,
-        "pipeline_stages": [
-          "intent_analysis",
-          "query_planning",
-          "symbol_routing",
-          "structured_ranking",
-          "dependency_expansion",
-          "fragment_assembly"
-        ]
-      }
-    },
-    {
-      "id": "file_summaries",
-      "query": "How are file summaries generated for retrieval?",
-      "notes": "Heuristic semantic summaries without embeddings.",
-      "expected_files": [
-        "corecoder/orchestration/retrieval/summaries.py"
-      ],
-      "retrieved_files": [
-        "corecoder/orchestration/retrieval/summaries.py",
-        "corecoder/orchestration/retrieval/models.py",
-        "corecoder/orchestration/context/retriever.py",
-        "corecoder/orchestration/retrieval/query_planner.py",
-        "corecoder/cli.py"
-      ],
-      "metrics": {
-        "hit_at_1": 1.0,
-        "hit_at_3": 1.0,
-        "hit_at_5": 1.0,
-        "recall_at_5": 1.0,
-        "mrr": 1.0
-      },
-      "retrieval_meta": {
-        "intent_family": "execution",
-        "intent_type": "unknown",
-        "total_files_considered": 5,
-        "total_files_ranked": 5,
-        "retrieval_time_ms": 1.0,
-        "pipeline_stages": [
-          "intent_analysis",
-          "query_planning",
-          "symbol_routing",
-          "structured_ranking",
-          "dependency_expansion",
-          "fragment_assembly"
-        ]
-      }
-    },
-    {
-      "id": "context_orchestrator",
-      "query": "Where is the context orchestrator implemented?",
-      "notes": "Context pipeline coordination.",
-      "expected_files": [
-        "corecoder/orchestration/context/orchestrator.py",
-        "corecoder/orchestration/context/pipeline.py"
-      ],
-      "retrieved_files": [
-        "corecoder/orchestration/orchestrator.py",
-        "corecoder/orchestration/context/models.py",
-        "corecoder/orchestration/context/layers.py",
-        "corecoder/history/compression.py"
+        "corecoder/retrieval/dependency_graph.py",
+        "tests/test_core.py",
+        "corecoder/__init__.py",
+        "corecoder/retrieval/evaluation.py",
+        "corecoder/agent/workflow/planner.py",
+        "corecoder/context/ranker.py",
+        "corecoder/retrieval/__init__.py",
+        "corecoder/retrieval/models.py",
+        "corecoder/context/__init__.py",
+        "corecoder/retrieval/query_planner.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
@@ -871,15 +874,103 @@
       "retrieval_meta": {
         "intent_family": "navigation",
         "intent_type": "navigation",
-        "total_files_considered": 4,
-        "total_files_ranked": 4,
+        "total_files_considered": 8,
+        "total_files_ranked": 10,
         "retrieval_time_ms": 0.0,
         "pipeline_stages": [
-          "intent_analysis",
-          "query_planning",
-          "symbol_routing",
+          "task_understanding",
+          "retrieval_planning",
+          "graph_candidate_collection",
           "structured_ranking",
-          "dependency_expansion",
+          "adaptive_retrieval",
+          "graph_expansion",
+          "fragment_assembly"
+        ]
+      }
+    },
+    {
+      "id": "file_summaries",
+      "query": "How are file summaries generated for retrieval?",
+      "notes": "Heuristic semantic summaries without embeddings.",
+      "expected_files": [
+        "corecoder/retrieval/summaries.py"
+      ],
+      "retrieved_files": [
+        "tests/test_retrieval_improvements.py",
+        "corecoder/cli.py",
+        "corecoder/context/models.py",
+        "corecoder/retrieval/models.py",
+        "corecoder/retrieval/dependency_graph.py",
+        "corecoder/retrieval/ranker.py",
+        "corecoder/retrieval/repository_graph.py",
+        "corecoder/__init__.py",
+        "corecoder/retrieval/query_planner.py",
+        "corecoder/retrieval/task_intent.py"
+      ],
+      "metrics": {
+        "hit_at_1": 0.0,
+        "hit_at_3": 0.0,
+        "hit_at_5": 0.0,
+        "recall_at_5": 0.0,
+        "mrr": 0.0
+      },
+      "retrieval_meta": {
+        "intent_family": "execution",
+        "intent_type": "general_task",
+        "total_files_considered": 14,
+        "total_files_ranked": 10,
+        "retrieval_time_ms": 15.933,
+        "pipeline_stages": [
+          "task_understanding",
+          "retrieval_planning",
+          "graph_candidate_collection",
+          "structured_ranking",
+          "adaptive_retrieval",
+          "graph_expansion",
+          "fragment_assembly"
+        ]
+      }
+    },
+    {
+      "id": "context_orchestrator",
+      "query": "Where is the context orchestrator implemented?",
+      "notes": "Context pipeline coordination.",
+      "expected_files": [
+        "corecoder/context/orchestrator.py",
+        "corecoder/context/pipeline.py"
+      ],
+      "retrieved_files": [
+        "tests/test_context_orchestrator.py",
+        "corecoder/agent/workflow/executor.py",
+        "corecoder/agent/workflow/verifier.py",
+        "corecoder/__init__.py",
+        "corecoder/agent/dag/recovery.py",
+        "corecoder/agent/dag/models.py",
+        "corecoder/agent/dag/__init__.py",
+        "corecoder/agent/dag/memory.py",
+        "corecoder/infra/storage.py",
+        "corecoder/agent/workflow/planner.py"
+      ],
+      "metrics": {
+        "hit_at_1": 0.0,
+        "hit_at_3": 0.0,
+        "hit_at_5": 0.0,
+        "recall_at_5": 0.0,
+        "mrr": 0.0
+      },
+      "retrieval_meta": {
+        "intent_family": "navigation",
+        "intent_type": "navigation",
+        "total_files_considered": 5,
+        "total_files_ranked": 10,
+        "retrieval_time_ms": 0.0,
+        "pipeline_stages": [
+          "task_understanding",
+          "retrieval_planning",
+          "graph_candidate_collection",
+          "structured_ranking",
+          "adaptive_retrieval",
+          "graph_expansion",
           "fragment_assembly"
         ]
       }
@@ -887,41 +978,43 @@
     {
       "id": "scheduler_logic",
       "query": "How does the orchestration scheduler decide what task to run next?",
-      "notes": "Task scheduling and retries.",
+      "notes": "Task scheduling and DAG traversal.",
       "expected_files": [
-        "corecoder/orchestration/engine/scheduler.py"
+        "corecoder/agent/workflow/scheduler.py",
+        "corecoder/agent/dag/graph.py"
       ],
       "retrieved_files": [
-        "corecoder/orchestration/engine/scheduler.py",
         "tests/test_orchestration.py",
-        "corecoder/orchestration/observability.py",
-        "corecoder/tools/grep.py",
+        "corecoder/retrieval/dependency_graph.py",
         "tests/test_core.py",
-        "corecoder/orchestration/engine/planner.py",
-        "corecoder/tools/bash.py",
-        "corecoder/runtime/state.py",
-        "corecoder/llm/types.py",
-        "corecoder/orchestration/context/pipeline.py"
+        "corecoder/__init__.py",
+        "corecoder/llm/__init__.py",
+        "corecoder/mcp/__init__.py",
+        "corecoder/retrieval/evaluation.py",
+        "corecoder/context/session.py",
+        "corecoder/agent/workflow/planner.py",
+        "corecoder/agent/dag/graph.py"
       ],
       "metrics": {
-        "hit_at_1": 1.0,
-        "hit_at_3": 1.0,
-        "hit_at_5": 1.0,
-        "recall_at_5": 1.0,
-        "mrr": 1.0
+        "hit_at_1": 0.0,
+        "hit_at_3": 0.0,
+        "hit_at_5": 0.0,
+        "recall_at_5": 0.0,
+        "mrr": 0.1
       },
       "retrieval_meta": {
         "intent_family": "explanation",
         "intent_type": "deep_dive",
-        "total_files_considered": 13,
+        "total_files_considered": 5,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 1.002,
+        "retrieval_time_ms": 0.0,
         "pipeline_stages": [
-          "intent_analysis",
-          "query_planning",
-          "symbol_routing",
+          "task_understanding",
+          "retrieval_planning",
+          "graph_candidate_collection",
           "structured_ranking",
-          "dependency_expansion",
+          "adaptive_retrieval",
+          "graph_expansion",
           "fragment_assembly"
         ]
       }
@@ -931,34 +1024,38 @@
       "query": "Where is execution verification implemented?",
       "notes": "Patch-aware verifier and policy engine.",
       "expected_files": [
-        "corecoder/orchestration/engine/verifier.py"
+        "corecoder/agent/workflow/verifier.py"
       ],
       "retrieved_files": [
-        "corecoder/orchestration/dag/models.py",
-        "corecoder/orchestration/context/layers.py",
-        "corecoder/orchestration/observability.py",
-        "corecoder/orchestration/engine/verifier.py",
-        "corecoder/orchestration/context/models.py"
+        ".claude/settings.local.json",
+        ".env",
+        ".gitignore",
+        "LICENSE",
+        "README.md",
+        "README_CN.md",
+        "article/00-index.md",
+        "article/00-index_EN.md"
       ],
       "metrics": {
         "hit_at_1": 0.0,
         "hit_at_3": 0.0,
-        "hit_at_5": 1.0,
-        "recall_at_5": 1.0,
-        "mrr": 0.25
+        "hit_at_5": 0.0,
+        "recall_at_5": 0.0,
+        "mrr": 0.0
       },
       "retrieval_meta": {
         "intent_family": "navigation",
         "intent_type": "navigation",
-        "total_files_considered": 5,
-        "total_files_ranked": 5,
+        "total_files_considered": 8,
+        "total_files_ranked": 8,
         "retrieval_time_ms": 0.0,
         "pipeline_stages": [
-          "intent_analysis",
-          "query_planning",
-          "symbol_routing",
+          "task_understanding",
+          "retrieval_planning",
+          "graph_candidate_collection",
           "structured_ranking",
-          "dependency_expansion",
+          "adaptive_retrieval",
+          "graph_expansion",
           "fragment_assembly"
         ]
       }
@@ -968,40 +1065,42 @@
       "query": "How does the planner build task graphs?",
       "notes": "Planning and DAG construction.",
       "expected_files": [
-        "corecoder/orchestration/engine/planner.py",
-        "corecoder/orchestration/dag/graph.py"
+        "corecoder/agent/workflow/planner.py",
+        "corecoder/agent/dag/graph.py",
+        "corecoder/agent/dag/models.py"
       ],
       "retrieved_files": [
-        "corecoder/orchestration/engine/planner.py",
-        "corecoder/orchestration/retrieval/query_planner.py",
-        "corecoder/tools/grep.py",
-        "corecoder/tools/bash.py",
-        "corecoder/runtime/state.py",
-        "corecoder/llm/types.py",
-        "corecoder/orchestration/context/pipeline.py",
-        "corecoder/tools/repo_info.py",
-        "corecoder/mcp/client.py",
-        "corecoder/llm/client.py"
+        "corecoder/retrieval/dependency_graph.py",
+        "tests/test_core.py",
+        "corecoder/__init__.py",
+        "corecoder/llm/__init__.py",
+        "corecoder/mcp/__init__.py",
+        "corecoder/retrieval/evaluation.py",
+        "corecoder/context/session.py",
+        "corecoder/agent/dag/graph.py",
+        "corecoder/retrieval/__init__.py",
+        "corecoder/context/ranker.py"
       ],
       "metrics": {
-        "hit_at_1": 1.0,
-        "hit_at_3": 1.0,
-        "hit_at_5": 1.0,
-        "recall_at_5": 0.5,
-        "mrr": 1.0
+        "hit_at_1": 0.0,
+        "hit_at_3": 0.0,
+        "hit_at_5": 0.0,
+        "recall_at_5": 0.0,
+        "mrr": 0.125
       },
       "retrieval_meta": {
         "intent_family": "explanation",
         "intent_type": "deep_dive",
-        "total_files_considered": 12,
+        "total_files_considered": 5,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 0.997,
+        "retrieval_time_ms": 0.0,
         "pipeline_stages": [
-          "intent_analysis",
-          "query_planning",
-          "symbol_routing",
+          "task_understanding",
+          "retrieval_planning",
+          "graph_candidate_collection",
           "structured_ranking",
-          "dependency_expansion",
+          "adaptive_retrieval",
+          "graph_expansion",
           "fragment_assembly"
         ]
       }
@@ -1011,36 +1110,40 @@
       "query": "Where is the state-centric session model defined?",
       "notes": "SessionState and runtime fields.",
       "expected_files": [
-        "corecoder/runtime/state.py"
+        "corecoder/agent/runtime/state.py"
       ],
       "retrieved_files": [
-        "corecoder/runtime/state.py",
+        "tests/test_session.py",
+        "corecoder/agent/runtime/__init__.py",
+        "corecoder/agent/runtime/assembler.py",
+        "corecoder/context/__init__.py",
+        "corecoder/__init__.py",
         "tests/test_core.py",
-        "corecoder/orchestration/context/policies.py",
-        "corecoder/cli.py",
-        "tests/test_litellm.py",
-        "tests/test_context_orchestrator.py",
-        "corecoder/repo/shadow.py"
+        "corecoder/agent/runtime/state.py",
+        "corecoder/context/session.py",
+        "corecoder/agent/dag/models.py",
+        "corecoder/context/models.py"
       ],
       "metrics": {
-        "hit_at_1": 1.0,
-        "hit_at_3": 1.0,
-        "hit_at_5": 1.0,
-        "recall_at_5": 1.0,
-        "mrr": 1.0
+        "hit_at_1": 0.0,
+        "hit_at_3": 0.0,
+        "hit_at_5": 0.0,
+        "recall_at_5": 0.0,
+        "mrr": 0.14285714285714285
       },
       "retrieval_meta": {
         "intent_family": "navigation",
         "intent_type": "navigation",
         "total_files_considered": 7,
-        "total_files_ranked": 7,
-        "retrieval_time_ms": 1.035,
+        "total_files_ranked": 10,
+        "retrieval_time_ms": 0.0,
         "pipeline_stages": [
-          "intent_analysis",
-          "query_planning",
-          "symbol_routing",
+          "task_understanding",
+          "retrieval_planning",
+          "graph_candidate_collection",
           "structured_ranking",
-          "dependency_expansion",
+          "adaptive_retrieval",
+          "graph_expansion",
           "fragment_assembly"
         ]
       }
@@ -1053,36 +1156,37 @@
         "corecoder/tools/edit.py"
       ],
       "retrieved_files": [
-        "tests/test_tools.py",
-        "corecoder/mcp/client.py",
-        "corecoder/orchestration/retrieval/summaries.py",
-        "corecoder/tools/edit.py",
-        "corecoder/tools/read.py",
-        "corecoder/tools/write.py",
         "corecoder/tools/glob_tool.py",
+        "tests/test_tools.py",
+        "corecoder/__init__.py",
+        "corecoder/tools/__init__.py",
+        "corecoder/tools/agent.py",
         "corecoder/tools/base.py",
-        "corecoder/orchestration/retrieval/symbol_index.py",
-        "corecoder/llm/types.py"
+        "corecoder/tools/bash.py",
+        "corecoder/tools/edit.py",
+        "corecoder/tools/grep.py",
+        "corecoder/tools/read.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
         "hit_at_3": 0.0,
-        "hit_at_5": 1.0,
-        "recall_at_5": 1.0,
-        "mrr": 0.25
+        "hit_at_5": 0.0,
+        "recall_at_5": 0.0,
+        "mrr": 0.125
       },
       "retrieval_meta": {
         "intent_family": "navigation",
         "intent_type": "navigation",
-        "total_files_considered": 14,
-        "total_files_ranked": 14,
-        "retrieval_time_ms": 1.101,
+        "total_files_considered": 15,
+        "total_files_ranked": 10,
+        "retrieval_time_ms": 15.755,
         "pipeline_stages": [
-          "intent_analysis",
-          "query_planning",
-          "symbol_routing",
+          "task_understanding",
+          "retrieval_planning",
+          "graph_candidate_collection",
           "structured_ranking",
-          "dependency_expansion",
+          "adaptive_retrieval",
+          "graph_expansion",
           "fragment_assembly"
         ]
       }
@@ -1096,13 +1200,977 @@
         "corecoder/tools/write.py"
       ],
       "retrieved_files": [
-        "tests/test_tools.py",
         "corecoder/tools/read.py",
-        "corecoder/mcp/client.py",
+        "tests/test_tools.py",
+        "corecoder/__init__.py",
+        "corecoder/tools/__init__.py",
+        "corecoder/tools/agent.py",
+        "corecoder/tools/bash.py",
         "corecoder/tools/edit.py",
-        "corecoder/tools/write.py",
-        "corecoder/orchestration/retrieval/summaries.py",
-        "corecoder/orchestration/storage.py"
+        "corecoder/tools/glob_tool.py",
+        "corecoder/tools/grep.py",
+        "corecoder/tools/repo_info.py"
+      ],
+      "metrics": {
+        "hit_at_1": 1.0,
+        "hit_at_3": 1.0,
+        "hit_at_5": 1.0,
+        "recall_at_5": 0.5,
+        "mrr": 1.0
+      },
+      "retrieval_meta": {
+        "intent_family": "execution",
+        "intent_type": "general_task",
+        "total_files_considered": 13,
+        "total_files_ranked": 10,
+        "retrieval_time_ms": 1.349,
+        "pipeline_stages": [
+          "task_understanding",
+          "retrieval_planning",
+          "graph_candidate_collection",
+          "structured_ranking",
+          "adaptive_retrieval",
+          "graph_expansion",
+          "fragment_assembly"
+        ]
+      }
+    },
+    {
+      "id": "agent_subtool",
+      "query": "How are sub-agents exposed as a tool?",
+      "notes": "Agent tool wrapper and isolated context.",
+      "expected_files": [
+        "corecoder/tools/agent.py",
+        "corecoder/tools/base.py"
+      ],
+      "retrieved_files": [
+        "corecoder/tools/glob_tool.py",
+        "tests/test_tools.py",
+        "corecoder/__init__.py",
+        "corecoder/tools/__init__.py",
+        "corecoder/tools/agent.py",
+        "corecoder/tools/base.py",
+        "corecoder/tools/bash.py",
+        "corecoder/tools/edit.py",
+        "corecoder/tools/grep.py",
+        "corecoder/tools/read.py"
+      ],
+      "metrics": {
+        "hit_at_1": 0.0,
+        "hit_at_3": 0.0,
+        "hit_at_5": 1.0,
+        "recall_at_5": 0.5,
+        "mrr": 0.2
+      },
+      "retrieval_meta": {
+        "intent_family": "execution",
+        "intent_type": "general_task",
+        "total_files_considered": 15,
+        "total_files_ranked": 10,
+        "retrieval_time_ms": 0.0,
+        "pipeline_stages": [
+          "task_understanding",
+          "retrieval_planning",
+          "graph_candidate_collection",
+          "structured_ranking",
+          "adaptive_retrieval",
+          "graph_expansion",
+          "fragment_assembly"
+        ]
+      }
+    },
+    {
+      "id": "config_loading",
+      "query": "How does configuration load from env and dotenv files?",
+      "notes": "Config precedence and parsing.",
+      "expected_files": [
+        "corecoder/config.py",
+        "corecoder/cli.py"
+      ],
+      "retrieved_files": [
+        "corecoder/cli.py",
+        "tests/test_core.py",
+        "corecoder/__init__.py",
+        "corecoder/llm/__init__.py",
+        "corecoder/mcp/__init__.py",
+        "corecoder/context/ranker.py",
+        "corecoder/retrieval/__init__.py",
+        "corecoder/llm/client.py",
+        "corecoder/context/__init__.py",
+        "tests/test_litellm.py"
+      ],
+      "metrics": {
+        "hit_at_1": 1.0,
+        "hit_at_3": 1.0,
+        "hit_at_5": 1.0,
+        "recall_at_5": 0.5,
+        "mrr": 1.0
+      },
+      "retrieval_meta": {
+        "intent_family": "explanation",
+        "intent_type": "deep_dive",
+        "total_files_considered": 8,
+        "total_files_ranked": 10,
+        "retrieval_time_ms": 0.0,
+        "pipeline_stages": [
+          "task_understanding",
+          "retrieval_planning",
+          "graph_candidate_collection",
+          "structured_ranking",
+          "adaptive_retrieval",
+          "graph_expansion",
+          "fragment_assembly"
+        ]
+      }
+    },
+    {
+      "id": "repository_graph",
+      "query": "Where is the repository graph abstraction implemented?",
+      "notes": "RepositoryGraph nodes, edges, and graph construction.",
+      "expected_files": [
+        "corecoder/retrieval/repository_graph.py",
+        "corecoder/retrieval/models.py"
+      ],
+      "retrieved_files": [
+        "corecoder/retrieval/repository_graph.py",
+        "corecoder/agent/workflow/orchestrator.py",
+        "tests/test_orchestration.py",
+        "corecoder/infra/viz.py",
+        "corecoder/agent/dag/models.py",
+        "corecoder/agent/dag/__init__.py",
+        "corecoder/agent/workflow/planner.py",
+        "corecoder/agent/workflow/scheduler.py",
+        "corecoder/retrieval/models.py",
+        "corecoder/retrieval/ranker.py"
+      ],
+      "metrics": {
+        "hit_at_1": 1.0,
+        "hit_at_3": 1.0,
+        "hit_at_5": 1.0,
+        "recall_at_5": 0.5,
+        "mrr": 1.0
+      },
+      "retrieval_meta": {
+        "intent_family": "navigation",
+        "intent_type": "navigation",
+        "total_files_considered": 8,
+        "total_files_ranked": 10,
+        "retrieval_time_ms": 0.0,
+        "pipeline_stages": [
+          "task_understanding",
+          "retrieval_planning",
+          "graph_candidate_collection",
+          "structured_ranking",
+          "adaptive_retrieval",
+          "graph_expansion",
+          "fragment_assembly"
+        ]
+      }
+    },
+    {
+      "id": "retrieval_plan",
+      "query": "How is the retrieval plan generated?",
+      "notes": "Task understanding to RetrievalPlan conversion.",
+      "expected_files": [
+        "corecoder/retrieval/retrieval_planner.py",
+        "corecoder/retrieval/models.py"
+      ],
+      "retrieved_files": [
+        "tests/test_retrieval_improvements.py",
+        "corecoder/context/models.py",
+        "corecoder/retrieval/models.py",
+        "corecoder/retrieval/dependency_graph.py",
+        "corecoder/retrieval/ranker.py",
+        "corecoder/retrieval/repository_graph.py",
+        "corecoder/__init__.py",
+        "corecoder/retrieval/query_planner.py",
+        "corecoder/retrieval/task_intent.py",
+        "corecoder/retrieval/symbol_index.py"
+      ],
+      "metrics": {
+        "hit_at_1": 0.0,
+        "hit_at_3": 1.0,
+        "hit_at_5": 1.0,
+        "recall_at_5": 0.5,
+        "mrr": 0.3333333333333333
+      },
+      "retrieval_meta": {
+        "intent_family": "planning",
+        "intent_type": "planning",
+        "total_files_considered": 7,
+        "total_files_ranked": 10,
+        "retrieval_time_ms": 0.0,
+        "pipeline_stages": [
+          "task_understanding",
+          "retrieval_planning",
+          "graph_candidate_collection",
+          "structured_ranking",
+          "adaptive_retrieval",
+          "graph_expansion",
+          "fragment_assembly"
+        ]
+      }
+    },
+    {
+      "id": "retrieval_metrics",
+      "query": "Where are retrieval metrics like MRR and Recall@K defined?",
+      "notes": "Evaluation primitives and aggregation.",
+      "expected_files": [
+        "corecoder/retrieval/models.py",
+        "corecoder/retrieval/evaluation.py"
+      ],
+      "retrieved_files": [
+        "benchmarks/run_retrieval_benchmark.py",
+        "tests/test_retrieval_improvements.py",
+        "corecoder/context/models.py",
+        "corecoder/retrieval/models.py",
+        "corecoder/retrieval/dependency_graph.py",
+        "corecoder/retrieval/ranker.py",
+        "corecoder/retrieval/repository_graph.py",
+        "corecoder/__init__.py",
+        "corecoder/retrieval/query_planner.py",
+        "corecoder/retrieval/task_intent.py"
+      ],
+      "metrics": {
+        "hit_at_1": 0.0,
+        "hit_at_3": 0.0,
+        "hit_at_5": 1.0,
+        "recall_at_5": 0.5,
+        "mrr": 0.25
+      },
+      "retrieval_meta": {
+        "intent_family": "execution",
+        "intent_type": "general_task",
+        "total_files_considered": 7,
+        "total_files_ranked": 10,
+        "retrieval_time_ms": 0.0,
+        "pipeline_stages": [
+          "task_understanding",
+          "retrieval_planning",
+          "graph_candidate_collection",
+          "structured_ranking",
+          "adaptive_retrieval",
+          "graph_expansion",
+          "fragment_assembly"
+        ]
+      }
+    },
+    {
+      "id": "adaptive_retrieval",
+      "query": "How does retrieval ask for more context when the first pass is insufficient?",
+      "notes": "Adaptive retrieval and request_more_context flow.",
+      "expected_files": [
+        "corecoder/context/retriever.py",
+        "corecoder/agent/runtime/state.py",
+        "corecoder/retrieval/models.py"
+      ],
+      "retrieved_files": [
+        "tests/test_retrieval_improvements.py",
+        "tests/test_context_orchestrator.py",
+        "corecoder/cli.py",
+        "corecoder/retrieval/dependency_graph.py",
+        "corecoder/__init__.py",
+        "corecoder/llm/__init__.py",
+        "corecoder/mcp/__init__.py",
+        "corecoder/retrieval/evaluation.py",
+        "corecoder/context/session.py",
+        "corecoder/agent/workflow/planner.py"
+      ],
+      "metrics": {
+        "hit_at_1": 0.0,
+        "hit_at_3": 0.0,
+        "hit_at_5": 0.0,
+        "recall_at_5": 0.0,
+        "mrr": 0.0
+      },
+      "retrieval_meta": {
+        "intent_family": "explanation",
+        "intent_type": "deep_dive",
+        "total_files_considered": 16,
+        "total_files_ranked": 10,
+        "retrieval_time_ms": 14.636,
+        "pipeline_stages": [
+          "task_understanding",
+          "retrieval_planning",
+          "graph_candidate_collection",
+          "structured_ranking",
+          "adaptive_retrieval",
+          "graph_expansion",
+          "fragment_assembly"
+        ]
+      }
+    },
+    {
+      "id": "retrieval_context",
+      "query": "Where is state-aware retrieval context modeled?",
+      "notes": "RetrievalContext captures active files, memory, and failures.",
+      "expected_files": [
+        "corecoder/retrieval/models.py",
+        "corecoder/context/retriever.py"
+      ],
+      "retrieved_files": [
+        "tests/test_retrieval_improvements.py",
+        "tests/test_context_orchestrator.py",
+        "corecoder/agent/runtime/__init__.py",
+        "corecoder/context/session.py",
+        "corecoder/agent/runtime/assembler.py",
+        "corecoder/context/models.py",
+        "corecoder/context/__init__.py",
+        "corecoder/__init__.py",
+        "corecoder/context/retriever.py",
+        "corecoder/context/layers.py"
+      ],
+      "metrics": {
+        "hit_at_1": 0.0,
+        "hit_at_3": 0.0,
+        "hit_at_5": 0.0,
+        "recall_at_5": 0.0,
+        "mrr": 0.1111111111111111
+      },
+      "retrieval_meta": {
+        "intent_family": "navigation",
+        "intent_type": "navigation",
+        "total_files_considered": 10,
+        "total_files_ranked": 10,
+        "retrieval_time_ms": 0.0,
+        "pipeline_stages": [
+          "task_understanding",
+          "retrieval_planning",
+          "graph_candidate_collection",
+          "structured_ranking",
+          "adaptive_retrieval",
+          "graph_expansion",
+          "fragment_assembly"
+        ]
+      }
+    },
+    {
+      "id": "runtime_state_model",
+      "query": "How does the runtime keep track of active files, failures, and retrieval requests?",
+      "notes": "Runtime session state and retrieval request bookkeeping.",
+      "expected_files": [
+        "corecoder/agent/runtime/state.py"
+      ],
+      "retrieved_files": [
+        "corecoder/cli.py",
+        "tests/test_retrieval_improvements.py",
+        "corecoder/retrieval/dependency_graph.py",
+        "tests/test_core.py",
+        "corecoder/__init__.py",
+        "corecoder/llm/__init__.py",
+        "corecoder/mcp/__init__.py",
+        "corecoder/retrieval/evaluation.py",
+        "corecoder/context/session.py",
+        "corecoder/agent/workflow/planner.py"
+      ],
+      "metrics": {
+        "hit_at_1": 0.0,
+        "hit_at_3": 0.0,
+        "hit_at_5": 0.0,
+        "recall_at_5": 0.0,
+        "mrr": 0.0
+      },
+      "retrieval_meta": {
+        "intent_family": "explanation",
+        "intent_type": "deep_dive",
+        "total_files_considered": 7,
+        "total_files_ranked": 10,
+        "retrieval_time_ms": 0.0,
+        "pipeline_stages": [
+          "task_understanding",
+          "retrieval_planning",
+          "graph_candidate_collection",
+          "structured_ranking",
+          "adaptive_retrieval",
+          "graph_expansion",
+          "fragment_assembly"
+        ]
+      }
+    },
+    {
+      "id": "executor_logic",
+      "query": "Where is workflow execution implemented?",
+      "notes": "Task execution and agent invocation path.",
+      "expected_files": [
+        "corecoder/agent/workflow/executor.py",
+        "corecoder/agent/core.py"
+      ],
+      "retrieved_files": [
+        ".claude/settings.local.json",
+        ".env",
+        ".gitignore",
+        "LICENSE",
+        "README.md",
+        "README_CN.md",
+        "article/00-index.md",
+        "article/00-index_EN.md"
+      ],
+      "metrics": {
+        "hit_at_1": 0.0,
+        "hit_at_3": 0.0,
+        "hit_at_5": 0.0,
+        "recall_at_5": 0.0,
+        "mrr": 0.0
+      },
+      "retrieval_meta": {
+        "intent_family": "navigation",
+        "intent_type": "navigation",
+        "total_files_considered": 8,
+        "total_files_ranked": 8,
+        "retrieval_time_ms": 0.0,
+        "pipeline_stages": [
+          "task_understanding",
+          "retrieval_planning",
+          "graph_candidate_collection",
+          "structured_ranking",
+          "adaptive_retrieval",
+          "graph_expansion",
+          "fragment_assembly"
+        ]
+      }
+    },
+    {
+      "id": "dag_recovery",
+      "query": "How are task retries and recovery policies implemented?",
+      "notes": "Retry policy and recovery manager logic.",
+      "expected_files": [
+        "corecoder/agent/dag/recovery.py",
+        "corecoder/agent/dag/models.py"
+      ],
+      "retrieved_files": [
+        "corecoder/cli.py",
+        "corecoder/agent/workflow/orchestrator.py",
+        "tests/test_orchestration.py",
+        "corecoder/__init__.py",
+        "corecoder/agent/dag/models.py",
+        "corecoder/agent/dag/__init__.py",
+        "corecoder/agent/__init__.py",
+        "corecoder/agent/workflow/scheduler.py",
+        "corecoder/context/models.py",
+        "corecoder/context/__init__.py"
+      ],
+      "metrics": {
+        "hit_at_1": 0.0,
+        "hit_at_3": 0.0,
+        "hit_at_5": 1.0,
+        "recall_at_5": 0.5,
+        "mrr": 0.2
+      },
+      "retrieval_meta": {
+        "intent_family": "execution",
+        "intent_type": "general_task",
+        "total_files_considered": 8,
+        "total_files_ranked": 10,
+        "retrieval_time_ms": 0.0,
+        "pipeline_stages": [
+          "task_understanding",
+          "retrieval_planning",
+          "graph_candidate_collection",
+          "structured_ranking",
+          "adaptive_retrieval",
+          "graph_expansion",
+          "fragment_assembly"
+        ]
+      }
+    },
+    {
+      "id": "dag_memory",
+      "query": "Where is DAG execution memory stored?",
+      "notes": "Persistent DAG memory structures.",
+      "expected_files": [
+        "corecoder/agent/dag/memory.py",
+        "corecoder/agent/dag/models.py"
+      ],
+      "retrieved_files": [
+        "tests/test_core.py",
+        "corecoder/__init__.py",
+        "corecoder/llm/__init__.py",
+        "corecoder/mcp/__init__.py",
+        "corecoder/agent/workflow/planner.py",
+        "corecoder/agent/dag/graph.py",
+        "corecoder/context/ranker.py",
+        "corecoder/retrieval/__init__.py",
+        "corecoder/codebase/shadow.py",
+        "corecoder/agent/workflow/executor.py"
+      ],
+      "metrics": {
+        "hit_at_1": 0.0,
+        "hit_at_3": 0.0,
+        "hit_at_5": 0.0,
+        "recall_at_5": 0.0,
+        "mrr": 0.0
+      },
+      "retrieval_meta": {
+        "intent_family": "navigation",
+        "intent_type": "navigation",
+        "total_files_considered": 8,
+        "total_files_ranked": 10,
+        "retrieval_time_ms": 15.994,
+        "pipeline_stages": [
+          "task_understanding",
+          "retrieval_planning",
+          "graph_candidate_collection",
+          "structured_ranking",
+          "adaptive_retrieval",
+          "graph_expansion",
+          "fragment_assembly"
+        ]
+      }
+    },
+    {
+      "id": "dag_models",
+      "query": "Where are task graph nodes and retry policies defined?",
+      "notes": "Task node schema and graph model.",
+      "expected_files": [
+        "corecoder/agent/dag/models.py",
+        "corecoder/agent/dag/graph.py"
+      ],
+      "retrieved_files": [
+        "corecoder/__init__.py",
+        "corecoder/agent/workflow/planner.py",
+        "corecoder/codebase/shadow.py",
+        "corecoder/agent/workflow/executor.py",
+        "corecoder/context/__init__.py",
+        "corecoder/agent/dag/recovery.py",
+        "corecoder/agent/dag/__init__.py",
+        "corecoder/agent/workflow/scheduler.py",
+        "corecoder/infra/observability.py",
+        "corecoder/infra/viz.py"
+      ],
+      "metrics": {
+        "hit_at_1": 0.0,
+        "hit_at_3": 0.0,
+        "hit_at_5": 0.0,
+        "recall_at_5": 0.0,
+        "mrr": 0.0
+      },
+      "retrieval_meta": {
+        "intent_family": "execution",
+        "intent_type": "general_task",
+        "total_files_considered": 6,
+        "total_files_ranked": 10,
+        "retrieval_time_ms": 0.0,
+        "pipeline_stages": [
+          "task_understanding",
+          "retrieval_planning",
+          "graph_candidate_collection",
+          "structured_ranking",
+          "adaptive_retrieval",
+          "graph_expansion",
+          "fragment_assembly"
+        ]
+      }
+    },
+    {
+      "id": "context_layers",
+      "query": "How are context layers and task bounds derived?",
+      "notes": "Layered context policy and bounds derivation.",
+      "expected_files": [
+        "corecoder/context/layers.py",
+        "corecoder/context/models.py"
+      ],
+      "retrieved_files": [
+        "corecoder/cli.py",
+        "tests/test_context_orchestrator.py",
+        "corecoder/context/models.py",
+        "corecoder/__init__.py",
+        "corecoder/context/__init__.py",
+        "corecoder/agent/workflow/planner.py",
+        "corecoder/context/orchestrator.py",
+        "corecoder/context/compression.py",
+        "corecoder/context/retriever.py",
+        "corecoder/context/policies.py"
+      ],
+      "metrics": {
+        "hit_at_1": 0.0,
+        "hit_at_3": 1.0,
+        "hit_at_5": 1.0,
+        "recall_at_5": 0.5,
+        "mrr": 0.3333333333333333
+      },
+      "retrieval_meta": {
+        "intent_family": "execution",
+        "intent_type": "general_task",
+        "total_files_considered": 6,
+        "total_files_ranked": 10,
+        "retrieval_time_ms": 0.0,
+        "pipeline_stages": [
+          "task_understanding",
+          "retrieval_planning",
+          "graph_candidate_collection",
+          "structured_ranking",
+          "adaptive_retrieval",
+          "graph_expansion",
+          "fragment_assembly"
+        ]
+      }
+    },
+    {
+      "id": "context_policies",
+      "query": "Where are context truncation and selection policies implemented?",
+      "notes": "Policy decisions for context assembly.",
+      "expected_files": [
+        "corecoder/context/policies.py",
+        "corecoder/context/ranker.py"
+      ],
+      "retrieved_files": [
+        "tests/test_context_orchestrator.py",
+        "corecoder/context/models.py",
+        "corecoder/context/__init__.py",
+        "corecoder/__init__.py",
+        "corecoder/context/retriever.py",
+        "corecoder/context/layers.py",
+        "corecoder/context/orchestrator.py",
+        "corecoder/context/ranker.py",
+        "corecoder/context/pipeline.py",
+        "corecoder/context/policies.py"
+      ],
+      "metrics": {
+        "hit_at_1": 0.0,
+        "hit_at_3": 0.0,
+        "hit_at_5": 0.0,
+        "recall_at_5": 0.0,
+        "mrr": 0.125
+      },
+      "retrieval_meta": {
+        "intent_family": "execution",
+        "intent_type": "general_task",
+        "total_files_considered": 5,
+        "total_files_ranked": 10,
+        "retrieval_time_ms": 0.0,
+        "pipeline_stages": [
+          "task_understanding",
+          "retrieval_planning",
+          "graph_candidate_collection",
+          "structured_ranking",
+          "adaptive_retrieval",
+          "graph_expansion",
+          "fragment_assembly"
+        ]
+      }
+    },
+    {
+      "id": "context_ranker",
+      "query": "How are context fragments ranked after retrieval?",
+      "notes": "Post-retrieval fragment ranking logic.",
+      "expected_files": [
+        "corecoder/context/ranker.py",
+        "corecoder/context/pipeline.py"
+      ],
+      "retrieved_files": [
+        "tests/test_context_orchestrator.py",
+        "tests/test_retrieval_improvements.py",
+        "corecoder/__main__.py",
+        "corecoder/context/models.py",
+        "corecoder/context/__init__.py",
+        "corecoder/__init__.py",
+        "corecoder/context/retriever.py",
+        "corecoder/context/layers.py",
+        "corecoder/context/policies.py",
+        "corecoder/context/orchestrator.py"
+      ],
+      "metrics": {
+        "hit_at_1": 0.0,
+        "hit_at_3": 0.0,
+        "hit_at_5": 0.0,
+        "recall_at_5": 0.0,
+        "mrr": 0.0
+      },
+      "retrieval_meta": {
+        "intent_family": "execution",
+        "intent_type": "general_task",
+        "total_files_considered": 10,
+        "total_files_ranked": 10,
+        "retrieval_time_ms": 0.0,
+        "pipeline_stages": [
+          "task_understanding",
+          "retrieval_planning",
+          "graph_candidate_collection",
+          "structured_ranking",
+          "adaptive_retrieval",
+          "graph_expansion",
+          "fragment_assembly"
+        ]
+      }
+    },
+    {
+      "id": "prompt_template",
+      "query": "Where is the main system prompt defined?",
+      "notes": "Prompt template and assembly path.",
+      "expected_files": [
+        "corecoder/prompt.py",
+        "corecoder/agent/runtime/assembler.py"
+      ],
+      "retrieved_files": [
+        "corecoder/prompt.py",
+        "corecoder/cli.py",
+        "corecoder/__main__.py",
+        ".claude/settings.local.json",
+        ".env",
+        ".gitignore",
+        "LICENSE",
+        "README.md",
+        "README_CN.md"
+      ],
+      "metrics": {
+        "hit_at_1": 1.0,
+        "hit_at_3": 1.0,
+        "hit_at_5": 1.0,
+        "recall_at_5": 0.5,
+        "mrr": 1.0
+      },
+      "retrieval_meta": {
+        "intent_family": "navigation",
+        "intent_type": "navigation",
+        "total_files_considered": 8,
+        "total_files_ranked": 9,
+        "retrieval_time_ms": 0.0,
+        "pipeline_stages": [
+          "task_understanding",
+          "retrieval_planning",
+          "graph_candidate_collection",
+          "structured_ranking",
+          "adaptive_retrieval",
+          "graph_expansion",
+          "fragment_assembly"
+        ]
+      }
+    },
+    {
+      "id": "tool_base",
+      "query": "Where is the common base class for tools implemented?",
+      "notes": "Shared tool interface and metadata.",
+      "expected_files": [
+        "corecoder/tools/base.py"
+      ],
+      "retrieved_files": [
+        "tests/test_tools.py",
+        "corecoder/__init__.py",
+        "corecoder/tools/__init__.py",
+        "corecoder/tools/agent.py",
+        "corecoder/tools/bash.py",
+        "corecoder/tools/edit.py",
+        "corecoder/tools/glob_tool.py",
+        "corecoder/tools/grep.py",
+        "corecoder/tools/read.py",
+        "corecoder/tools/repo_info.py"
+      ],
+      "metrics": {
+        "hit_at_1": 0.0,
+        "hit_at_3": 0.0,
+        "hit_at_5": 0.0,
+        "recall_at_5": 0.0,
+        "mrr": 0.0
+      },
+      "retrieval_meta": {
+        "intent_family": "navigation",
+        "intent_type": "navigation",
+        "total_files_considered": 17,
+        "total_files_ranked": 10,
+        "retrieval_time_ms": 16.186,
+        "pipeline_stages": [
+          "task_understanding",
+          "retrieval_planning",
+          "graph_candidate_collection",
+          "structured_ranking",
+          "adaptive_retrieval",
+          "graph_expansion",
+          "fragment_assembly"
+        ]
+      }
+    },
+    {
+      "id": "glob_tool",
+      "query": "Where is the file globbing tool implemented?",
+      "notes": "Repository file matching tool.",
+      "expected_files": [
+        "corecoder/tools/glob_tool.py"
+      ],
+      "retrieved_files": [
+        "corecoder/tools/glob_tool.py",
+        "tests/test_tools.py",
+        "corecoder/tools/agent.py",
+        "corecoder/tools/base.py",
+        "corecoder/tools/bash.py",
+        "corecoder/tools/edit.py",
+        "corecoder/tools/grep.py",
+        "corecoder/tools/read.py",
+        "corecoder/tools/repo_info.py",
+        "corecoder/tools/write.py"
+      ],
+      "metrics": {
+        "hit_at_1": 1.0,
+        "hit_at_3": 1.0,
+        "hit_at_5": 1.0,
+        "recall_at_5": 1.0,
+        "mrr": 1.0
+      },
+      "retrieval_meta": {
+        "intent_family": "navigation",
+        "intent_type": "navigation",
+        "total_files_considered": 14,
+        "total_files_ranked": 10,
+        "retrieval_time_ms": 0.0,
+        "pipeline_stages": [
+          "task_understanding",
+          "retrieval_planning",
+          "graph_candidate_collection",
+          "structured_ranking",
+          "adaptive_retrieval",
+          "graph_expansion",
+          "fragment_assembly"
+        ]
+      }
+    },
+    {
+      "id": "grep_tool",
+      "query": "Where is the grep or search tool implemented?",
+      "notes": "Pattern search tool.",
+      "expected_files": [
+        "corecoder/tools/grep.py"
+      ],
+      "retrieved_files": [
+        "corecoder/tools/grep.py",
+        "corecoder/tools/glob_tool.py",
+        "tests/test_tools.py",
+        "corecoder/tools/agent.py",
+        "corecoder/tools/base.py",
+        "corecoder/tools/bash.py",
+        "corecoder/tools/edit.py",
+        "corecoder/tools/read.py",
+        "corecoder/tools/repo_info.py",
+        "corecoder/tools/write.py"
+      ],
+      "metrics": {
+        "hit_at_1": 1.0,
+        "hit_at_3": 1.0,
+        "hit_at_5": 1.0,
+        "recall_at_5": 1.0,
+        "mrr": 1.0
+      },
+      "retrieval_meta": {
+        "intent_family": "navigation",
+        "intent_type": "navigation",
+        "total_files_considered": 14,
+        "total_files_ranked": 10,
+        "retrieval_time_ms": 0.0,
+        "pipeline_stages": [
+          "task_understanding",
+          "retrieval_planning",
+          "graph_candidate_collection",
+          "structured_ranking",
+          "adaptive_retrieval",
+          "graph_expansion",
+          "fragment_assembly"
+        ]
+      }
+    },
+    {
+      "id": "observability",
+      "query": "Where is observability or tracing implemented?",
+      "notes": "Logging, spans, or execution telemetry support.",
+      "expected_files": [
+        "corecoder/infra/observability.py"
+      ],
+      "retrieved_files": [
+        "corecoder/__init__.py",
+        "corecoder/agent/workflow/planner.py",
+        "corecoder/agent/dag/graph.py",
+        "corecoder/codebase/shadow.py",
+        "corecoder/agent/workflow/executor.py",
+        "corecoder/agent/dag/recovery.py",
+        "corecoder/agent/dag/__init__.py",
+        "corecoder/agent/workflow/scheduler.py",
+        "corecoder/infra/viz.py",
+        "corecoder/agent/dag/models.py"
+      ],
+      "metrics": {
+        "hit_at_1": 0.0,
+        "hit_at_3": 0.0,
+        "hit_at_5": 0.0,
+        "recall_at_5": 0.0,
+        "mrr": 0.0
+      },
+      "retrieval_meta": {
+        "intent_family": "navigation",
+        "intent_type": "navigation",
+        "total_files_considered": 8,
+        "total_files_ranked": 10,
+        "retrieval_time_ms": 0.0,
+        "pipeline_stages": [
+          "task_understanding",
+          "retrieval_planning",
+          "graph_candidate_collection",
+          "structured_ranking",
+          "adaptive_retrieval",
+          "graph_expansion",
+          "fragment_assembly"
+        ]
+      }
+    },
+    {
+      "id": "storage_layer",
+      "query": "Where is storage for checkpoints or local metadata implemented?",
+      "notes": "Local persistence for runtime artifacts.",
+      "expected_files": [
+        "corecoder/infra/storage.py",
+        "corecoder/codebase/shadow.py"
+      ],
+      "retrieved_files": [
+        "corecoder/__init__.py",
+        "corecoder/agent/workflow/planner.py",
+        "corecoder/agent/dag/graph.py",
+        "corecoder/agent/workflow/executor.py",
+        "corecoder/agent/dag/recovery.py",
+        "corecoder/agent/dag/__init__.py",
+        "corecoder/agent/workflow/scheduler.py",
+        "corecoder/infra/observability.py",
+        "corecoder/infra/viz.py",
+        "corecoder/agent/dag/models.py"
+      ],
+      "metrics": {
+        "hit_at_1": 0.0,
+        "hit_at_3": 0.0,
+        "hit_at_5": 0.0,
+        "recall_at_5": 0.0,
+        "mrr": 0.0
+      },
+      "retrieval_meta": {
+        "intent_family": "navigation",
+        "intent_type": "navigation",
+        "total_files_considered": 10,
+        "total_files_ranked": 10,
+        "retrieval_time_ms": 0.0,
+        "pipeline_stages": [
+          "task_understanding",
+          "retrieval_planning",
+          "graph_candidate_collection",
+          "structured_ranking",
+          "adaptive_retrieval",
+          "graph_expansion",
+          "fragment_assembly"
+        ]
+      }
+    },
+    {
+      "id": "llm_types",
+      "query": "Where are LLM request and response types defined?",
+      "notes": "Shared LLM protocol and client types.",
+      "expected_files": [
+        "corecoder/llm/types.py",
+        "corecoder/llm/client.py"
+      ],
+      "retrieved_files": [
+        "tests/test_litellm.py",
+        "corecoder/llm/client.py",
+        "corecoder/llm/types.py",
+        "corecoder/__init__.py",
+        "corecoder/llm/__init__.py",
+        "corecoder/config.py",
+        "corecoder/cli.py",
+        "tests/test_core.py",
+        "corecoder/context/compression.py",
+        "corecoder/agent/core.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
@@ -1113,100 +2181,17 @@
       },
       "retrieval_meta": {
         "intent_family": "execution",
-        "intent_type": "feature_addition",
+        "intent_type": "general_task",
         "total_files_considered": 7,
-        "total_files_ranked": 7,
+        "total_files_ranked": 10,
         "retrieval_time_ms": 0.0,
         "pipeline_stages": [
-          "intent_analysis",
-          "query_planning",
-          "symbol_routing",
+          "task_understanding",
+          "retrieval_planning",
+          "graph_candidate_collection",
           "structured_ranking",
-          "dependency_expansion",
-          "fragment_assembly"
-        ]
-      }
-    },
-    {
-      "id": "agent_subtool",
-      "query": "How are sub-agents exposed as a tool?",
-      "notes": "Agent tool wrapper and isolated context.",
-      "expected_files": [
-        "corecoder/tools/agent.py"
-      ],
-      "retrieved_files": [
-        "tests/test_tools.py",
-        "corecoder/mcp/client.py",
-        "corecoder/tools/glob_tool.py",
-        "corecoder/tools/base.py",
-        "corecoder/llm/types.py",
-        "corecoder/tools/agent.py",
-        "corecoder/tools/bash.py",
-        "corecoder/tools/edit.py",
-        "corecoder/tools/grep.py",
-        "corecoder/tools/read.py"
-      ],
-      "metrics": {
-        "hit_at_1": 0.0,
-        "hit_at_3": 0.0,
-        "hit_at_5": 0.0,
-        "recall_at_5": 0.0,
-        "mrr": 0.16666666666666666
-      },
-      "retrieval_meta": {
-        "intent_family": "execution",
-        "intent_type": "unknown",
-        "total_files_considered": 14,
-        "total_files_ranked": 10,
-        "retrieval_time_ms": 1.113,
-        "pipeline_stages": [
-          "intent_analysis",
-          "query_planning",
-          "symbol_routing",
-          "structured_ranking",
-          "dependency_expansion",
-          "fragment_assembly"
-        ]
-      }
-    },
-    {
-      "id": "config_loading",
-      "query": "How does configuration load from env and dotenv files?",
-      "notes": "Config precedence and parsing.",
-      "expected_files": [
-        "corecoder/config.py"
-      ],
-      "retrieved_files": [
-        "corecoder/config.py",
-        "tests/test_orchestration.py",
-        "corecoder/tools/bash.py",
-        "tests/test_litellm.py",
-        "corecoder/mcp/client.py",
-        "tests/test_tools.py",
-        "tests/test_context_orchestrator.py",
-        "tests/test_session.py",
-        "corecoder/orchestration/viz.py",
-        "corecoder/orchestration/storage.py"
-      ],
-      "metrics": {
-        "hit_at_1": 1.0,
-        "hit_at_3": 1.0,
-        "hit_at_5": 1.0,
-        "recall_at_5": 1.0,
-        "mrr": 1.0
-      },
-      "retrieval_meta": {
-        "intent_family": "explanation",
-        "intent_type": "deep_dive",
-        "total_files_considered": 4,
-        "total_files_ranked": 10,
-        "retrieval_time_ms": 0.483,
-        "pipeline_stages": [
-          "intent_analysis",
-          "query_planning",
-          "symbol_routing",
-          "structured_ranking",
-          "dependency_expansion",
+          "adaptive_retrieval",
+          "graph_expansion",
           "fragment_assembly"
         ]
       }

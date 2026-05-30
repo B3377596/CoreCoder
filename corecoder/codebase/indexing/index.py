@@ -65,34 +65,95 @@ def _file_hash(path: Path) -> str:
 # ---------------------------------------------------------------------------
 # Python AST extraction
 # ---------------------------------------------------------------------------
-def _extract_python_symbols(filepath: Path) -> dict[str, list[str]]:
-    """Parse a Python file and return {class_name: [methods], func_name: []}."""
-    symbols: dict[str, list[str]] = {}
+def _safe_parse_python(filepath: Path) -> tuple[str, ast.AST | None]:
     try:
         source = filepath.read_text(encoding="utf-8-sig", errors="replace")
-        tree = ast.parse(source)
-    except (SyntaxError, UnicodeDecodeError):
+        return source, ast.parse(source)
+    except (SyntaxError, UnicodeDecodeError, OSError):
+        return "", None
+
+
+def _node_name(expr: ast.AST) -> str:
+    if isinstance(expr, ast.Name):
+        return expr.id
+    if isinstance(expr, ast.Attribute):
+        base = _node_name(expr.value)
+        return f"{base}.{expr.attr}" if base else expr.attr
+    if isinstance(expr, ast.Call):
+        return _node_name(expr.func)
+    if isinstance(expr, ast.Subscript):
+        return _node_name(expr.value)
+    return ""
+
+
+def _format_signature(node: ast.AST) -> str:
+    if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        return ""
+    args = []
+    for arg in node.args.args:
+        args.append(arg.arg)
+    return_prefix = "async def" if isinstance(node, ast.AsyncFunctionDef) else "def"
+    return f"{return_prefix} {node.name}({', '.join(args)})"
+
+
+def _extract_python_symbols(filepath: Path) -> dict[str, dict[str, Any]]:
+    """Parse a Python file and return rich symbol metadata."""
+    symbols: dict[str, dict[str, Any]] = {}
+    source, tree = _safe_parse_python(filepath)
+    if tree is None:
         return symbols
-    for node in ast.walk(tree):
+
+    for node in tree.body:
         if isinstance(node, ast.ClassDef):
-            methods = [
-                n.name for n in node.body
-                if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
-            ]
-            symbols[node.name] = methods
+            methods = []
+            for child in node.body:
+                if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    methods.append(
+                        {
+                            "name": child.name,
+                            "kind": "method",
+                            "line": getattr(child, "lineno", 0),
+                            "signature": _format_signature(child),
+                        }
+                    )
+            doc = ast.get_docstring(node) or ""
+            symbols[node.name] = {
+                "kind": "class",
+                "line": getattr(node, "lineno", 0),
+                "signature": f"class {node.name}",
+                "doc": doc,
+                "methods": methods,
+                "bases": [name for name in (_node_name(base) for base in node.bases) if name],
+            }
         elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            if node.name not in symbols:
-                symbols[node.name] = []
+            doc = ast.get_docstring(node) or ""
+            symbols[node.name] = {
+                "kind": "function",
+                "line": getattr(node, "lineno", 0),
+                "signature": _format_signature(node),
+                "doc": doc,
+                "methods": [],
+                "bases": [],
+            }
     return symbols
 
-def _extract_python_imports(filepath: Path) -> list[str]:
-    """Extract import targets from a Python file."""
+
+def _extract_python_relations(filepath: Path) -> dict[str, list[str]]:
+    """Extract imports, symbol references, calls, and inheritance hints."""
+    source, tree = _safe_parse_python(filepath)
+    if tree is None:
+        return {
+            "imports": [],
+            "symbol_calls": [],
+            "symbol_references": [],
+            "inheritance": [],
+        }
+
     imports: list[str] = []
-    try:
-        source = filepath.read_text(encoding="utf-8-sig", errors="replace")
-        tree = ast.parse(source)
-    except (SyntaxError, UnicodeDecodeError):
-        return imports
+    symbol_calls: list[str] = []
+    symbol_references: list[str] = []
+    inheritance: list[str] = []
+
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
@@ -101,7 +162,74 @@ def _extract_python_imports(filepath: Path) -> list[str]:
             module = node.module or ""
             for alias in node.names:
                 imports.append(f"{module}.{alias.name}" if module else alias.name)
-    return imports
+        elif isinstance(node, ast.Call):
+            name = _node_name(node.func)
+            if name:
+                symbol_calls.append(name)
+        elif isinstance(node, ast.ClassDef):
+            for base in node.bases:
+                name = _node_name(base)
+                if name:
+                    inheritance.append(name)
+        elif isinstance(node, ast.Name):
+            symbol_references.append(node.id)
+        elif isinstance(node, ast.Attribute):
+            name = _node_name(node)
+            if name:
+                symbol_references.append(name)
+
+    def _dedup(values: list[str]) -> list[str]:
+        seen: set[str] = set()
+        result: list[str] = []
+        for value in values:
+            if value and value not in seen:
+                seen.add(value)
+                result.append(value)
+        return result
+
+    return {
+        "imports": _dedup(imports),
+        "symbol_calls": _dedup(symbol_calls),
+        "symbol_references": _dedup(symbol_references),
+        "inheritance": _dedup(inheritance),
+    }
+
+
+def _module_name_for_path(root: Path, filepath: Path) -> str:
+    rel = filepath.relative_to(root).with_suffix("")
+    parts = list(rel.parts)
+    if parts and parts[-1] == "__init__":
+        parts = parts[:-1]
+    return ".".join(parts)
+
+
+def _resolve_internal_imports(
+    root: Path,
+    py_files: list[Path],
+    raw_imports: dict[str, list[str]],
+) -> dict[str, list[str]]:
+    module_to_file: dict[str, str] = {}
+    for path in py_files:
+        rel = str(path.relative_to(root)).replace("\\", "/")
+        module = _module_name_for_path(root, path)
+        if module:
+            module_to_file[module] = rel
+
+    resolved: dict[str, list[str]] = {}
+    for filepath, imports in raw_imports.items():
+        matches: list[str] = []
+        for imported in imports:
+            candidates = [imported]
+            if "." in imported:
+                parts = imported.split(".")
+                candidates.extend(".".join(parts[:i]) for i in range(len(parts) - 1, 0, -1))
+            for candidate in candidates:
+                target = module_to_file.get(candidate)
+                if target and target != filepath and target not in matches:
+                    matches.append(target)
+                    break
+        resolved[filepath] = matches
+    return resolved
 
 # ---------------------------------------------------------------------------
 # dependency extraction
@@ -228,7 +356,7 @@ class RepoIndex:
         self.root = Path(root).resolve()
         self.index_dir = self.root / ".corecoder"
         self._summary: str = ""
-        self._symbols: dict[str, dict[str, list[str]]] = {}
+        self._symbols: dict[str, dict[str, Any]] = {}
         self._deps: dict[str, Any] = {}
 
     # ------------------------------------------------------------------
@@ -243,21 +371,36 @@ class RepoIndex:
         # symbols
         self._symbols = {}
         all_imports: list[str] = []
-        internal_imports: dict[str, list[str]] = {}
+        raw_imports: dict[str, list[str]] = {}
+        symbol_calls: dict[str, list[str]] = {}
+        symbol_references: dict[str, list[str]] = {}
+        inheritance: dict[str, list[str]] = {}
         for f in py_files:
             rel = str(f.relative_to(self.root))
             syms = _extract_python_symbols(f)
             if syms:
                 self._symbols[rel] = syms
-            imps = _extract_python_imports(f)
-            if imps:
-                internal_imports[rel] = imps
-                all_imports.extend(imps)
+            relations = _extract_python_relations(f)
+            imps = relations["imports"]
+            raw_imports[rel] = imps
+            all_imports.extend(imps)
+            if relations["symbol_calls"]:
+                symbol_calls[rel] = relations["symbol_calls"]
+            if relations["symbol_references"]:
+                symbol_references[rel] = relations["symbol_references"]
+            if relations["inheritance"]:
+                inheritance[rel] = relations["inheritance"]
+        resolved_imports = _resolve_internal_imports(self.root, py_files, raw_imports)
         # dependencies
         declared = _extract_dependencies(self.root)
         self._deps = {
             "declared": declared,
-            "internal_imports": internal_imports,
+            "imports": raw_imports,
+            "internal_imports": resolved_imports,
+            "resolved_internal_imports": resolved_imports,
+            "symbol_calls": symbol_calls,
+            "symbol_references": symbol_references,
+            "inheritance": inheritance,
         }
         # summary
         framework = _detect_framework(self.root, all_imports)
@@ -333,11 +476,27 @@ class RepoIndex:
         results: list[str] = []
         for filepath, syms in self._symbols.items():
             if name in syms:
-                methods = syms[name]
-                if methods:
-                    results.append(f"{filepath}: class {name} ({', '.join(methods)})")
+                info = syms[name]
+                if isinstance(info, dict):
+                    kind = str(info.get("kind", "symbol"))
+                    line = int(info.get("line", 0) or 0)
+                    methods = info.get("methods", [])
+                    if kind == "class":
+                        method_names = [
+                            m if isinstance(m, str) else m.get("name", "")
+                            for m in methods
+                        ]
+                        method_names = [m for m in method_names if m]
+                        suffix = f" ({', '.join(method_names)})" if method_names else ""
+                        results.append(f"{filepath}:{line}: class {name}{suffix}")
+                    else:
+                        results.append(f"{filepath}:{line}: {kind} {name}")
                 else:
-                    results.append(f"{filepath}: def {name}()")
+                    methods = info if isinstance(info, list) else []
+                    if methods:
+                        results.append(f"{filepath}: class {name} ({', '.join(methods)})")
+                    else:
+                        results.append(f"{filepath}: def {name}()")
                 if len(results) >= 10:
                     break
         if not results:
@@ -391,15 +550,24 @@ class RepoIndex:
             for name in sorted(syms):
                 if shown >= 50:
                     break
-                methods = syms[name]
-                if methods:
-                    lines.append(f"- `{name}` ({len(methods)} methods) — `{filepath}`")
+                info = syms[name]
+                if isinstance(info, dict):
+                    kind = str(info.get("kind", "symbol"))
+                    methods = info.get("methods", [])
+                    if kind == "class":
+                        lines.append(f"- `{name}` ({len(methods)} methods) - `{filepath}`")
+                    else:
+                        lines.append(f"- `{name}()` - `{filepath}`")
                 else:
-                    lines.append(f"- `{name}()` — `{filepath}`")
+                    methods = info if isinstance(info, list) else []
+                    if methods:
+                        lines.append(f"- `{name}` ({len(methods)} methods) - `{filepath}`")
+                    else:
+                        lines.append(f"- `{name}()` - `{filepath}`")
                 shown += 1
         lines.extend([
             "",
-            f"*{sum(len(v) for v in self._symbols.values())} symbols in "
+            f"*{sum(len(v) for v in self._symbols.values())} symbols in ",
             f"{len(self._symbols)} files indexed.*",
         ])
         return "\n".join(lines)

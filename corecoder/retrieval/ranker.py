@@ -15,7 +15,10 @@ strongest signal; filename matching is the weakest.
 from __future__ import annotations
 
 from corecoder.retrieval.models import (
+    GraphEdgeType,
     RankedFile,
+    RepositoryGraph,
+    RetrievalContext,
     RetrievalQuery,
     TaskIntent,
     FileSummary,
@@ -31,6 +34,9 @@ WEIGHT_SUMMARY_MATCH = 0.25
 WEIGHT_FILENAME_MATCH = 0.10
 WEIGHT_DEPENDENCY_BONUS = 0.15
 WEIGHT_TASK_INTENT_BONUS = 0.15
+WEIGHT_GRAPH_RELEVANCE = 0.20
+WEIGHT_STATE_ALIGNMENT = 0.18
+WEIGHT_PLAN_ALIGNMENT = 0.12
 
 # Score component weights (understanding mode)
 WEIGHT_UNDERSTANDING_CENTRALITY = 0.40
@@ -56,10 +62,12 @@ class StructuredRanker:
         symbol_graph: SymbolOwnershipGraph,
         summaries: dict[str, FileSummary],
         dep_graph: BidirectionalDepGraph | None = None,
+        repository_graph: RepositoryGraph | None = None,
     ):
         self._symbol_graph = symbol_graph
         self._summaries = summaries
         self._dep_graph = dep_graph
+        self._repository_graph = repository_graph
         # Lazily computed centrality scores
         self._centrality: dict[str, ArchitecturalCentrality] = {}
         self._centrality_computed = False
@@ -73,21 +81,23 @@ class StructuredRanker:
         candidate_files: list[str],
         query: RetrievalQuery,
         intent: TaskIntent,
+        retrieval_context: RetrievalContext | None = None,
     ) -> list[RankedFile]:
         """Rank candidate files.  Mode-aware: understanding vs execution."""
         if intent.family == "understanding":
-            return self._rank_understanding(candidate_files, query, intent)
+            return self._rank_understanding(candidate_files, query, intent, retrieval_context)
         else:
-            return self._rank_execution(candidate_files, query, intent)
+            return self._rank_execution(candidate_files, query, intent, retrieval_context)
 
     def rank_understanding(
         self,
         candidate_files: list[str],
         query: RetrievalQuery,
         intent: TaskIntent,
+        retrieval_context: RetrievalContext | None = None,
     ) -> list[RankedFile]:
         """Public understanding-mode ranking API."""
-        return self._rank_understanding(candidate_files, query, intent)
+        return self._rank_understanding(candidate_files, query, intent, retrieval_context)
 
     def get_centrality(self) -> dict[str, ArchitecturalCentrality]:
         """Return cached centrality, computing it lazily if needed."""
@@ -103,10 +113,11 @@ class StructuredRanker:
         candidate_files: list[str],
         query: RetrievalQuery,
         intent: TaskIntent,
+        retrieval_context: RetrievalContext | None,
     ) -> list[RankedFile]:
         scored: list[RankedFile] = []
         for filepath in candidate_files:
-            rf = self._score_one_execution(filepath, query, intent)
+            rf = self._score_one_execution(filepath, query, intent, retrieval_context)
             scored.append(rf)
 
         if self._dep_graph and scored:
@@ -124,6 +135,7 @@ class StructuredRanker:
         candidate_files: list[str],
         query: RetrievalQuery,
         intent: TaskIntent,
+        retrieval_context: RetrievalContext | None,
     ) -> list[RankedFile]:
         """Rank files for understanding queries.
 
@@ -134,7 +146,7 @@ class StructuredRanker:
 
         scored: list[RankedFile] = []
         for filepath in candidate_files:
-            rf = self._score_one_understanding(filepath, query, intent)
+            rf = self._score_one_understanding(filepath, query, intent, retrieval_context)
             scored.append(rf)
 
         scored.sort(key=lambda r: r.score, reverse=True)
@@ -145,6 +157,7 @@ class StructuredRanker:
         filepath: str,
         query: RetrievalQuery,
         intent: TaskIntent,
+        retrieval_context: RetrievalContext | None,
     ) -> RankedFile:
         """Score a file for understanding relevance.
 
@@ -193,11 +206,15 @@ class StructuredRanker:
             reasons.append("useful for project overview")
         breakdown["overview"] = round(overview_score, 3)
 
+        graph_score = self._score_understanding_graph(filepath, query, retrieval_context, reasons)
+        breakdown["graph_relevance"] = round(graph_score, 3)
+
         total = (
             centrality_score * WEIGHT_UNDERSTANDING_CENTRALITY
             + entrypoint_score * WEIGHT_UNDERSTANDING_ENTRYPOINT
             + arch_score * WEIGHT_UNDERSTANDING_ARCHITECTURE
             + overview_score * WEIGHT_UNDERSTANDING_OVERVIEW
+            + graph_score * 0.15
         )
 
         # Ensure minimum baseline so files aren't all at 0
@@ -327,6 +344,7 @@ class StructuredRanker:
         filepath: str,
         query: RetrievalQuery,
         intent: TaskIntent,
+        retrieval_context: RetrievalContext | None,
     ) -> RankedFile:
         """Score a single file for execution relevance (existing logic)."""
         filepath = filepath.replace("\\", "/")
@@ -351,11 +369,29 @@ class StructuredRanker:
         )
         breakdown["task_intent"] = intent_bonus
 
+        graph_score = self._score_graph_relevance(
+            filepath, query, symbol_names, reasons
+        )
+        breakdown["graph_relevance"] = graph_score
+
+        state_score = self._score_state_alignment(
+            filepath, retrieval_context, reasons
+        )
+        breakdown["state_alignment"] = state_score
+
+        plan_score = self._score_plan_alignment(
+            filepath, query, retrieval_context, reasons
+        )
+        breakdown["plan_alignment"] = plan_score
+
         total = (
             symbol_score * WEIGHT_SYMBOL_MATCH
             + summary_score * WEIGHT_SUMMARY_MATCH
             + filename_score * WEIGHT_FILENAME_MATCH
             + intent_bonus * WEIGHT_TASK_INTENT_BONUS
+            + graph_score * WEIGHT_GRAPH_RELEVANCE
+            + state_score * WEIGHT_STATE_ALIGNMENT
+            + plan_score * WEIGHT_PLAN_ALIGNMENT
         )
 
         baseline = self._baseline_score(filepath, summary)
@@ -561,6 +597,190 @@ class StructuredRanker:
                 bonus = 0.5  # code that needs tests
 
         return bonus
+
+    def _score_graph_relevance(
+        self,
+        filepath: str,
+        query: RetrievalQuery,
+        symbol_names: list[str],
+        reasons: list[str],
+    ) -> float:
+        """Score structural relevance from RepositoryGraph and symbol ownership."""
+        if self._repository_graph is None:
+            return 0.0
+
+        filepath = filepath.replace("\\", "/")
+        score = 0.0
+        plan = query.plan
+
+        target_symbols = list(query.symbols)
+        if plan is not None:
+            target_symbols.extend(plan.primary_symbols)
+
+        for symbol in target_symbols[:8]:
+            owners = self._symbol_graph.lookup(symbol)
+            if any(owner.defined_in == filepath for owner in owners):
+                score = max(score, 1.0)
+                reasons.append(f"contains planned symbol `{symbol}`")
+                break
+            related = self._repository_graph.related_files(
+                symbol,
+                depth=query.dependency_radius,
+                edge_types={GraphEdgeType.CONTAINS, GraphEdgeType.IMPORTS, GraphEdgeType.CALLS, GraphEdgeType.REFERENCES},
+            )
+            if filepath in related:
+                score = max(score, 0.7)
+                reasons.append(f"graph-near symbol `{symbol}`")
+
+        if plan is not None:
+            for scope in plan.retrieval_scopes[:6]:
+                scope_lower = scope.lower()
+                if scope_lower and scope_lower in filepath.lower():
+                    score = max(score, 0.45)
+                    reasons.append(f"scope-aligned path `{scope}`")
+                    break
+
+        if score == 0.0 and symbol_names and self._repository_graph.file_node_id(filepath):
+            node_neighbors = self._repository_graph.neighbors(
+                filepath,
+                edge_types={GraphEdgeType.IMPORTS},
+            )
+            if node_neighbors:
+                score = 0.12
+
+        return round(min(1.0, score), 4)
+
+    def _score_state_alignment(
+        self,
+        filepath: str,
+        retrieval_context: RetrievalContext | None,
+        reasons: list[str],
+    ) -> float:
+        """Score alignment with active execution state."""
+        if retrieval_context is None:
+            return 0.0
+
+        filepath = filepath.replace("\\", "/")
+        if filepath in {f.replace("\\", "/") for f in retrieval_context.active_files}:
+            reasons.append("currently active file")
+            return 1.0
+
+        score = 0.0
+        if self._repository_graph is not None:
+            for active in retrieval_context.active_files[:4]:
+                path = self._repository_graph.shortest_path(active, filepath)
+                if not path:
+                    continue
+                distance = max(0, len(path) - 1)
+                if distance <= 1:
+                    score = max(score, 0.8)
+                elif distance == 2:
+                    score = max(score, 0.55)
+                elif distance == 3:
+                    score = max(score, 0.35)
+            if score > 0:
+                reasons.append("graph-near active working set")
+
+        if score == 0.0 and retrieval_context.active_symbols:
+            file_symbol_names = [symbol.name for symbol in self._symbol_graph.file_symbols(filepath)]
+            for symbol in retrieval_context.active_symbols[:6]:
+                if any(symbol.lower() == name.lower() for name in file_symbol_names):
+                    score = max(score, 0.8)
+                    reasons.append(f"contains active symbol `{symbol}`")
+                    break
+
+        if score == 0.0 and retrieval_context.previous_failures:
+            failure_text = " ".join(retrieval_context.previous_failures).lower()
+            stem = filepath.split("/")[-1].lower()
+            if any(token in failure_text for token in stem.replace(".", "_").split("_")):
+                score = 0.25
+                reasons.append("mentioned in previous failure context")
+
+        return round(min(1.0, score), 4)
+
+    def _score_plan_alignment(
+        self,
+        filepath: str,
+        query: RetrievalQuery,
+        retrieval_context: RetrievalContext | None,
+        reasons: list[str],
+    ) -> float:
+        """Score direct alignment with the current retrieval plan."""
+        plan = query.plan or (retrieval_context.current_plan if retrieval_context else None)
+        if plan is None:
+            return 0.0
+
+        filepath = filepath.replace("\\", "/")
+        score = 0.0
+        normalized_targets = {f.replace("\\", "/") for f in plan.target_files}
+        normalized_hints = {f.replace("\\", "/") for f in query.likely_files}
+
+        if filepath in normalized_targets:
+            reasons.append("directly requested by retrieval plan")
+            score = 1.0
+        elif filepath in normalized_hints:
+            reasons.append("matched likely file hint")
+            score = max(score, 0.75)
+
+        if score < 1.0:
+            stem = filepath.split("/")[-1].rsplit(".", 1)[0].lower()
+            for target in normalized_targets:
+                target_stem = target.split("/")[-1].rsplit(".", 1)[0].lower()
+                if stem and stem == target_stem:
+                    score = max(score, 0.8)
+                    reasons.append("matches planned target file hint")
+                    break
+
+        objective = (plan.objective or "").lower()
+        if score < 0.6 and objective:
+            path_text = filepath.lower()
+            if any(term and term in path_text for term in plan.retrieval_scopes[:6]):
+                score = max(score, 0.45)
+
+        if retrieval_context and retrieval_context.requested_more_context:
+            for followup in retrieval_context.followup_requests[-2:]:
+                requested = {f.replace("\\", "/") for f in followup.requested_files}
+                if filepath in requested:
+                    score = max(score, 0.9)
+                    reasons.append("requested by adaptive retrieval")
+                    break
+                if any(scope.lower() in filepath.lower() for scope in followup.additional_scopes):
+                    score = max(score, 0.5)
+
+        return round(min(1.0, score), 4)
+
+    def _score_understanding_graph(
+        self,
+        filepath: str,
+        query: RetrievalQuery,
+        retrieval_context: RetrievalContext | None,
+        reasons: list[str],
+    ) -> float:
+        """Lightweight graph signal for overview/explanation ranking."""
+        if self._repository_graph is None:
+            return 0.0
+
+        score = 0.0
+        for symbol in query.symbols[:6]:
+            related = self._repository_graph.related_files(
+                symbol,
+                depth=max(1, query.dependency_radius),
+                edge_types={GraphEdgeType.CONTAINS, GraphEdgeType.IMPORTS, GraphEdgeType.REFERENCES},
+            )
+            if filepath in related:
+                score = max(score, 0.6)
+                reasons.append(f"graph-related to `{symbol}`")
+                break
+
+        if retrieval_context and retrieval_context.active_files:
+            for active in retrieval_context.active_files[:3]:
+                path = self._repository_graph.shortest_path(active, filepath)
+                if path and len(path) <= 3:
+                    score = max(score, 0.45)
+                    reasons.append("near active file in repository graph")
+                    break
+
+        return round(min(1.0, score), 4)
 
     # ------------------------------------------------------------------
     # architectural centrality

@@ -1,123 +1,116 @@
-"""Task intent analysis for retrieval routing."""
+"""Task understanding and legacy intent compatibility for Retrieval V2."""
 
 from __future__ import annotations
 
 import re
 
-from corecoder.retrieval.models import IntentFamily, TaskIntent
+from corecoder.retrieval.models import (
+    IntentFamily,
+    TaskConstraint,
+    TaskEntity,
+    TaskIntent,
+    TaskUnderstanding,
+)
 
 
 class TaskIntentAnalyzer:
-    """Classify task text into an intent family and subtype."""
+    """Produces rich task understanding, plus a compatibility TaskIntent view.
 
-    _UNDERSTANDING_PATTERNS: list[str] = [
+    Retrieval V2 weakens hard-coded task classification.  Instead of mapping
+    every request into narrow labels like ``bug_fix`` or ``feature_addition``,
+    this analyzer extracts:
+
+    - goal/objective
+    - entities (symbols/modules/files)
+    - constraints
+    - likely modules / scopes
+
+    ``analyze()`` is retained as a compatibility wrapper because the rest of the
+    retrieval stack still expects a ``TaskIntent`` during migration.
+    """
+
+    _UNDERSTANDING_HINTS = (
         "what does this",
         "what is this",
-        "how does this work",
-        "explain the project",
-        "explain the codebase",
-        "explain the architecture",
-        "project overview",
-        "architecture overview",
-        "understand",
         "overview",
-        "summarize",
-        "describe",
         "architecture",
         "structure",
         "onboarding",
-        "getting started",
         "walk me through",
-        "tell me about",
         "give me an overview",
-    ]
-
-    _NAVIGATION_PATTERNS: list[str] = [
+    )
+    _NAVIGATION_HINTS = (
         "where is",
-        "find the",
+        "which file",
         "locate",
         "show me",
-        "which file",
-        "file path",
-        "where does",
-    ]
-
-    _EXPLANATION_PATTERNS: list[str] = [
+        "path",
+    )
+    _EXPLANATION_HINTS = (
         "how does",
         "why does",
         "how do",
         "why is",
-        "explain how",
-        "explain why",
         "deep dive",
-    ]
-
-    _PLANNING_PATTERNS: list[str] = [
-        "what do i need",
+    )
+    _PLANNING_HINTS = (
         "how should i",
-        "what's the best way",
+        "what do i need",
         "plan",
-        "approach",
         "strategy",
         "steps to",
-    ]
-
-    _TYPE_PATTERNS: list[tuple[str, list[str]]] = [
-        ("bug_fix", ["fix", "bug", "error", "crash", "broken", "issue", "defect"]),
-        ("dependency_change", ["install", "uninstall", "upgrade", "downgrade", "dependency", "package", "library"]),
-        ("cli_change", ["cli", "command line", "argparse", "click", "typer", "flag", "option", "terminal"]),
-        ("refactor", ["refactor", "clean up", "cleanup", "restructure", "reorganize", "extract", "split", "merge"]),
-        ("rename", ["rename", "move to", "relocate", "change name"]),
-        ("test_addition", ["test", "unittest", "pytest", "coverage", "assert", "mock", "fixture"]),
-        ("feature_integration", ["integrate", "connect", "wire", "hook up", "combine", "plug into"]),
-        ("feature_addition", ["add", "new", "create", "implement", "build", "introduce", "support for"]),
-        ("documentation", ["document", "docstring", "comment", "readme", "describe"]),
-    ]
-
-    _UNDERSTANDING_SUBTYPES: dict[str, list[str]] = {
-        "overview": ["overview", "what does this", "what is this", "summarize", "describe the project"],
-        "architecture": ["architecture", "how is this organized", "how is the code", "design", "pattern"],
-        "capabilities": ["capabilities", "features", "what can", "functionality", "purpose"],
-        "components": ["modules", "components", "packages", "directories"],
-    }
-
-    _SEMANTIC_CONCEPT_MAP: dict[str, list[str]] = {
-        "overview": ["architecture", "overview", "entrypoint", "capabilities"],
-        "architecture": ["architecture", "components", "entrypoint", "structure"],
-        "understand": ["overview", "architecture", "entrypoint"],
-        "summarize": ["overview", "capabilities", "entrypoint"],
-        "capabilities": ["capabilities", "entrypoint", "purpose"],
-        "purpose": ["purpose", "capabilities", "entrypoint"],
-        "components": ["components", "modules", "architecture"],
-        "modules": ["components", "modules"],
-        "entrypoint": ["entrypoint", "execution_flow"],
-        "getting started": ["entrypoint", "overview", "architecture"],
-        "onboarding": ["entrypoint", "overview", "architecture", "capabilities"],
-    }
-
-    _CONCEPT_PATTERN = re.compile(
-        r"\b("
-        r"cli|ui|api|web|http|rest|graphql|database|db|sql|nosql|"
-        r"auth|login|logout|session|token|jwt|oauth|"
-        r"file|io|stream|network|socket|pipe|"
-        r"config|settings|environment|env|"
-        r"cache|queue|log|monitor|metric|"
-        r"dispatch|route|command|handler|middleware|"
-        r"parse|serialize|deserialize|format|convert|transform|"
-        r"validate|sanitize|check|verify|"
-        r"worker|job|task|scheduler|cron|"
-        r"search|filter|sort|paginate|"
-        r"upload|download|import|export|"
-        r"crypto|encrypt|decrypt|hash|sign|"
-        r"math|calc|compute|algorithm|"
-        r"thread|async|parallel|concurrent|"
-        r"state|store|persist|memory|"
-        r"error|exception|retry|fallback|timeout|"
-        r"compression|compress|retrieval|planner|query|index|indexing|"
-        r"prompt|tool|git|shadow|benchmark|orchestration"
-        r")\b",
+    )
+    _CONSTRAINT_PATTERNS = (
+        r"\bwithout\s+([a-zA-Z0-9_\- ]+)",
+        r"\bdo not\s+([a-zA-Z0-9_\- ]+)",
+        r"\bmust\s+([a-zA-Z0-9_\- ]+)",
+        r"\bonly\s+([a-zA-Z0-9_\- ]+)",
+    )
+    _MODULE_PATTERN = re.compile(r"\b[a-zA-Z_][a-zA-Z0-9_]*(?:/[a-zA-Z0-9_\-]+)*(?:\.[a-zA-Z0-9_]+)?\b")
+    _FILE_PATTERN = re.compile(r"\b[\w/\\.-]+\.(?:py|yaml|yml|toml|json|md)\b")
+    _CAMEL_CASE_PATTERN = re.compile(r"\b[A-Z][a-zA-Z0-9]+(?:[A-Z][a-zA-Z0-9]+)*\b")
+    _SNAKE_CASE_PATTERN = re.compile(r"\b[a-z_][a-z0-9_]{2,}\b")
+    _QUERY_TERM_PATTERN = re.compile(
+        r"\b(auth|login|session|token|config|cli|prompt|context|planner|retrieval|"
+        r"index|graph|dependency|scheduler|verifier|runtime|state|memory|tool|mcp|"
+        r"compression|history|shadow|repo|symbol)\b",
         re.IGNORECASE,
     )
+    _STOP_WORDS = {
+        "what", "where", "when", "which", "with", "without", "should", "does",
+        "this", "that", "these", "those", "have", "been", "being", "into",
+        "from", "show", "tell", "about", "give", "need", "must", "only",
+        "work", "works", "working", "implemented", "implementation", "logic",
+        "module", "modules", "file", "files", "code", "project", "system",
+        "layer", "build", "change", "modify", "update", "create", "write",
+        "fix", "understand", "explain", "plan", "strategy", "steps",
+    }
+
+    def understand(
+        self,
+        task_title: str = "",
+        task_description: str = "",
+        goal: str = "",
+    ) -> TaskUnderstanding:
+        text_original = " ".join(part for part in (task_title, task_description, goal) if part).strip()
+        text = text_original.lower()
+
+        objective = goal or task_description or task_title or text_original
+        entities = self._extract_entities(text_original)
+        constraints = self._extract_constraints(text)
+        likely_modules = self._guess_likely_modules(text, entities)
+        query_terms = self._extract_query_terms(text)
+        confidence = self._estimate_confidence(entities, likely_modules, query_terms)
+
+        return TaskUnderstanding(
+            goal=text_original,
+            objective=objective.strip(),
+            entities=entities,
+            constraints=constraints,
+            likely_modules=likely_modules,
+            query_terms=query_terms,
+            confidence=confidence,
+        )
 
     def analyze(
         self,
@@ -125,181 +118,164 @@ class TaskIntentAnalyzer:
         task_description: str = "",
         goal: str = "",
     ) -> TaskIntent:
-        text = f"{task_title} {task_description} {goal}".lower()
-        text_original = f"{task_title} {task_description} {goal}"
-
-        family, family_confidence = self._classify_family(text)
-
-        task_type = "unknown"
-        type_confidence = 0.3
-        if family == IntentFamily.EXECUTION:
-            task_type, type_confidence = self._classify_task_type(text)
-        elif family == IntentFamily.UNDERSTANDING:
-            task_type, type_confidence = self._classify_understanding_subtype(text)
-        elif family == IntentFamily.NAVIGATION:
-            task_type = "navigation"
-            type_confidence = family_confidence
-        elif family == IntentFamily.EXPLANATION:
-            task_type = "deep_dive"
-            type_confidence = family_confidence
-        elif family == IntentFamily.PLANNING:
-            task_type = "planning"
-            type_confidence = family_confidence
-
-        symbols: list[str] = []
-        if family in (IntentFamily.EXECUTION, IntentFamily.NAVIGATION, IntentFamily.EXPLANATION):
-            symbols = self._extract_symbols(text_original)
-
-        if family == IntentFamily.UNDERSTANDING:
-            concepts = self._map_semantic_concepts(text)
-            for concept in self._extract_concepts(text):
-                if concept not in concepts:
-                    concepts.append(concept)
-        else:
-            concepts = self._extract_concepts(text)
+        understanding = self.understand(task_title, task_description, goal)
+        family = self._infer_family(understanding)
+        symbols = [e.name for e in understanding.entities if e.kind in {"symbol", "class", "function", "method"}]
+        concepts = list(dict.fromkeys(understanding.query_terms + understanding.likely_modules))[:8]
+        affected_files = self._guess_affected_files(understanding)
 
         return TaskIntent(
-            family=family.value if hasattr(family, "value") else str(family),
-            type=task_type,
-            symbols=symbols,
-            concepts=concepts[:8],
-            entrypoint_related=self._is_entrypoint_related(text, symbols),
-            affected_files=self._guess_affected_files(text, symbols),
-            confidence=max(type_confidence, family_confidence),
+            family=family.value,
+            type=self._infer_legacy_type(family, understanding),
+            symbols=symbols[:8],
+            concepts=concepts,
+            entrypoint_related=any(term in ("cli", "command", "entrypoint") for term in understanding.query_terms),
+            affected_files=affected_files,
+            confidence=understanding.confidence,
+            understanding=understanding,
         )
 
-    def _classify_family(self, text: str) -> tuple[IntentFamily, float]:
-        scores: dict[IntentFamily, int] = {}
-        for pat in self._UNDERSTANDING_PATTERNS:
-            if pat in text:
-                scores[IntentFamily.UNDERSTANDING] = scores.get(IntentFamily.UNDERSTANDING, 0) + 1
-        for pat in self._NAVIGATION_PATTERNS:
-            if pat in text:
-                scores[IntentFamily.NAVIGATION] = scores.get(IntentFamily.NAVIGATION, 0) + 1
-        for pat in self._EXPLANATION_PATTERNS:
-            if pat in text:
-                scores[IntentFamily.EXPLANATION] = scores.get(IntentFamily.EXPLANATION, 0) + 1
-        for pat in self._PLANNING_PATTERNS:
-            if pat in text:
-                scores[IntentFamily.PLANNING] = scores.get(IntentFamily.PLANNING, 0) + 1
-        if not scores:
-            return IntentFamily.EXECUTION, 0.6
-        best = max(scores, key=lambda family: scores[family])
-        confidence = min(0.9, 0.5 + (scores[best] / max(1, sum(scores.values()))) * 0.4)
-        return best, confidence
+    def _infer_family(self, understanding: TaskUnderstanding) -> IntentFamily:
+        text = understanding.goal.lower()
+        if any(hint in text for hint in self._NAVIGATION_HINTS):
+            return IntentFamily.NAVIGATION
+        if any(hint in text for hint in self._EXPLANATION_HINTS):
+            return IntentFamily.EXPLANATION
+        if any(hint in text for hint in self._UNDERSTANDING_HINTS):
+            return IntentFamily.UNDERSTANDING
+        if any(hint in text for hint in self._PLANNING_HINTS):
+            return IntentFamily.PLANNING
+        return IntentFamily.EXECUTION
 
-    def _classify_task_type(self, text: str) -> tuple[str, float]:
-        scores: dict[str, int] = {}
-        for task_type, keywords in self._TYPE_PATTERNS:
-            score = sum(1 for keyword in keywords if keyword in text)
-            if score:
-                scores[task_type] = score
-        if not scores:
-            return "unknown", 0.3
-        best = max(scores, key=lambda task_type: scores[task_type])
-        confidence = min(0.9, 0.4 + (scores[best] / sum(scores.values())) * 0.5)
-        return best, confidence
+    def _infer_legacy_type(self, family: IntentFamily, understanding: TaskUnderstanding) -> str:
+        if family == IntentFamily.NAVIGATION:
+            return "navigation"
+        if family == IntentFamily.EXPLANATION:
+            return "deep_dive"
+        if family == IntentFamily.PLANNING:
+            return "planning"
+        if family == IntentFamily.UNDERSTANDING:
+            if "architecture" in understanding.query_terms:
+                return "architecture"
+            return "overview"
+        return "general_task"
 
-    def _classify_understanding_subtype(self, text: str) -> tuple[str, float]:
-        scores: dict[str, int] = {}
-        for subtype, patterns in self._UNDERSTANDING_SUBTYPES.items():
-            score = sum(1 for pattern in patterns if pattern in text)
-            if score:
-                scores[subtype] = score
-        if not scores:
-            return "overview", 0.5
-        best = max(scores, key=lambda subtype: scores[subtype])
-        confidence = min(0.9, 0.5 + (scores[best] / sum(scores.values())) * 0.4)
-        return best, confidence
+    def _extract_entities(self, text_original: str) -> list[TaskEntity]:
+        entities: list[TaskEntity] = []
+        seen: set[tuple[str, str]] = set()
 
-    def _map_semantic_concepts(self, text: str) -> list[str]:
-        concepts: list[str] = []
-        for pattern, mapped in self._SEMANTIC_CONCEPT_MAP.items():
-            if pattern in text:
-                for concept in mapped:
-                    if concept not in concepts:
-                        concepts.append(concept)
-        return concepts or ["architecture", "overview", "entrypoint", "capabilities"]
+        def add(name: str, kind: str, confidence: float, source: str) -> None:
+            key = (name, kind)
+            if not name or key in seen:
+                return
+            seen.add(key)
+            entities.append(TaskEntity(name=name, kind=kind, confidence=confidence, source=source))
 
-    def _extract_symbols(self, text: str) -> list[str]:
-        identifiers = re.findall(r"\b[a-zA-Z_][a-zA-Z0-9_]{2,}\b", text)
-        stop_words = {
-            "the", "and", "for", "that", "this", "with", "from", "should", "when", "will",
-            "what", "which", "where", "have", "been", "does", "not", "are", "was", "can",
-            "has", "had", "its", "all", "but", "just", "also", "into", "more", "some",
-            "such", "than", "then", "now", "new", "use", "using", "used", "need", "needs",
-            "make", "makes", "made", "add", "get", "set", "run", "see", "let", "implement",
-            "create", "build", "write", "test", "fix", "change", "update", "remove", "delete",
-            "ensure", "check", "verify", "task", "code", "file", "files", "function", "module",
-            "class", "project", "goal", "description", "title", "step", "work", "want", "like",
-            "would", "could", "must", "shall", "integrate", "wire", "connect", "hook", "refactor",
-            "rename", "install", "upgrade", "downgrade", "restructure", "reorganize", "introduce",
-            "support", "understand", "overview", "summarize", "describe", "explain", "architecture",
-            "component", "feature", "capability", "purpose", "structure", "design", "pattern",
-            "implemented", "implementation", "logic", "works", "system", "layer",
-        }
-        result: list[str] = []
+        for match in self._FILE_PATTERN.findall(text_original):
+            add(match.replace("\\", "/"), "file", 0.95, "file_pattern")
+
+        for match in self._CAMEL_CASE_PATTERN.findall(text_original):
+            add(match, "class", 0.9, "camel_case")
+
+        for match in self._SNAKE_CASE_PATTERN.findall(text_original):
+            lowered = match.lower()
+            if lowered in self._STOP_WORDS:
+                continue
+            kind = "symbol" if "_" in match else "module"
+            add(match, kind, 0.65 if kind == "symbol" else 0.55, "snake_case")
+
+        return entities[:12]
+
+    def _extract_constraints(self, text: str) -> list[TaskConstraint]:
+        constraints: list[TaskConstraint] = []
         seen: set[str] = set()
-        for symbol in identifiers:
-            lowered = symbol.lower()
-            if lowered not in stop_words and lowered not in seen:
-                seen.add(lowered)
-                result.append(symbol)
-        return result[:8]
+        for pattern in self._CONSTRAINT_PATTERNS:
+            for match in re.findall(pattern, text):
+                normalized = match.strip()
+                if normalized and normalized not in seen:
+                    seen.add(normalized)
+                    constraints.append(TaskConstraint(text=normalized))
+        return constraints[:6]
 
-    def _extract_concepts(self, text: str) -> list[str]:
-        result: list[str] = []
+    def _guess_likely_modules(self, text: str, entities: list[TaskEntity]) -> list[str]:
+        modules: list[str] = []
         seen: set[str] = set()
-        for match in self._CONCEPT_PATTERN.findall(text):
+
+        for match in self._QUERY_TERM_PATTERN.findall(text):
             lowered = match.lower()
             if lowered not in seen:
                 seen.add(lowered)
-                result.append(lowered)
-        return result[:6]
+                modules.append(lowered)
 
-    def _is_entrypoint_related(self, text: str, symbols: list[str]) -> bool:
-        entrypoint_keywords = {
-            "main", "cli", "entry", "entrypoint", "entry_point", "command",
-            "argparse", "click", "typer", "run", "start", "shell", "terminal",
-            "console", "script",
-        }
-        if any(keyword in text for keyword in entrypoint_keywords):
-            return True
-        return any("main" in symbol.lower() or "cli" in symbol.lower() for symbol in symbols)
+        for entity in entities:
+            if entity.kind == "file":
+                stem = entity.name.split("/")[-1].rsplit(".", 1)[0]
+                if stem not in seen:
+                    seen.add(stem)
+                    modules.append(stem)
+            elif entity.kind == "module":
+                lowered = entity.name.lower()
+                if lowered not in seen:
+                    seen.add(lowered)
+                    modules.append(lowered)
 
-    def _guess_affected_files(self, text: str, symbols: list[str]) -> list[str]:
-        file_pattern = re.compile(r"\b[\w/\\.-]+\.(?:py|yaml|yml|toml|json|md)\b")
-        hints: list[str] = list(dict.fromkeys(file_pattern.findall(text)))
-        seen = {hint.lower() for hint in hints}
+        return modules[:10]
 
-        phrase_patterns = [
-            "query planner",
-            "context orchestrator",
-            "dependency graph",
-            "symbol index",
-            "repo info",
-            "repo_info",
-            "shadow git",
-            "runtime state",
-            "task intent",
-            "file summaries",
-            "session persistence",
-            "context compression",
-            "repository indexing",
-        ]
-        for phrase in phrase_patterns:
-            if phrase in text:
-                candidate = f"{phrase.replace(' ', '_')}.py"
-                if candidate.lower() not in seen:
-                    seen.add(candidate.lower())
-                    hints.append(candidate)
+    def _extract_query_terms(self, text: str) -> list[str]:
+        terms: list[str] = []
+        seen: set[str] = set()
+        for match in self._QUERY_TERM_PATTERN.findall(text):
+            lowered = match.lower()
+            if lowered not in seen:
+                seen.add(lowered)
+                terms.append(lowered)
+        return terms[:10]
 
-        for symbol in symbols:
-            lowered = symbol.lower()
-            if "_" in lowered:
-                candidate = f"{lowered}.py"
+    def _estimate_confidence(
+        self,
+        entities: list[TaskEntity],
+        likely_modules: list[str],
+        query_terms: list[str],
+    ) -> float:
+        score = 0.35
+        score += min(0.25, len(entities) * 0.05)
+        score += min(0.2, len(likely_modules) * 0.03)
+        score += min(0.2, len(query_terms) * 0.03)
+        return min(0.95, score)
+
+    def _guess_affected_files(self, understanding: TaskUnderstanding) -> list[str]:
+        hints: list[str] = []
+        seen: set[str] = set()
+
+        for entity in understanding.entities:
+            if entity.kind == "file":
+                normalized = entity.name.replace("\\", "/")
+                if normalized not in seen:
+                    seen.add(normalized)
+                    hints.append(normalized)
+                continue
+
+            if entity.kind in {"symbol", "module"}:
+                candidate = f"{entity.name.lower()}.py"
                 if candidate not in seen:
                     seen.add(candidate)
                     hints.append(candidate)
 
-        return hints[:8]
+        phrase_map = {
+            "query planner": "query_planner.py",
+            "context orchestrator": "orchestrator.py",
+            "context compression": "compression.py",
+            "repository indexing": "index.py",
+            "dependency graph": "dependency_graph.py",
+            "task intent": "task_intent.py",
+            "repo info": "repo_info.py",
+            "runtime state": "state.py",
+            "shadow git": "shadow.py",
+        }
+        lowered_goal = understanding.goal.lower()
+        for phrase, filename in phrase_map.items():
+            if phrase in lowered_goal and filename not in seen:
+                seen.add(filename)
+                hints.append(filename)
+
+        return hints[:10]

@@ -29,7 +29,10 @@ def build_dependency_graph(
     - imports: file ?*what it imports
     - imported_by: file ?*who imports it
     """
-    raw_imports = dependencies_json.get("internal_imports", {})
+    raw_imports = (
+        dependencies_json.get("resolved_internal_imports")
+        or dependencies_json.get("internal_imports", {})
+    )
     if not raw_imports:
         return BidirectionalDepGraph()
 
