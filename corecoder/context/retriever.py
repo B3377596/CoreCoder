@@ -161,8 +161,38 @@ class RepositoryContextRetriever:
             task_description=request.task_description,
             goal=request.goal,
         )
+        '''print(
+            "Task understanding:\n"
+            + json.dumps(
+                {
+                    "goal": understanding.goal,
+                    "objective": understanding.objective,
+                    "entities": [
+                        {
+                            "name": entity.name,
+                            "kind": entity.kind,
+                            "confidence": round(entity.confidence, 2),
+                            "source": entity.source,
+                        }
+                        for entity in understanding.entities
+                    ],
+                    "constraints": [
+                        {
+                            "text": constraint.text,
+                            "kind": constraint.kind,
+                        }
+                        for constraint in understanding.constraints
+                    ],
+                    "likely_modules": understanding.likely_modules,
+                    "query_terms": understanding.query_terms,
+                    "confidence": round(understanding.confidence, 2),
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )'''
         retrieval_context = self._build_retrieval_context(request)
-
+        
         # ---- Stage 2: Retrieval Planning ----
         plan = self._retrieval_planner.plan(understanding, retrieval_context)
         retrieval_context.current_plan = plan
@@ -203,6 +233,29 @@ class RepositoryContextRetriever:
 
         # ---- Stage 7: Build metadata fragments ----
         top_files = ranked[:opts.max_files]
+        '''print(
+            "Retrieved context:\n"
+            + json.dumps(
+                {
+                    "retrieval_mode": plan.retrieval_strategy,
+                    "task_type": plan.task_type,
+                    "candidate_count": len(candidates),
+                    "ranked_count": len(ranked),
+                    "top_files": [
+                        {
+                            "path": rf.filepath,
+                            "score": round(rf.score, 4),
+                            "reasons": rf.reasons,
+                            "symbols": rf.symbols[:8],
+                            "score_breakdown": rf.score_breakdown,
+                        }
+                        for rf in top_files
+                    ],
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )'''
 
         # 7a. Project files overview
         if top_files:
@@ -497,6 +550,29 @@ class RepositoryContextRetriever:
 
         # ---- Build fragments ----
         top_files = ranked[:opts.max_files]
+        '''print(
+            "Retrieved context:\n"
+            + json.dumps(
+                {
+                    "retrieval_mode": plan.retrieval_strategy,
+                    "task_type": plan.task_type,
+                    "candidate_count": len(candidates),
+                    "ranked_count": len(ranked),
+                    "top_files": [
+                        {
+                            "path": rf.filepath,
+                            "score": round(rf.score, 4),
+                            "reasons": rf.reasons,
+                            "symbols": rf.symbols[:8],
+                            "score_breakdown": rf.score_breakdown,
+                        }
+                        for rf in top_files
+                    ],
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )'''
 
         # Project overview fragment
         if top_files:

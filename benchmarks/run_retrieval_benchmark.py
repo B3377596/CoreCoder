@@ -91,6 +91,74 @@ def hit_at_k(actual: list[str], expected: set[str], k: int) -> float:
     return 1.0 if set(actual[:k]) & expected else 0.0
 
 
+def serialize_understanding(understanding) -> dict:
+    if understanding is None:
+        return {}
+    return {
+        "goal": understanding.goal,
+        "objective": understanding.objective,
+        "entities": [
+            {
+                "name": entity.name,
+                "kind": entity.kind,
+                "confidence": entity.confidence,
+                "source": entity.source,
+            }
+            for entity in understanding.entities
+        ],
+        "constraints": [
+            {
+                "text": constraint.text,
+                "kind": constraint.kind,
+            }
+            for constraint in understanding.constraints
+        ],
+        "likely_modules": understanding.likely_modules,
+        "query_terms": understanding.query_terms,
+        "confidence": understanding.confidence,
+    }
+
+
+def serialize_plan(plan) -> dict:
+    if plan is None:
+        return {}
+    return {
+        "task_type": plan.task_type,
+        "objective": plan.objective,
+        "primary_symbols": plan.primary_symbols,
+        "retrieval_scopes": plan.retrieval_scopes,
+        "expansion_depth": plan.expansion_depth,
+        "retrieval_strategy": plan.retrieval_strategy,
+        "target_files": plan.target_files,
+        "required_context": plan.required_context,
+        "plan_reasoning": plan.plan_reasoning,
+    }
+
+
+def serialize_retrieval_context(retrieval_context) -> dict:
+    if retrieval_context is None:
+        return {}
+    return {
+        "user_query": retrieval_context.user_query,
+        "active_files": retrieval_context.active_files,
+        "active_symbols": retrieval_context.active_symbols,
+        "working_memory": retrieval_context.working_memory,
+        "previous_failures": retrieval_context.previous_failures,
+        "previous_queries": retrieval_context.previous_queries,
+        "retrieval_round": retrieval_context.retrieval_round,
+        "requested_more_context": retrieval_context.requested_more_context,
+        "followup_requests": [
+            {
+                "reason": followup.reason,
+                "additional_scopes": followup.additional_scopes,
+                "missing_symbols": followup.missing_symbols,
+                "requested_files": followup.requested_files,
+            }
+            for followup in retrieval_context.followup_requests
+        ],
+    }
+
+
 def evaluate_case(
     retriever: RepositoryContextRetriever,
     case: BenchmarkCase,
@@ -122,6 +190,9 @@ def evaluate_case(
         "retrieval_meta": {
             "retrieval_mode": meta.retrieval_mode if meta else "",
             "task_type": meta.task_type if meta else "",
+            "understanding": serialize_understanding(meta.understanding if meta else None),
+            "plan": serialize_plan(meta.plan if meta else None),
+            "retrieval_context": serialize_retrieval_context(meta.retrieval_context if meta else None),
             "total_files_considered": meta.total_files_considered if meta else 0,
             "total_files_ranked": meta.total_files_ranked if meta else 0,
             "retrieval_time_ms": round(meta.retrieval_time_ms, 3) if meta else 0.0,

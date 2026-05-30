@@ -1,18 +1,18 @@
 {
-  "generated_at": "2026-05-30T02:30:48.255985+00:00",
+  "generated_at": "2026-05-30T02:55:07.899526+00:00",
   "repo_root": "C:\\Users\\86159\\Documents\\agent\\CoreCoder",
   "dataset": "C:\\Users\\86159\\Documents\\agent\\CoreCoder\\benchmarks\\data\\retrieval_eval.jsonl",
   "top_k": 5,
   "summary": {
     "cases": 50,
     "hit_at_1": 0.22,
-    "hit_at_3": 0.38,
-    "hit_at_5": 0.44,
-    "recall_at_5": 0.2873,
-    "mrr": 0.3321,
-    "avg_retrieval_time_ms": 2.957,
-    "avg_files_considered": 10.04,
-    "avg_files_ranked": 10.66
+    "hit_at_3": 0.32,
+    "hit_at_5": 0.38,
+    "recall_at_5": 0.2733,
+    "mrr": 0.306,
+    "avg_retrieval_time_ms": 1.333,
+    "avg_files_considered": 9.8,
+    "avg_files_ranked": 10.7
   },
   "results": [
     {
@@ -46,9 +46,36 @@
       "retrieval_meta": {
         "retrieval_mode": "architecture_scan",
         "task_type": "architecture_understanding",
+        "understanding": {
+          "goal": "What does this project do?",
+          "objective": "What does this project do?",
+          "entities": [],
+          "constraints": [],
+          "likely_modules": [],
+          "query_terms": [],
+          "confidence": 0.35
+        },
+        "plan": {
+          "task_type": "architecture_understanding",
+          "objective": "What does this project do?",
+          "primary_symbols": [],
+          "retrieval_scopes": [],
+          "expansion_depth": 2,
+          "retrieval_strategy": "architecture_scan",
+          "target_files": [],
+          "required_context": [
+            "entrypoints",
+            "major_components",
+            "architecture_hubs"
+          ],
+          "plan_reasoning": [
+            "broad overview query detected"
+          ]
+        },
+        "retrieval_context": {},
         "total_files_considered": 54,
         "total_files_ranked": 54,
-        "retrieval_time_ms": 7.649,
+        "retrieval_time_ms": 3.0,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
@@ -70,13 +97,13 @@
         "corecoder/mcp/client.py",
         "corecoder/cli.py",
         "corecoder/llm/client.py",
-        "tests/test_core.py",
-        "corecoder/agent/dag/models.py",
+        "corecoder/codebase/shadow.py",
+        "corecoder/agent/workflow/executor.py",
+        "corecoder/agent/dag/__init__.py",
         "corecoder/agent/workflow/planner.py",
-        "corecoder/agent/runtime/state.py",
-        "corecoder/retrieval/ranker.py",
-        "corecoder/agent/workflow/orchestrator.py",
-        "corecoder/retrieval/evaluation.py"
+        "tests/test_orchestration.py",
+        "tests/test_session.py",
+        "corecoder/retrieval/ranker.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
@@ -88,9 +115,66 @@
       "retrieval_meta": {
         "retrieval_mode": "causal_trace",
         "task_type": "implementation_explanation",
+        "understanding": {
+          "goal": "How does the CLI work?",
+          "objective": "How does the CLI work?",
+          "entities": [
+            {
+              "name": "CLI",
+              "kind": "class",
+              "confidence": 0.9,
+              "source": "camel_case"
+            },
+            {
+              "name": "cli",
+              "kind": "module",
+              "confidence": 0.6,
+              "source": "canonical_term"
+            }
+          ],
+          "constraints": [],
+          "likely_modules": [
+            "cli"
+          ],
+          "query_terms": [
+            "cli"
+          ],
+          "confidence": 0.51
+        },
+        "plan": {
+          "task_type": "implementation_explanation",
+          "objective": "How does the CLI work?",
+          "primary_symbols": [
+            "CLI"
+          ],
+          "retrieval_scopes": [
+            "cli"
+          ],
+          "expansion_depth": 3,
+          "retrieval_strategy": "causal_trace",
+          "target_files": [],
+          "required_context": [
+            "dependency_paths",
+            "related_symbols"
+          ],
+          "plan_reasoning": [
+            "explanation query detected"
+          ]
+        },
+        "retrieval_context": {
+          "user_query": "How does the CLI work?",
+          "active_files": [],
+          "active_symbols": [],
+          "working_memory": [],
+          "previous_failures": [],
+          "previous_queries": [],
+          "retrieval_round": 1,
+          "requested_more_context": false,
+          "followup_requests": []
+        },
         "total_files_considered": 8,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 2.612,
+        "retrieval_time_ms": 2.303,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
@@ -112,10 +196,10 @@
       ],
       "retrieved_files": [
         "tests/test_session.py",
-        "tests/test_core.py",
-        "corecoder/agent/runtime/state.py",
-        "corecoder/__init__.py",
         "corecoder/context/__init__.py",
+        "corecoder/__init__.py",
+        "corecoder/agent/runtime/state.py",
+        "tests/test_core.py",
         "corecoder/context/session.py",
         ".claude/settings.local.json",
         ".env",
@@ -124,17 +208,74 @@
       ],
       "metrics": {
         "hit_at_1": 0.0,
-        "hit_at_3": 1.0,
+        "hit_at_3": 0.0,
         "hit_at_5": 1.0,
         "recall_at_5": 0.5,
-        "mrr": 0.3333333333333333
+        "mrr": 0.25
       },
       "retrieval_meta": {
         "retrieval_mode": "targeted_lookup",
         "task_type": "symbol_navigation",
+        "understanding": {
+          "goal": "Where is session persistence implemented?",
+          "objective": "Where is session persistence implemented?",
+          "entities": [
+            {
+              "name": "session",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "persistence",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            }
+          ],
+          "constraints": [],
+          "likely_modules": [
+            "session",
+            "persistence"
+          ],
+          "query_terms": [
+            "session"
+          ],
+          "confidence": 0.54
+        },
+        "plan": {
+          "task_type": "symbol_navigation",
+          "objective": "Where is session persistence implemented?",
+          "primary_symbols": [],
+          "retrieval_scopes": [
+            "session",
+            "persistence"
+          ],
+          "expansion_depth": 1,
+          "retrieval_strategy": "targeted_lookup",
+          "target_files": [],
+          "required_context": [
+            "symbol_definitions",
+            "file_locations"
+          ],
+          "plan_reasoning": [
+            "navigation query detected"
+          ]
+        },
+        "retrieval_context": {
+          "user_query": "Where is session persistence implemented?",
+          "active_files": [],
+          "active_symbols": [],
+          "working_memory": [],
+          "previous_failures": [],
+          "previous_queries": [],
+          "retrieval_round": 1,
+          "requested_more_context": false,
+          "followup_requests": []
+        },
         "total_files_considered": 8,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 1.083,
+        "retrieval_time_ms": 0.393,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
@@ -158,13 +299,13 @@
         "tests/test_context_orchestrator.py",
         "article/04-context-compression.md",
         "article/04-context-compression_EN.md",
-        "tests/test_core.py",
-        "corecoder/agent/dag/models.py",
+        "corecoder/codebase/shadow.py",
+        "corecoder/agent/workflow/executor.py",
+        "corecoder/agent/dag/__init__.py",
         "corecoder/agent/workflow/planner.py",
+        "corecoder/codebase/__init__.py",
         "corecoder/retrieval/ranker.py",
-        "corecoder/agent/workflow/orchestrator.py",
-        "corecoder/retrieval/evaluation.py",
-        "corecoder/agent/workflow/scheduler.py"
+        "tests/test_session.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
@@ -176,9 +317,67 @@
       "retrieval_meta": {
         "retrieval_mode": "causal_trace",
         "task_type": "implementation_explanation",
-        "total_files_considered": 5,
+        "understanding": {
+          "goal": "How does context compression work?",
+          "objective": "How does context compression work?",
+          "entities": [
+            {
+              "name": "context",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "compression",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            }
+          ],
+          "constraints": [],
+          "likely_modules": [
+            "context",
+            "compression"
+          ],
+          "query_terms": [
+            "context",
+            "compression"
+          ],
+          "confidence": 0.5700000000000001
+        },
+        "plan": {
+          "task_type": "implementation_explanation",
+          "objective": "How does context compression work?",
+          "primary_symbols": [],
+          "retrieval_scopes": [
+            "context",
+            "compression"
+          ],
+          "expansion_depth": 3,
+          "retrieval_strategy": "causal_trace",
+          "target_files": [],
+          "required_context": [
+            "dependency_paths",
+            "related_symbols"
+          ],
+          "plan_reasoning": [
+            "explanation query detected"
+          ]
+        },
+        "retrieval_context": {
+          "user_query": "How does context compression work?",
+          "active_files": [],
+          "active_symbols": [],
+          "working_memory": [],
+          "previous_failures": [],
+          "previous_queries": [],
+          "retrieval_round": 1,
+          "requested_more_context": false,
+          "followup_requests": []
+        },
+        "total_files_considered": 8,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 0.999,
+        "retrieval_time_ms": 1.072,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
@@ -202,9 +401,9 @@
         "tests/test_retrieval_improvements.py",
         "corecoder/retrieval/query_planner.py",
         "corecoder/retrieval/retrieval_planner.py",
-        "corecoder/__init__.py",
-        "corecoder/retrieval/models.py",
         "corecoder/retrieval/__init__.py",
+        "corecoder/retrieval/repository_graph.py",
+        "corecoder/__init__.py",
         "corecoder/context/retriever.py",
         "corecoder/retrieval/task_intent.py",
         "corecoder/retrieval/ranker.py",
@@ -220,9 +419,75 @@
       "retrieval_meta": {
         "retrieval_mode": "targeted_lookup",
         "task_type": "symbol_navigation",
+        "understanding": {
+          "goal": "Where is the retrieval query planner?",
+          "objective": "Where is the retrieval query planner?",
+          "entities": [
+            {
+              "name": "retrieval",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "query",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "planner",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            }
+          ],
+          "constraints": [],
+          "likely_modules": [
+            "planner",
+            "retrieval",
+            "query"
+          ],
+          "query_terms": [
+            "planner",
+            "retrieval"
+          ],
+          "confidence": 0.6499999999999999
+        },
+        "plan": {
+          "task_type": "symbol_navigation",
+          "objective": "Where is the retrieval query planner?",
+          "primary_symbols": [],
+          "retrieval_scopes": [
+            "planner",
+            "retrieval",
+            "query"
+          ],
+          "expansion_depth": 1,
+          "retrieval_strategy": "targeted_lookup",
+          "target_files": [],
+          "required_context": [
+            "symbol_definitions",
+            "file_locations"
+          ],
+          "plan_reasoning": [
+            "navigation query detected"
+          ]
+        },
+        "retrieval_context": {
+          "user_query": "Where is the retrieval query planner?",
+          "active_files": [],
+          "active_symbols": [],
+          "working_memory": [],
+          "previous_failures": [],
+          "previous_queries": [],
+          "retrieval_round": 1,
+          "requested_more_context": false,
+          "followup_requests": []
+        },
         "total_files_considered": 8,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 2.003,
+        "retrieval_time_ms": 0.419,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
@@ -243,16 +508,16 @@
         "corecoder/context/retriever.py"
       ],
       "retrieved_files": [
-        "corecoder/agent/dag/models.py",
-        "tests/test_core.py",
+        "corecoder/tools/repo_info.py",
+        "corecoder/retrieval/repository_graph.py",
+        "corecoder/codebase/shadow.py",
+        "corecoder/agent/workflow/executor.py",
+        "corecoder/agent/dag/__init__.py",
         "corecoder/agent/workflow/planner.py",
+        "corecoder/codebase/__init__.py",
         "corecoder/retrieval/ranker.py",
-        "corecoder/agent/workflow/orchestrator.py",
-        "corecoder/retrieval/evaluation.py",
-        "corecoder/agent/workflow/scheduler.py",
-        "benchmarks/run_retrieval_benchmark.py",
-        "tests/test_context_orchestrator.py",
-        "corecoder/agent/__init__.py"
+        "tests/test_session.py",
+        "tests/test_orchestration.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
@@ -264,9 +529,83 @@
       "retrieval_meta": {
         "retrieval_mode": "causal_trace",
         "task_type": "implementation_explanation",
-        "total_files_considered": 8,
+        "understanding": {
+          "goal": "How does repository indexing work?",
+          "objective": "How does repository indexing work?",
+          "entities": [
+            {
+              "name": "repository",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "indexing",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "index",
+              "kind": "module",
+              "confidence": 0.6,
+              "source": "canonical_term"
+            },
+            {
+              "name": "repo",
+              "kind": "module",
+              "confidence": 0.6,
+              "source": "canonical_term"
+            }
+          ],
+          "constraints": [],
+          "likely_modules": [
+            "index",
+            "repo",
+            "repository",
+            "indexing"
+          ],
+          "query_terms": [
+            "index",
+            "repo"
+          ],
+          "confidence": 0.73
+        },
+        "plan": {
+          "task_type": "implementation_explanation",
+          "objective": "How does repository indexing work?",
+          "primary_symbols": [],
+          "retrieval_scopes": [
+            "index",
+            "repo",
+            "repository",
+            "indexing"
+          ],
+          "expansion_depth": 3,
+          "retrieval_strategy": "causal_trace",
+          "target_files": [],
+          "required_context": [
+            "dependency_paths",
+            "related_symbols"
+          ],
+          "plan_reasoning": [
+            "explanation query detected"
+          ]
+        },
+        "retrieval_context": {
+          "user_query": "How does repository indexing work?",
+          "active_files": [],
+          "active_symbols": [],
+          "working_memory": [],
+          "previous_failures": [],
+          "previous_queries": [],
+          "retrieval_round": 1,
+          "requested_more_context": false,
+          "followup_requests": []
+        },
+        "total_files_considered": 7,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 3.996,
+        "retrieval_time_ms": 1.153,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
@@ -305,9 +644,64 @@
       "retrieval_meta": {
         "retrieval_mode": "targeted_lookup",
         "task_type": "symbol_navigation",
+        "understanding": {
+          "goal": "Where is the bash safety logic?",
+          "objective": "Where is the bash safety logic?",
+          "entities": [
+            {
+              "name": "bash",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "safety",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            }
+          ],
+          "constraints": [],
+          "likely_modules": [
+            "bash",
+            "safety"
+          ],
+          "query_terms": [],
+          "confidence": 0.51
+        },
+        "plan": {
+          "task_type": "symbol_navigation",
+          "objective": "Where is the bash safety logic?",
+          "primary_symbols": [],
+          "retrieval_scopes": [
+            "bash",
+            "safety"
+          ],
+          "expansion_depth": 1,
+          "retrieval_strategy": "targeted_lookup",
+          "target_files": [],
+          "required_context": [
+            "symbol_definitions",
+            "file_locations"
+          ],
+          "plan_reasoning": [
+            "navigation query detected"
+          ]
+        },
+        "retrieval_context": {
+          "user_query": "Where is the bash safety logic?",
+          "active_files": [],
+          "active_symbols": [],
+          "working_memory": [],
+          "previous_failures": [],
+          "previous_queries": [],
+          "retrieval_round": 1,
+          "requested_more_context": false,
+          "followup_requests": []
+        },
         "total_files_considered": 8,
         "total_files_ranked": 8,
-        "retrieval_time_ms": 2.001,
+        "retrieval_time_ms": 1.001,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
@@ -327,28 +721,103 @@
         "corecoder/context/session.py"
       ],
       "retrieved_files": [
+        "tests/test_session.py",
+        "corecoder/context/__init__.py",
+        "corecoder/__init__.py",
         "corecoder/cli.py",
+        "corecoder/agent/runtime/state.py",
+        "tests/test_core.py",
+        "corecoder/context/session.py",
         "corecoder/__main__.py",
         ".claude/settings.local.json",
-        ".env",
-        ".gitignore",
-        "LICENSE",
-        "README.md",
-        "README_CN.md"
+        ".env"
       ],
       "metrics": {
         "hit_at_1": 0.0,
         "hit_at_3": 0.0,
         "hit_at_5": 0.0,
         "recall_at_5": 0.0,
-        "mrr": 0.0
+        "mrr": 0.14285714285714285
       },
       "retrieval_meta": {
         "retrieval_mode": "task_execution",
         "task_type": "targeted_change",
+        "understanding": {
+          "goal": "How do saved sessions get sanitized?",
+          "objective": "How do saved sessions get sanitized?",
+          "entities": [
+            {
+              "name": "saved",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "sessions",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "sanitized",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "session",
+              "kind": "module",
+              "confidence": 0.6,
+              "source": "canonical_term"
+            }
+          ],
+          "constraints": [],
+          "likely_modules": [
+            "session",
+            "saved",
+            "sessions",
+            "sanitized"
+          ],
+          "query_terms": [
+            "session"
+          ],
+          "confidence": 0.7000000000000001
+        },
+        "plan": {
+          "task_type": "targeted_change",
+          "objective": "How do saved sessions get sanitized?",
+          "primary_symbols": [],
+          "retrieval_scopes": [
+            "session",
+            "saved",
+            "sessions",
+            "sanitized"
+          ],
+          "expansion_depth": 1,
+          "retrieval_strategy": "task_execution",
+          "target_files": [],
+          "required_context": [
+            "active_files",
+            "primary_symbols"
+          ],
+          "plan_reasoning": [
+            "defaulting to focused execution search"
+          ]
+        },
+        "retrieval_context": {
+          "user_query": "How do saved sessions get sanitized?",
+          "active_files": [],
+          "active_symbols": [],
+          "working_memory": [],
+          "previous_failures": [],
+          "previous_queries": [],
+          "retrieval_round": 1,
+          "requested_more_context": false,
+          "followup_requests": []
+        },
         "total_files_considered": 8,
-        "total_files_ranked": 8,
-        "retrieval_time_ms": 3.358,
+        "total_files_ranked": 10,
+        "retrieval_time_ms": 0.998,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
@@ -374,28 +843,83 @@
       "retrieved_files": [
         "tests/test_orchestration.py",
         "corecoder/cli.py",
-        "corecoder/agent/dag/models.py",
-        "corecoder/agent/workflow/planner.py",
-        "corecoder/agent/dag/graph.py",
-        "corecoder/agent/workflow/verifier.py",
         "corecoder/agent/workflow/__init__.py",
-        "corecoder/agent/dag/memory.py",
+        "corecoder/infra/observability.py",
+        "corecoder/infra/storage.py",
+        "corecoder/agent/workflow/verifier.py",
+        "corecoder/agent/dag/models.py",
         "corecoder/agent/workflow/executor.py",
-        "corecoder/__init__.py"
+        "corecoder/agent/dag/__init__.py",
+        "corecoder/agent/workflow/planner.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
         "hit_at_3": 0.0,
-        "hit_at_5": 1.0,
-        "recall_at_5": 0.2,
-        "mrr": 0.25
+        "hit_at_5": 0.0,
+        "recall_at_5": 0.0,
+        "mrr": 0.16666666666666666
       },
       "retrieval_meta": {
         "retrieval_mode": "task_execution",
         "task_type": "targeted_change",
+        "understanding": {
+          "goal": "What modules implement orchestration?",
+          "objective": "What modules implement orchestration?",
+          "entities": [
+            {
+              "name": "implement",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "orchestration",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            }
+          ],
+          "constraints": [],
+          "likely_modules": [
+            "implement",
+            "orchestration"
+          ],
+          "query_terms": [],
+          "confidence": 0.51
+        },
+        "plan": {
+          "task_type": "targeted_change",
+          "objective": "What modules implement orchestration?",
+          "primary_symbols": [],
+          "retrieval_scopes": [
+            "implement",
+            "orchestration"
+          ],
+          "expansion_depth": 1,
+          "retrieval_strategy": "task_execution",
+          "target_files": [],
+          "required_context": [
+            "active_files",
+            "primary_symbols"
+          ],
+          "plan_reasoning": [
+            "defaulting to focused execution search"
+          ]
+        },
+        "retrieval_context": {
+          "user_query": "What modules implement orchestration?",
+          "active_files": [],
+          "active_symbols": [],
+          "working_memory": [],
+          "previous_failures": [],
+          "previous_queries": [],
+          "retrieval_round": 1,
+          "requested_more_context": false,
+          "followup_requests": []
+        },
         "total_files_considered": 8,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 2.127,
+        "retrieval_time_ms": 4.002,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
@@ -417,29 +941,110 @@
       ],
       "retrieved_files": [
         "corecoder/tools/agent.py",
+        "corecoder/tools/glob_tool.py",
         "corecoder/tools/bash.py",
         "corecoder/tools/edit.py",
-        "corecoder/tools/glob_tool.py",
         "corecoder/tools/grep.py",
         "corecoder/tools/read.py",
         "corecoder/tools/repo_info.py",
         "corecoder/tools/write.py",
         "tests/test_tools.py",
-        "article/02-agent-loop.md"
+        "corecoder/tools/base.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
         "hit_at_3": 0.0,
         "hit_at_5": 0.0,
         "recall_at_5": 0.0,
-        "mrr": 0.0
+        "mrr": 0.1
       },
       "retrieval_meta": {
         "retrieval_mode": "causal_trace",
         "task_type": "implementation_explanation",
-        "total_files_considered": 16,
+        "understanding": {
+          "goal": "How does the agent loop execute tools?",
+          "objective": "How does the agent loop execute tools?",
+          "entities": [
+            {
+              "name": "agent",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "loop",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "execute",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "tools",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "tool",
+              "kind": "module",
+              "confidence": 0.6,
+              "source": "canonical_term"
+            }
+          ],
+          "constraints": [],
+          "likely_modules": [
+            "tool",
+            "agent",
+            "loop",
+            "execute",
+            "tools"
+          ],
+          "query_terms": [
+            "tool"
+          ],
+          "confidence": 0.78
+        },
+        "plan": {
+          "task_type": "implementation_explanation",
+          "objective": "How does the agent loop execute tools?",
+          "primary_symbols": [],
+          "retrieval_scopes": [
+            "tool",
+            "agent",
+            "loop",
+            "execute",
+            "tools"
+          ],
+          "expansion_depth": 3,
+          "retrieval_strategy": "causal_trace",
+          "target_files": [],
+          "required_context": [
+            "dependency_paths",
+            "related_symbols"
+          ],
+          "plan_reasoning": [
+            "explanation query detected"
+          ]
+        },
+        "retrieval_context": {
+          "user_query": "How does the agent loop execute tools?",
+          "active_files": [],
+          "active_symbols": [],
+          "working_memory": [],
+          "previous_failures": [],
+          "previous_queries": [],
+          "retrieval_round": 1,
+          "requested_more_context": false,
+          "followup_requests": []
+        },
+        "total_files_considered": 18,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 4.055,
+        "retrieval_time_ms": 2.0,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
@@ -460,30 +1065,111 @@
         "corecoder/llm/client.py"
       ],
       "retrieved_files": [
-        "tests/test_litellm.py",
         "corecoder/llm/client.py",
-        "corecoder/cli.py",
-        "corecoder/llm/types.py",
+        "tests/test_litellm.py",
+        "corecoder/config.py",
         "corecoder/__init__.py",
         "corecoder/llm/__init__.py",
-        "corecoder/config.py",
-        "corecoder/__main__.py",
-        "tests/test_core.py",
-        "corecoder/agent/core.py"
+        "corecoder/llm/types.py",
+        "corecoder/context/__init__.py",
+        "corecoder/context/session.py",
+        "corecoder/tools/__init__.py",
+        "corecoder/tools/edit.py"
       ],
       "metrics": {
-        "hit_at_1": 0.0,
+        "hit_at_1": 1.0,
         "hit_at_3": 1.0,
         "hit_at_5": 1.0,
         "recall_at_5": 0.5,
-        "mrr": 0.5
+        "mrr": 1.0
       },
       "retrieval_meta": {
         "retrieval_mode": "task_execution",
         "task_type": "targeted_change",
+        "understanding": {
+          "goal": "How are runtime messages assembled before sending to the LLM?",
+          "objective": "How are runtime messages assembled before sending to the LLM?",
+          "entities": [
+            {
+              "name": "LLM",
+              "kind": "class",
+              "confidence": 0.9,
+              "source": "camel_case"
+            },
+            {
+              "name": "runtime",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "messages",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "assembled",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "sending",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            }
+          ],
+          "constraints": [],
+          "likely_modules": [
+            "runtime",
+            "messages",
+            "assembled",
+            "sending"
+          ],
+          "query_terms": [
+            "runtime"
+          ],
+          "confidence": 0.75
+        },
+        "plan": {
+          "task_type": "targeted_change",
+          "objective": "How are runtime messages assembled before sending to the LLM?",
+          "primary_symbols": [
+            "LLM"
+          ],
+          "retrieval_scopes": [
+            "runtime",
+            "messages",
+            "assembled",
+            "sending"
+          ],
+          "expansion_depth": 1,
+          "retrieval_strategy": "task_execution",
+          "target_files": [],
+          "required_context": [
+            "active_files",
+            "primary_symbols"
+          ],
+          "plan_reasoning": [
+            "defaulting to focused execution search"
+          ]
+        },
+        "retrieval_context": {
+          "user_query": "How are runtime messages assembled before sending to the LLM?",
+          "active_files": [],
+          "active_symbols": [],
+          "working_memory": [],
+          "previous_failures": [],
+          "previous_queries": [],
+          "retrieval_round": 1,
+          "requested_more_context": false,
+          "followup_requests": []
+        },
         "total_files_considered": 7,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 2.0,
+        "retrieval_time_ms": 1.0,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
@@ -524,9 +1210,75 @@
       "retrieval_meta": {
         "retrieval_mode": "targeted_lookup",
         "task_type": "symbol_navigation",
-        "total_files_considered": 14,
+        "understanding": {
+          "goal": "Where is the repo_info tool implemented?",
+          "objective": "Where is the repo_info tool implemented?",
+          "entities": [
+            {
+              "name": "repo_info",
+              "kind": "symbol",
+              "confidence": 0.65,
+              "source": "snake_case"
+            },
+            {
+              "name": "tool",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "repo",
+              "kind": "module",
+              "confidence": 0.6,
+              "source": "canonical_term"
+            }
+          ],
+          "constraints": [],
+          "likely_modules": [
+            "tool",
+            "repo"
+          ],
+          "query_terms": [
+            "tool",
+            "repo"
+          ],
+          "confidence": 0.6200000000000001
+        },
+        "plan": {
+          "task_type": "symbol_navigation",
+          "objective": "Where is the repo_info tool implemented?",
+          "primary_symbols": [
+            "repo_info"
+          ],
+          "retrieval_scopes": [
+            "tool",
+            "repo"
+          ],
+          "expansion_depth": 1,
+          "retrieval_strategy": "targeted_lookup",
+          "target_files": [],
+          "required_context": [
+            "symbol_definitions",
+            "file_locations"
+          ],
+          "plan_reasoning": [
+            "navigation query detected"
+          ]
+        },
+        "retrieval_context": {
+          "user_query": "Where is the repo_info tool implemented?",
+          "active_files": [],
+          "active_symbols": [],
+          "working_memory": [],
+          "previous_failures": [],
+          "previous_queries": [],
+          "retrieval_round": 1,
+          "requested_more_context": false,
+          "followup_requests": []
+        },
+        "total_files_considered": 16,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 5.0,
+        "retrieval_time_ms": 3.001,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
@@ -548,15 +1300,15 @@
       ],
       "retrieved_files": [
         "corecoder/mcp/client.py",
-        "corecoder/__main__.py",
-        "tests/test_core.py",
+        "corecoder/agent/dag/__init__.py",
+        "tests/test_orchestration.py",
+        "tests/test_session.py",
         "corecoder/retrieval/ranker.py",
+        "corecoder/infra/__init__.py",
+        "tests/test_tools.py",
+        "corecoder/retrieval/repository_graph.py",
         "corecoder/agent/workflow/orchestrator.py",
-        "corecoder/agent/workflow/scheduler.py",
-        "tests/test_context_orchestrator.py",
-        "corecoder/agent/workflow/__init__.py",
-        "tests/test_litellm.py",
-        "tests/test_session.py"
+        "corecoder/context/layers.py"
       ],
       "metrics": {
         "hit_at_1": 1.0,
@@ -568,9 +1320,74 @@
       "retrieval_meta": {
         "retrieval_mode": "causal_trace",
         "task_type": "implementation_explanation",
+        "understanding": {
+          "goal": "How does MCP integration work?",
+          "objective": "How does MCP integration work?",
+          "entities": [
+            {
+              "name": "MCP",
+              "kind": "class",
+              "confidence": 0.9,
+              "source": "camel_case"
+            },
+            {
+              "name": "integration",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "mcp",
+              "kind": "module",
+              "confidence": 0.6,
+              "source": "canonical_term"
+            }
+          ],
+          "constraints": [],
+          "likely_modules": [
+            "mcp",
+            "integration"
+          ],
+          "query_terms": [
+            "mcp"
+          ],
+          "confidence": 0.5900000000000001
+        },
+        "plan": {
+          "task_type": "implementation_explanation",
+          "objective": "How does MCP integration work?",
+          "primary_symbols": [
+            "MCP"
+          ],
+          "retrieval_scopes": [
+            "mcp",
+            "integration"
+          ],
+          "expansion_depth": 3,
+          "retrieval_strategy": "causal_trace",
+          "target_files": [],
+          "required_context": [
+            "dependency_paths",
+            "related_symbols"
+          ],
+          "plan_reasoning": [
+            "explanation query detected"
+          ]
+        },
+        "retrieval_context": {
+          "user_query": "How does MCP integration work?",
+          "active_files": [],
+          "active_symbols": [],
+          "working_memory": [],
+          "previous_failures": [],
+          "previous_queries": [],
+          "retrieval_round": 1,
+          "requested_more_context": false,
+          "followup_requests": []
+        },
         "total_files_considered": 8,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 2.951,
+        "retrieval_time_ms": 1.419,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
@@ -593,12 +1410,12 @@
         "corecoder/llm/client.py",
         "tests/test_litellm.py",
         "corecoder/mcp/client.py",
-        "corecoder/mcp/__init__.py",
-        "corecoder/llm/types.py",
+        "corecoder/cli.py",
+        "corecoder/config.py",
         "corecoder/__init__.py",
         "corecoder/llm/__init__.py",
-        "corecoder/config.py",
-        "corecoder/cli.py",
+        "corecoder/llm/types.py",
+        "corecoder/mcp/__init__.py",
         "tests/test_core.py"
       ],
       "metrics": {
@@ -611,9 +1428,89 @@
       "retrieval_meta": {
         "retrieval_mode": "targeted_lookup",
         "task_type": "symbol_navigation",
+        "understanding": {
+          "goal": "Where is the OpenAI compatible LLM client implemented?",
+          "objective": "Where is the OpenAI compatible LLM client implemented?",
+          "entities": [
+            {
+              "name": "OpenAI",
+              "kind": "class",
+              "confidence": 0.9,
+              "source": "camel_case"
+            },
+            {
+              "name": "LLM",
+              "kind": "class",
+              "confidence": 0.9,
+              "source": "camel_case"
+            },
+            {
+              "name": "compatible",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "client",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "cli",
+              "kind": "module",
+              "confidence": 0.6,
+              "source": "canonical_term"
+            }
+          ],
+          "constraints": [],
+          "likely_modules": [
+            "cli",
+            "compatible",
+            "client"
+          ],
+          "query_terms": [
+            "cli"
+          ],
+          "confidence": 0.72
+        },
+        "plan": {
+          "task_type": "symbol_navigation",
+          "objective": "Where is the OpenAI compatible LLM client implemented?",
+          "primary_symbols": [
+            "OpenAI",
+            "LLM"
+          ],
+          "retrieval_scopes": [
+            "cli",
+            "compatible",
+            "client"
+          ],
+          "expansion_depth": 1,
+          "retrieval_strategy": "targeted_lookup",
+          "target_files": [],
+          "required_context": [
+            "symbol_definitions",
+            "file_locations"
+          ],
+          "plan_reasoning": [
+            "navigation query detected"
+          ]
+        },
+        "retrieval_context": {
+          "user_query": "Where is the OpenAI-compatible LLM client implemented?",
+          "active_files": [],
+          "active_symbols": [],
+          "working_memory": [],
+          "previous_failures": [],
+          "previous_queries": [],
+          "retrieval_round": 1,
+          "requested_more_context": false,
+          "followup_requests": []
+        },
         "total_files_considered": 7,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 2.678,
+        "retrieval_time_ms": 2.301,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
@@ -641,7 +1538,8 @@
         ".gitignore",
         "LICENSE",
         "README.md",
-        "README_CN.md"
+        "README_CN.md",
+        "article/00-index.md"
       ],
       "metrics": {
         "hit_at_1": 0.0,
@@ -653,9 +1551,85 @@
       "retrieval_meta": {
         "retrieval_mode": "task_execution",
         "task_type": "targeted_change",
+        "understanding": {
+          "goal": "How are non OpenAI providers supported?",
+          "objective": "How are non OpenAI providers supported?",
+          "entities": [
+            {
+              "name": "OpenAI",
+              "kind": "class",
+              "confidence": 0.9,
+              "source": "camel_case"
+            },
+            {
+              "name": "non",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "providers",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            }
+          ],
+          "constraints": [],
+          "likely_modules": [
+            "non",
+            "providers"
+          ],
+          "query_terms": [],
+          "confidence": 0.56
+        },
+        "plan": {
+          "task_type": "targeted_change",
+          "objective": "How are non OpenAI providers supported?",
+          "primary_symbols": [
+            "OpenAI"
+          ],
+          "retrieval_scopes": [
+            "non",
+            "providers"
+          ],
+          "expansion_depth": 2,
+          "retrieval_strategy": "task_execution",
+          "target_files": [],
+          "required_context": [
+            "active_files",
+            "primary_symbols"
+          ],
+          "plan_reasoning": [
+            "defaulting to focused execution search",
+            "adaptive expansion requested more context"
+          ]
+        },
+        "retrieval_context": {
+          "user_query": "How are non-OpenAI providers supported?",
+          "active_files": [],
+          "active_symbols": [],
+          "working_memory": [],
+          "previous_failures": [],
+          "previous_queries": [],
+          "retrieval_round": 2,
+          "requested_more_context": true,
+          "followup_requests": [
+            {
+              "reason": "low_confidence_initial_retrieval",
+              "additional_scopes": [
+                "non",
+                "providers"
+              ],
+              "missing_symbols": [
+                "OpenAI"
+              ],
+              "requested_files": []
+            }
+          ]
+        },
         "total_files_considered": 8,
-        "total_files_ranked": 8,
-        "retrieval_time_ms": 7.013,
+        "total_files_ranked": 9,
+        "retrieval_time_ms": 3.083,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
@@ -676,16 +1650,16 @@
         "corecoder/agent/core.py"
       ],
       "retrieved_files": [
-        "corecoder/agent/dag/models.py",
-        "corecoder/agent/workflow/orchestrator.py",
-        "corecoder/agent/workflow/scheduler.py",
-        "corecoder/agent/__init__.py",
-        "corecoder/agent/workflow/__init__.py",
+        "corecoder/agent/workflow/executor.py",
         "corecoder/agent/dag/__init__.py",
         "corecoder/codebase/__init__.py",
-        "corecoder/infra/observability.py",
         "tests/test_orchestration.py",
-        "corecoder/codebase/indexing/index.py"
+        "corecoder/agent/workflow/verifier.py",
+        "corecoder/infra/__init__.py",
+        "corecoder/codebase/indexing/__init__.py",
+        "corecoder/agent/dag/memory.py",
+        "corecoder/agent/workflow/orchestrator.py",
+        "corecoder/agent/dag/recovery.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
@@ -697,9 +1671,86 @@
       "retrieval_meta": {
         "retrieval_mode": "targeted_lookup",
         "task_type": "symbol_navigation",
+        "understanding": {
+          "goal": "Where is shadow git checkpointing implemented?",
+          "objective": "Where is shadow git checkpointing implemented?",
+          "entities": [
+            {
+              "name": "shadow",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "git",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "checkpointing",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            }
+          ],
+          "constraints": [],
+          "likely_modules": [
+            "shadow",
+            "git",
+            "checkpointing"
+          ],
+          "query_terms": [
+            "shadow"
+          ],
+          "confidence": 0.62
+        },
+        "plan": {
+          "task_type": "symbol_navigation",
+          "objective": "Where is shadow git checkpointing implemented?",
+          "primary_symbols": [],
+          "retrieval_scopes": [
+            "shadow",
+            "git",
+            "checkpointing"
+          ],
+          "expansion_depth": 2,
+          "retrieval_strategy": "targeted_lookup",
+          "target_files": [],
+          "required_context": [
+            "symbol_definitions",
+            "file_locations"
+          ],
+          "plan_reasoning": [
+            "navigation query detected",
+            "adaptive expansion requested more context"
+          ]
+        },
+        "retrieval_context": {
+          "user_query": "Where is shadow git checkpointing implemented?",
+          "active_files": [],
+          "active_symbols": [],
+          "working_memory": [],
+          "previous_failures": [],
+          "previous_queries": [],
+          "retrieval_round": 2,
+          "requested_more_context": true,
+          "followup_requests": [
+            {
+              "reason": "low_confidence_initial_retrieval",
+              "additional_scopes": [
+                "shadow",
+                "git",
+                "checkpointing"
+              ],
+              "missing_symbols": [],
+              "requested_files": []
+            }
+          ]
+        },
         "total_files_considered": 8,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 3.0,
+        "retrieval_time_ms": 1.001,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
@@ -722,14 +1773,14 @@
       "retrieved_files": [
         "tests/test_retrieval_improvements.py",
         "corecoder/retrieval/task_intent.py",
-        "tests/test_core.py",
-        "corecoder/agent/dag/models.py",
+        "corecoder/codebase/shadow.py",
+        "corecoder/agent/workflow/executor.py",
+        "corecoder/agent/dag/__init__.py",
         "corecoder/agent/workflow/planner.py",
+        "corecoder/codebase/__init__.py",
         "corecoder/retrieval/ranker.py",
-        "corecoder/agent/workflow/orchestrator.py",
-        "corecoder/retrieval/evaluation.py",
-        "corecoder/agent/workflow/scheduler.py",
-        "tests/test_context_orchestrator.py"
+        "tests/test_orchestration.py",
+        "tests/test_session.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
@@ -741,9 +1792,90 @@
       "retrieval_meta": {
         "retrieval_mode": "causal_trace",
         "task_type": "implementation_explanation",
-        "total_files_considered": 8,
+        "understanding": {
+          "goal": "How does task intent analysis classify retrieval requests?",
+          "objective": "How does task intent analysis classify retrieval requests?",
+          "entities": [
+            {
+              "name": "task",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "intent",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "analysis",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "classify",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "retrieval",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            }
+          ],
+          "constraints": [],
+          "likely_modules": [
+            "retrieval",
+            "task",
+            "intent",
+            "analysis",
+            "classify"
+          ],
+          "query_terms": [
+            "retrieval"
+          ],
+          "confidence": 0.78
+        },
+        "plan": {
+          "task_type": "implementation_explanation",
+          "objective": "How does task intent analysis classify retrieval requests?",
+          "primary_symbols": [],
+          "retrieval_scopes": [
+            "retrieval",
+            "task",
+            "intent",
+            "analysis",
+            "classify"
+          ],
+          "expansion_depth": 3,
+          "retrieval_strategy": "causal_trace",
+          "target_files": [],
+          "required_context": [
+            "dependency_paths",
+            "related_symbols"
+          ],
+          "plan_reasoning": [
+            "explanation query detected"
+          ]
+        },
+        "retrieval_context": {
+          "user_query": "How does task intent analysis classify retrieval requests?",
+          "active_files": [],
+          "active_symbols": [],
+          "working_memory": [],
+          "previous_failures": [],
+          "previous_queries": [],
+          "retrieval_round": 1,
+          "requested_more_context": false,
+          "followup_requests": []
+        },
+        "total_files_considered": 7,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 3.0,
+        "retrieval_time_ms": 0.999,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
@@ -764,15 +1896,15 @@
       ],
       "retrieved_files": [
         "tests/test_retrieval_improvements.py",
-        "corecoder/context/orchestrator.py",
-        "corecoder/context/models.py",
+        "corecoder/retrieval/__init__.py",
+        "corecoder/retrieval/repository_graph.py",
         "corecoder/__init__.py",
-        "tests/test_context_orchestrator.py",
-        "corecoder/context/pipeline.py",
-        "corecoder/context/__init__.py",
+        "corecoder/context/retriever.py",
         "corecoder/retrieval/task_intent.py",
-        "corecoder/retrieval/query_planner.py",
-        "corecoder/retrieval/symbol_index.py"
+        "corecoder/retrieval/symbol_index.py",
+        "corecoder/context/models.py",
+        "corecoder/retrieval/dependency_graph.py",
+        "corecoder/retrieval/models.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
@@ -784,9 +1916,74 @@
       "retrieval_meta": {
         "retrieval_mode": "targeted_lookup",
         "task_type": "symbol_navigation",
+        "understanding": {
+          "goal": "Where is the structured retrieval ranker?",
+          "objective": "Where is the structured retrieval ranker?",
+          "entities": [
+            {
+              "name": "structured",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "retrieval",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "ranker",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            }
+          ],
+          "constraints": [],
+          "likely_modules": [
+            "retrieval",
+            "structured",
+            "ranker"
+          ],
+          "query_terms": [
+            "retrieval"
+          ],
+          "confidence": 0.62
+        },
+        "plan": {
+          "task_type": "symbol_navigation",
+          "objective": "Where is the structured retrieval ranker?",
+          "primary_symbols": [],
+          "retrieval_scopes": [
+            "retrieval",
+            "structured",
+            "ranker"
+          ],
+          "expansion_depth": 1,
+          "retrieval_strategy": "targeted_lookup",
+          "target_files": [],
+          "required_context": [
+            "symbol_definitions",
+            "file_locations"
+          ],
+          "plan_reasoning": [
+            "navigation query detected"
+          ]
+        },
+        "retrieval_context": {
+          "user_query": "Where is the structured retrieval ranker?",
+          "active_files": [],
+          "active_symbols": [],
+          "working_memory": [],
+          "previous_failures": [],
+          "previous_queries": [],
+          "retrieval_round": 1,
+          "requested_more_context": false,
+          "followup_requests": []
+        },
         "total_files_considered": 8,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 2.605,
+        "retrieval_time_ms": 1.001,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
@@ -809,29 +2006,120 @@
       ],
       "retrieved_files": [
         "tests/test_retrieval_improvements.py",
+        "corecoder/tools/repo_info.py",
+        "benchmarks/retrieval_report.json",
+        "corecoder/retrieval/repository_graph.py",
+        "corecoder/retrieval/__init__.py",
+        "corecoder/__init__.py",
+        "corecoder/context/retriever.py",
         "corecoder/retrieval/task_intent.py",
         "corecoder/retrieval/ranker.py",
-        "corecoder/retrieval/query_planner.py",
-        "corecoder/retrieval/symbol_index.py",
-        "corecoder/context/models.py",
-        "corecoder/__init__.py",
-        "corecoder/retrieval/models.py",
-        "corecoder/context/retriever.py",
-        "corecoder/retrieval/__init__.py"
+        "corecoder/retrieval/symbol_index.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
         "hit_at_3": 0.0,
-        "hit_at_5": 0.0,
-        "recall_at_5": 0.0,
-        "mrr": 0.1111111111111111
+        "hit_at_5": 1.0,
+        "recall_at_5": 0.3333333333333333,
+        "mrr": 0.25
       },
       "retrieval_meta": {
         "retrieval_mode": "task_execution",
         "task_type": "targeted_change",
-        "total_files_considered": 9,
+        "understanding": {
+          "goal": "How are repository dependencies expanded during retrieval?",
+          "objective": "How are repository dependencies expanded during retrieval?",
+          "entities": [
+            {
+              "name": "repository",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "dependencies",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "expanded",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "retrieval",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "dependency",
+              "kind": "module",
+              "confidence": 0.6,
+              "source": "canonical_term"
+            },
+            {
+              "name": "repo",
+              "kind": "module",
+              "confidence": 0.6,
+              "source": "canonical_term"
+            }
+          ],
+          "constraints": [],
+          "likely_modules": [
+            "retrieval",
+            "dependency",
+            "repo",
+            "repository",
+            "dependencies",
+            "expanded"
+          ],
+          "query_terms": [
+            "retrieval",
+            "dependency",
+            "repo"
+          ],
+          "confidence": 0.87
+        },
+        "plan": {
+          "task_type": "targeted_change",
+          "objective": "How are repository dependencies expanded during retrieval?",
+          "primary_symbols": [],
+          "retrieval_scopes": [
+            "retrieval",
+            "dependency",
+            "repo",
+            "repository",
+            "dependencies",
+            "expanded"
+          ],
+          "expansion_depth": 1,
+          "retrieval_strategy": "task_execution",
+          "target_files": [],
+          "required_context": [
+            "active_files",
+            "primary_symbols"
+          ],
+          "plan_reasoning": [
+            "defaulting to focused execution search"
+          ]
+        },
+        "retrieval_context": {
+          "user_query": "How are repository dependencies expanded during retrieval?",
+          "active_files": [],
+          "active_symbols": [],
+          "working_memory": [],
+          "previous_failures": [],
+          "previous_queries": [],
+          "retrieval_round": 1,
+          "requested_more_context": false,
+          "followup_requests": []
+        },
+        "total_files_considered": 10,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 2.925,
+        "retrieval_time_ms": 1.0,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
@@ -851,16 +2139,16 @@
         "corecoder/retrieval/symbol_index.py"
       ],
       "retrieved_files": [
-        "tests/test_core.py",
         "corecoder/agent/workflow/planner.py",
+        "corecoder/codebase/__init__.py",
         "corecoder/retrieval/ranker.py",
+        "tests/test_session.py",
+        "corecoder/codebase/indexing/__init__.py",
+        "corecoder/context/models.py",
+        "corecoder/retrieval/repository_graph.py",
         "corecoder/retrieval/evaluation.py",
         "benchmarks/run_retrieval_benchmark.py",
-        "tests/test_context_orchestrator.py",
-        "corecoder/context/layers.py",
-        "tests/test_session.py",
-        "corecoder/context/policies.py",
-        "corecoder/codebase/__init__.py"
+        "corecoder/context/layers.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
@@ -872,9 +2160,86 @@
       "retrieval_meta": {
         "retrieval_mode": "targeted_lookup",
         "task_type": "symbol_navigation",
+        "understanding": {
+          "goal": "Where is symbol ownership routing implemented?",
+          "objective": "Where is symbol ownership routing implemented?",
+          "entities": [
+            {
+              "name": "symbol",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "ownership",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "routing",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            }
+          ],
+          "constraints": [],
+          "likely_modules": [
+            "symbol",
+            "ownership",
+            "routing"
+          ],
+          "query_terms": [
+            "symbol"
+          ],
+          "confidence": 0.62
+        },
+        "plan": {
+          "task_type": "symbol_navigation",
+          "objective": "Where is symbol ownership routing implemented?",
+          "primary_symbols": [],
+          "retrieval_scopes": [
+            "symbol",
+            "ownership",
+            "routing"
+          ],
+          "expansion_depth": 2,
+          "retrieval_strategy": "targeted_lookup",
+          "target_files": [],
+          "required_context": [
+            "symbol_definitions",
+            "file_locations"
+          ],
+          "plan_reasoning": [
+            "navigation query detected",
+            "adaptive expansion requested more context"
+          ]
+        },
+        "retrieval_context": {
+          "user_query": "Where is symbol ownership routing implemented?",
+          "active_files": [],
+          "active_symbols": [],
+          "working_memory": [],
+          "previous_failures": [],
+          "previous_queries": [],
+          "retrieval_round": 2,
+          "requested_more_context": true,
+          "followup_requests": [
+            {
+              "reason": "low_confidence_initial_retrieval",
+              "additional_scopes": [
+                "symbol",
+                "ownership",
+                "routing"
+              ],
+              "missing_symbols": [],
+              "requested_files": []
+            }
+          ]
+        },
         "total_files_considered": 8,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 3.0,
+        "retrieval_time_ms": 2.0,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
@@ -895,15 +2260,15 @@
       ],
       "retrieved_files": [
         "tests/test_retrieval_improvements.py",
-        "corecoder/cli.py",
-        "corecoder/retrieval/models.py",
-        "corecoder/context/retriever.py",
         "corecoder/retrieval/__init__.py",
-        "corecoder/codebase/indexing/index.py",
         "corecoder/context/__init__.py",
+        "corecoder/context/retriever.py",
+        "corecoder/codebase/indexing/index.py",
+        "corecoder/retrieval/models.py",
+        "corecoder/retrieval/repository_graph.py",
+        "corecoder/__init__.py",
         "corecoder/retrieval/task_intent.py",
-        "corecoder/retrieval/ranker.py",
-        "corecoder/retrieval/query_planner.py"
+        "corecoder/retrieval/ranker.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
@@ -915,9 +2280,66 @@
       "retrieval_meta": {
         "retrieval_mode": "task_execution",
         "task_type": "targeted_change",
-        "total_files_considered": 15,
+        "understanding": {
+          "goal": "How are file summaries generated for retrieval?",
+          "objective": "How are file summaries generated for retrieval?",
+          "entities": [
+            {
+              "name": "summaries",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "retrieval",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            }
+          ],
+          "constraints": [],
+          "likely_modules": [
+            "retrieval",
+            "summaries"
+          ],
+          "query_terms": [
+            "retrieval"
+          ],
+          "confidence": 0.54
+        },
+        "plan": {
+          "task_type": "targeted_change",
+          "objective": "How are file summaries generated for retrieval?",
+          "primary_symbols": [],
+          "retrieval_scopes": [
+            "retrieval",
+            "summaries"
+          ],
+          "expansion_depth": 1,
+          "retrieval_strategy": "task_execution",
+          "target_files": [],
+          "required_context": [
+            "active_files",
+            "primary_symbols"
+          ],
+          "plan_reasoning": [
+            "defaulting to focused execution search"
+          ]
+        },
+        "retrieval_context": {
+          "user_query": "How are file summaries generated for retrieval?",
+          "active_files": [],
+          "active_symbols": [],
+          "working_memory": [],
+          "previous_failures": [],
+          "previous_queries": [],
+          "retrieval_round": 1,
+          "requested_more_context": false,
+          "followup_requests": []
+        },
+        "total_files_considered": 8,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 3.999,
+        "retrieval_time_ms": 0.0,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
@@ -939,15 +2361,15 @@
       ],
       "retrieved_files": [
         "tests/test_context_orchestrator.py",
-        "corecoder/agent/dag/models.py",
-        "corecoder/agent/workflow/planner.py",
-        "corecoder/agent/dag/graph.py",
+        "corecoder/agent/workflow/__init__.py",
+        "corecoder/infra/observability.py",
         "corecoder/agent/workflow/verifier.py",
-        "corecoder/agent/workflow/executor.py",
-        "corecoder/agent/dag/memory.py",
+        "corecoder/agent/dag/models.py",
         "corecoder/infra/storage.py",
-        "corecoder/__init__.py",
-        "corecoder/agent/dag/__init__.py"
+        "corecoder/agent/workflow/executor.py",
+        "corecoder/agent/dag/__init__.py",
+        "corecoder/agent/workflow/planner.py",
+        "corecoder/__init__.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
@@ -959,9 +2381,67 @@
       "retrieval_meta": {
         "retrieval_mode": "targeted_lookup",
         "task_type": "symbol_navigation",
+        "understanding": {
+          "goal": "Where is the context orchestrator implemented?",
+          "objective": "Where is the context orchestrator implemented?",
+          "entities": [
+            {
+              "name": "context",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "orchestrator",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            }
+          ],
+          "constraints": [],
+          "likely_modules": [
+            "context",
+            "orchestrator"
+          ],
+          "query_terms": [
+            "context",
+            "orchestrator"
+          ],
+          "confidence": 0.5700000000000001
+        },
+        "plan": {
+          "task_type": "symbol_navigation",
+          "objective": "Where is the context orchestrator implemented?",
+          "primary_symbols": [],
+          "retrieval_scopes": [
+            "context",
+            "orchestrator"
+          ],
+          "expansion_depth": 1,
+          "retrieval_strategy": "targeted_lookup",
+          "target_files": [],
+          "required_context": [
+            "symbol_definitions",
+            "file_locations"
+          ],
+          "plan_reasoning": [
+            "navigation query detected"
+          ]
+        },
+        "retrieval_context": {
+          "user_query": "Where is the context orchestrator implemented?",
+          "active_files": [],
+          "active_symbols": [],
+          "working_memory": [],
+          "previous_failures": [],
+          "previous_queries": [],
+          "retrieval_round": 1,
+          "requested_more_context": false,
+          "followup_requests": []
+        },
         "total_files_considered": 5,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 1.0,
+        "retrieval_time_ms": 0.999,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
@@ -983,15 +2463,15 @@
       ],
       "retrieved_files": [
         "tests/test_orchestration.py",
-        "corecoder/agent/dag/models.py",
-        "tests/test_core.py",
+        "corecoder/codebase/shadow.py",
+        "corecoder/agent/workflow/executor.py",
+        "corecoder/agent/dag/__init__.py",
         "corecoder/agent/workflow/planner.py",
+        "corecoder/codebase/__init__.py",
         "corecoder/retrieval/ranker.py",
-        "corecoder/agent/workflow/orchestrator.py",
-        "corecoder/retrieval/evaluation.py",
-        "tests/test_context_orchestrator.py",
-        "corecoder/agent/__init__.py",
-        "corecoder/agent/workflow/__init__.py"
+        "tests/test_session.py",
+        "corecoder/retrieval/symbol_index.py",
+        "corecoder/infra/__init__.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
@@ -1003,9 +2483,90 @@
       "retrieval_meta": {
         "retrieval_mode": "causal_trace",
         "task_type": "implementation_explanation",
-        "total_files_considered": 5,
+        "understanding": {
+          "goal": "How does the orchestration scheduler decide what task to run next?",
+          "objective": "How does the orchestration scheduler decide what task to run next?",
+          "entities": [
+            {
+              "name": "orchestration",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "scheduler",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "decide",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "task",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "run",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            }
+          ],
+          "constraints": [],
+          "likely_modules": [
+            "scheduler",
+            "orchestration",
+            "decide",
+            "task",
+            "run"
+          ],
+          "query_terms": [
+            "scheduler"
+          ],
+          "confidence": 0.78
+        },
+        "plan": {
+          "task_type": "implementation_explanation",
+          "objective": "How does the orchestration scheduler decide what task to run next?",
+          "primary_symbols": [],
+          "retrieval_scopes": [
+            "scheduler",
+            "orchestration",
+            "decide",
+            "task",
+            "run"
+          ],
+          "expansion_depth": 3,
+          "retrieval_strategy": "causal_trace",
+          "target_files": [],
+          "required_context": [
+            "dependency_paths",
+            "related_symbols"
+          ],
+          "plan_reasoning": [
+            "explanation query detected"
+          ]
+        },
+        "retrieval_context": {
+          "user_query": "How does the orchestration scheduler decide what task to run next?",
+          "active_files": [],
+          "active_symbols": [],
+          "working_memory": [],
+          "previous_failures": [],
+          "previous_queries": [],
+          "retrieval_round": 1,
+          "requested_more_context": false,
+          "followup_requests": []
+        },
+        "total_files_considered": 8,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 2.0,
+        "retrieval_time_ms": 1.0,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
@@ -1044,9 +2605,75 @@
       "retrieval_meta": {
         "retrieval_mode": "targeted_lookup",
         "task_type": "symbol_navigation",
+        "understanding": {
+          "goal": "Where is execution verification implemented?",
+          "objective": "Where is execution verification implemented?",
+          "entities": [
+            {
+              "name": "execution",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "verification",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            }
+          ],
+          "constraints": [],
+          "likely_modules": [
+            "execution",
+            "verification"
+          ],
+          "query_terms": [],
+          "confidence": 0.51
+        },
+        "plan": {
+          "task_type": "symbol_navigation",
+          "objective": "Where is execution verification implemented?",
+          "primary_symbols": [],
+          "retrieval_scopes": [
+            "execution",
+            "verification"
+          ],
+          "expansion_depth": 2,
+          "retrieval_strategy": "targeted_lookup",
+          "target_files": [],
+          "required_context": [
+            "symbol_definitions",
+            "file_locations"
+          ],
+          "plan_reasoning": [
+            "navigation query detected",
+            "adaptive expansion requested more context"
+          ]
+        },
+        "retrieval_context": {
+          "user_query": "Where is execution verification implemented?",
+          "active_files": [],
+          "active_symbols": [],
+          "working_memory": [],
+          "previous_failures": [],
+          "previous_queries": [],
+          "retrieval_round": 2,
+          "requested_more_context": true,
+          "followup_requests": [
+            {
+              "reason": "low_confidence_initial_retrieval",
+              "additional_scopes": [
+                "execution",
+                "verification"
+              ],
+              "missing_symbols": [],
+              "requested_files": []
+            }
+          ]
+        },
         "total_files_considered": 8,
         "total_files_ranked": 8,
-        "retrieval_time_ms": 3.687,
+        "retrieval_time_ms": 0.999,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
@@ -1068,30 +2695,116 @@
         "corecoder/agent/dag/models.py"
       ],
       "retrieved_files": [
-        "tests/test_core.py",
-        "corecoder/agent/dag/models.py",
-        "corecoder/agent/runtime/state.py",
+        "corecoder/codebase/shadow.py",
+        "corecoder/agent/workflow/executor.py",
+        "corecoder/agent/dag/__init__.py",
+        "corecoder/codebase/__init__.py",
+        "tests/test_orchestration.py",
         "corecoder/retrieval/ranker.py",
-        "corecoder/agent/workflow/orchestrator.py",
-        "corecoder/retrieval/evaluation.py",
-        "corecoder/agent/workflow/scheduler.py",
-        "benchmarks/run_retrieval_benchmark.py",
-        "tests/test_context_orchestrator.py",
-        "corecoder/agent/__init__.py"
+        "tests/test_session.py",
+        "corecoder/agent/workflow/verifier.py",
+        "corecoder/infra/__init__.py",
+        "corecoder/retrieval/symbol_index.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
-        "hit_at_3": 1.0,
-        "hit_at_5": 1.0,
-        "recall_at_5": 0.3333333333333333,
-        "mrr": 0.5
+        "hit_at_3": 0.0,
+        "hit_at_5": 0.0,
+        "recall_at_5": 0.0,
+        "mrr": 0.0
       },
       "retrieval_meta": {
         "retrieval_mode": "causal_trace",
         "task_type": "implementation_explanation",
-        "total_files_considered": 5,
+        "understanding": {
+          "goal": "How does the planner build task graphs?",
+          "objective": "How does the planner build task graphs?",
+          "entities": [
+            {
+              "name": "planner",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "task",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "graphs",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "graph",
+              "kind": "module",
+              "confidence": 0.6,
+              "source": "canonical_term"
+            }
+          ],
+          "constraints": [],
+          "likely_modules": [
+            "planner",
+            "graph",
+            "task",
+            "graphs"
+          ],
+          "query_terms": [
+            "planner",
+            "graph"
+          ],
+          "confidence": 0.73
+        },
+        "plan": {
+          "task_type": "implementation_explanation",
+          "objective": "How does the planner build task graphs?",
+          "primary_symbols": [],
+          "retrieval_scopes": [
+            "planner",
+            "graph",
+            "task",
+            "graphs"
+          ],
+          "expansion_depth": 4,
+          "retrieval_strategy": "causal_trace",
+          "target_files": [],
+          "required_context": [
+            "dependency_paths",
+            "related_symbols"
+          ],
+          "plan_reasoning": [
+            "explanation query detected",
+            "adaptive expansion requested more context"
+          ]
+        },
+        "retrieval_context": {
+          "user_query": "How does the planner build task graphs?",
+          "active_files": [],
+          "active_symbols": [],
+          "working_memory": [],
+          "previous_failures": [],
+          "previous_queries": [],
+          "retrieval_round": 2,
+          "requested_more_context": true,
+          "followup_requests": [
+            {
+              "reason": "low_confidence_initial_retrieval",
+              "additional_scopes": [
+                "planner",
+                "graph",
+                "task"
+              ],
+              "missing_symbols": [],
+              "requested_files": []
+            }
+          ]
+        },
+        "total_files_considered": 7,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 3.695,
+        "retrieval_time_ms": 2.669,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
@@ -1112,11 +2825,11 @@
       ],
       "retrieved_files": [
         "tests/test_session.py",
-        "tests/test_core.py",
+        "corecoder/context/__init__.py",
+        "corecoder/__init__.py",
         "corecoder/agent/runtime/__init__.py",
         "corecoder/agent/runtime/assembler.py",
-        "corecoder/__init__.py",
-        "corecoder/context/__init__.py",
+        "tests/test_core.py",
         "corecoder/agent/runtime/state.py",
         "corecoder/context/session.py",
         "corecoder/agent/dag/models.py",
@@ -1132,9 +2845,83 @@
       "retrieval_meta": {
         "retrieval_mode": "targeted_lookup",
         "task_type": "symbol_navigation",
+        "understanding": {
+          "goal": "Where is the state centric session model defined?",
+          "objective": "Where is the state centric session model defined?",
+          "entities": [
+            {
+              "name": "state",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "centric",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "session",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "model",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            }
+          ],
+          "constraints": [],
+          "likely_modules": [
+            "session",
+            "state",
+            "centric",
+            "model"
+          ],
+          "query_terms": [
+            "session",
+            "state"
+          ],
+          "confidence": 0.73
+        },
+        "plan": {
+          "task_type": "symbol_navigation",
+          "objective": "Where is the state centric session model defined?",
+          "primary_symbols": [],
+          "retrieval_scopes": [
+            "session",
+            "state",
+            "centric",
+            "model"
+          ],
+          "expansion_depth": 1,
+          "retrieval_strategy": "targeted_lookup",
+          "target_files": [],
+          "required_context": [
+            "symbol_definitions",
+            "file_locations"
+          ],
+          "plan_reasoning": [
+            "navigation query detected"
+          ]
+        },
+        "retrieval_context": {
+          "user_query": "Where is the state-centric session model defined?",
+          "active_files": [],
+          "active_symbols": [],
+          "working_memory": [],
+          "previous_failures": [],
+          "previous_queries": [],
+          "retrieval_round": 1,
+          "requested_more_context": false,
+          "followup_requests": []
+        },
         "total_files_considered": 7,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 2.0,
+        "retrieval_time_ms": 0.0,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
@@ -1156,28 +2943,101 @@
       "retrieved_files": [
         "corecoder/tools/glob_tool.py",
         "tests/test_tools.py",
-        "corecoder/tools/__init__.py",
-        "corecoder/__init__.py",
         "corecoder/tools/agent.py",
         "corecoder/tools/base.py",
         "corecoder/tools/bash.py",
         "corecoder/tools/edit.py",
         "corecoder/tools/grep.py",
-        "corecoder/tools/read.py"
+        "corecoder/tools/read.py",
+        "corecoder/tools/repo_info.py",
+        "corecoder/tools/write.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
         "hit_at_3": 0.0,
         "hit_at_5": 0.0,
         "recall_at_5": 0.0,
-        "mrr": 0.125
+        "mrr": 0.16666666666666666
       },
       "retrieval_meta": {
         "retrieval_mode": "targeted_lookup",
         "task_type": "symbol_navigation",
-        "total_files_considered": 15,
+        "understanding": {
+          "goal": "Where is the search and replace file editing tool?",
+          "objective": "Where is the search and replace file editing tool?",
+          "entities": [
+            {
+              "name": "search",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "replace",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "editing",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "tool",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            }
+          ],
+          "constraints": [],
+          "likely_modules": [
+            "tool",
+            "search",
+            "replace",
+            "editing"
+          ],
+          "query_terms": [
+            "tool"
+          ],
+          "confidence": 0.7000000000000001
+        },
+        "plan": {
+          "task_type": "symbol_navigation",
+          "objective": "Where is the search and replace file editing tool?",
+          "primary_symbols": [],
+          "retrieval_scopes": [
+            "tool",
+            "search",
+            "replace",
+            "editing"
+          ],
+          "expansion_depth": 1,
+          "retrieval_strategy": "targeted_lookup",
+          "target_files": [],
+          "required_context": [
+            "symbol_definitions",
+            "file_locations"
+          ],
+          "plan_reasoning": [
+            "navigation query detected"
+          ]
+        },
+        "retrieval_context": {
+          "user_query": "Where is the search-and-replace file editing tool?",
+          "active_files": [],
+          "active_symbols": [],
+          "working_memory": [],
+          "previous_failures": [],
+          "previous_queries": [],
+          "retrieval_round": 1,
+          "requested_more_context": false,
+          "followup_requests": []
+        },
+        "total_files_considered": 14,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 3.0,
+        "retrieval_time_ms": 0.317,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
@@ -1199,29 +3059,104 @@
       ],
       "retrieved_files": [
         "corecoder/tools/read.py",
+        "corecoder/tools/write.py",
         "tests/test_tools.py",
-        "corecoder/tools/__init__.py",
-        "corecoder/__init__.py",
+        "corecoder/tools/glob_tool.py",
         "corecoder/tools/agent.py",
         "corecoder/tools/bash.py",
         "corecoder/tools/edit.py",
-        "corecoder/tools/glob_tool.py",
         "corecoder/tools/grep.py",
-        "corecoder/tools/repo_info.py"
+        "corecoder/tools/repo_info.py",
+        "corecoder/tools/base.py"
       ],
       "metrics": {
         "hit_at_1": 1.0,
         "hit_at_3": 1.0,
         "hit_at_5": 1.0,
-        "recall_at_5": 0.5,
+        "recall_at_5": 1.0,
         "mrr": 1.0
       },
       "retrieval_meta": {
         "retrieval_mode": "task_execution",
         "task_type": "targeted_change",
-        "total_files_considered": 14,
+        "understanding": {
+          "goal": "Where are the file read and write tools implemented?",
+          "objective": "Where are the file read and write tools implemented?",
+          "entities": [
+            {
+              "name": "read",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "tools",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "tool",
+              "kind": "module",
+              "confidence": 0.6,
+              "source": "canonical_term"
+            },
+            {
+              "name": "write",
+              "kind": "module",
+              "confidence": 0.6,
+              "source": "canonical_term"
+            }
+          ],
+          "constraints": [],
+          "likely_modules": [
+            "tool",
+            "read",
+            "write",
+            "tools"
+          ],
+          "query_terms": [
+            "tool",
+            "read",
+            "write"
+          ],
+          "confidence": 0.76
+        },
+        "plan": {
+          "task_type": "targeted_change",
+          "objective": "Where are the file read and write tools implemented?",
+          "primary_symbols": [],
+          "retrieval_scopes": [
+            "tool",
+            "read",
+            "write",
+            "tools"
+          ],
+          "expansion_depth": 1,
+          "retrieval_strategy": "task_execution",
+          "target_files": [],
+          "required_context": [
+            "active_files",
+            "primary_symbols"
+          ],
+          "plan_reasoning": [
+            "defaulting to focused execution search"
+          ]
+        },
+        "retrieval_context": {
+          "user_query": "Where are the file read and write tools implemented?",
+          "active_files": [],
+          "active_symbols": [],
+          "working_memory": [],
+          "previous_failures": [],
+          "previous_queries": [],
+          "retrieval_round": 1,
+          "requested_more_context": false,
+          "followup_requests": []
+        },
+        "total_files_considered": 18,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 3.0,
+        "retrieval_time_ms": 1.006,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
@@ -1244,28 +3179,101 @@
       "retrieved_files": [
         "corecoder/tools/glob_tool.py",
         "tests/test_tools.py",
-        "corecoder/tools/__init__.py",
-        "corecoder/__init__.py",
         "corecoder/tools/agent.py",
         "corecoder/tools/base.py",
         "corecoder/tools/bash.py",
         "corecoder/tools/edit.py",
         "corecoder/tools/grep.py",
-        "corecoder/tools/read.py"
+        "corecoder/tools/read.py",
+        "corecoder/tools/repo_info.py",
+        "corecoder/tools/write.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
-        "hit_at_3": 0.0,
+        "hit_at_3": 1.0,
         "hit_at_5": 1.0,
-        "recall_at_5": 0.5,
-        "mrr": 0.2
+        "recall_at_5": 1.0,
+        "mrr": 0.3333333333333333
       },
       "retrieval_meta": {
         "retrieval_mode": "task_execution",
         "task_type": "targeted_change",
-        "total_files_considered": 16,
+        "understanding": {
+          "goal": "How are sub agents exposed as a tool?",
+          "objective": "How are sub agents exposed as a tool?",
+          "entities": [
+            {
+              "name": "sub",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "agents",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "exposed",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "tool",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            }
+          ],
+          "constraints": [],
+          "likely_modules": [
+            "tool",
+            "sub",
+            "agents",
+            "exposed"
+          ],
+          "query_terms": [
+            "tool"
+          ],
+          "confidence": 0.7000000000000001
+        },
+        "plan": {
+          "task_type": "targeted_change",
+          "objective": "How are sub agents exposed as a tool?",
+          "primary_symbols": [],
+          "retrieval_scopes": [
+            "tool",
+            "sub",
+            "agents",
+            "exposed"
+          ],
+          "expansion_depth": 1,
+          "retrieval_strategy": "task_execution",
+          "target_files": [],
+          "required_context": [
+            "active_files",
+            "primary_symbols"
+          ],
+          "plan_reasoning": [
+            "defaulting to focused execution search"
+          ]
+        },
+        "retrieval_context": {
+          "user_query": "How are sub-agents exposed as a tool?",
+          "active_files": [],
+          "active_symbols": [],
+          "working_memory": [],
+          "previous_failures": [],
+          "previous_queries": [],
+          "retrieval_round": 1,
+          "requested_more_context": false,
+          "followup_requests": []
+        },
+        "total_files_considered": 15,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 3.0,
+        "retrieval_time_ms": 1.001,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
@@ -1286,15 +3294,15 @@
         "corecoder/cli.py"
       ],
       "retrieved_files": [
-        "corecoder/cli.py",
-        "tests/test_core.py",
-        "corecoder/retrieval/ranker.py",
-        "corecoder/agent/workflow/orchestrator.py",
-        "corecoder/agent/workflow/scheduler.py",
-        "tests/test_context_orchestrator.py",
-        "corecoder/agent/workflow/__init__.py",
-        "tests/test_litellm.py",
+        "corecoder/config.py",
+        "corecoder/agent/dag/__init__.py",
+        "tests/test_orchestration.py",
         "tests/test_session.py",
+        "corecoder/retrieval/ranker.py",
+        "corecoder/infra/__init__.py",
+        "tests/test_tools.py",
+        "corecoder/retrieval/repository_graph.py",
+        "corecoder/agent/workflow/orchestrator.py",
         "corecoder/context/layers.py"
       ],
       "metrics": {
@@ -1307,9 +3315,90 @@
       "retrieval_meta": {
         "retrieval_mode": "causal_trace",
         "task_type": "implementation_explanation",
+        "understanding": {
+          "goal": "How does configuration load from env and dotenv files?",
+          "objective": "How does configuration load from env and dotenv files?",
+          "entities": [
+            {
+              "name": "configuration",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "load",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "env",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "dotenv",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "config",
+              "kind": "module",
+              "confidence": 0.6,
+              "source": "canonical_term"
+            }
+          ],
+          "constraints": [],
+          "likely_modules": [
+            "config",
+            "configuration",
+            "load",
+            "env",
+            "dotenv"
+          ],
+          "query_terms": [
+            "config"
+          ],
+          "confidence": 0.78
+        },
+        "plan": {
+          "task_type": "implementation_explanation",
+          "objective": "How does configuration load from env and dotenv files?",
+          "primary_symbols": [],
+          "retrieval_scopes": [
+            "config",
+            "configuration",
+            "load",
+            "env",
+            "dotenv"
+          ],
+          "expansion_depth": 3,
+          "retrieval_strategy": "causal_trace",
+          "target_files": [],
+          "required_context": [
+            "dependency_paths",
+            "related_symbols"
+          ],
+          "plan_reasoning": [
+            "explanation query detected"
+          ]
+        },
+        "retrieval_context": {
+          "user_query": "How does configuration load from env and dotenv files?",
+          "active_files": [],
+          "active_symbols": [],
+          "working_memory": [],
+          "previous_failures": [],
+          "previous_queries": [],
+          "retrieval_round": 1,
+          "requested_more_context": false,
+          "followup_requests": []
+        },
         "total_files_considered": 8,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 1.939,
+        "retrieval_time_ms": 1.002,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
@@ -1330,30 +3419,104 @@
         "corecoder/retrieval/models.py"
       ],
       "retrieved_files": [
+        "corecoder/tools/repo_info.py",
         "corecoder/retrieval/repository_graph.py",
-        "corecoder/retrieval/ranker.py",
-        "corecoder/retrieval/models.py",
-        "tests/test_retrieval_improvements.py",
-        "corecoder/context/retriever.py",
-        "corecoder/retrieval/__init__.py",
-        "corecoder/agent/dag/models.py",
-        "corecoder/agent/workflow/planner.py",
         "corecoder/agent/workflow/orchestrator.py",
-        "corecoder/agent/dag/__init__.py"
+        "corecoder/agent/dag/models.py",
+        "corecoder/agent/dag/__init__.py",
+        "corecoder/agent/workflow/planner.py",
+        "corecoder/agent/workflow/scheduler.py",
+        "tests/test_orchestration.py",
+        "corecoder/infra/viz.py",
+        "corecoder/retrieval/__init__.py"
       ],
       "metrics": {
-        "hit_at_1": 1.0,
+        "hit_at_1": 0.0,
         "hit_at_3": 1.0,
         "hit_at_5": 1.0,
-        "recall_at_5": 1.0,
-        "mrr": 1.0
+        "recall_at_5": 0.5,
+        "mrr": 0.5
       },
       "retrieval_meta": {
         "retrieval_mode": "targeted_lookup",
         "task_type": "symbol_navigation",
-        "total_files_considered": 8,
+        "understanding": {
+          "goal": "Where is the repository graph abstraction implemented?",
+          "objective": "Where is the repository graph abstraction implemented?",
+          "entities": [
+            {
+              "name": "repository",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "graph",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "abstraction",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "repo",
+              "kind": "module",
+              "confidence": 0.6,
+              "source": "canonical_term"
+            }
+          ],
+          "constraints": [],
+          "likely_modules": [
+            "graph",
+            "repo",
+            "repository",
+            "abstraction"
+          ],
+          "query_terms": [
+            "graph",
+            "repo"
+          ],
+          "confidence": 0.73
+        },
+        "plan": {
+          "task_type": "symbol_navigation",
+          "objective": "Where is the repository graph abstraction implemented?",
+          "primary_symbols": [],
+          "retrieval_scopes": [
+            "graph",
+            "repo",
+            "repository",
+            "abstraction"
+          ],
+          "expansion_depth": 1,
+          "retrieval_strategy": "targeted_lookup",
+          "target_files": [],
+          "required_context": [
+            "symbol_definitions",
+            "file_locations"
+          ],
+          "plan_reasoning": [
+            "navigation query detected"
+          ]
+        },
+        "retrieval_context": {
+          "user_query": "Where is the repository graph abstraction implemented?",
+          "active_files": [],
+          "active_symbols": [],
+          "working_memory": [],
+          "previous_failures": [],
+          "previous_queries": [],
+          "retrieval_round": 1,
+          "requested_more_context": false,
+          "followup_requests": []
+        },
+        "total_files_considered": 5,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 1.591,
+        "retrieval_time_ms": 1.0,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
@@ -1375,29 +3538,78 @@
       ],
       "retrieved_files": [
         "tests/test_retrieval_improvements.py",
+        "corecoder/retrieval/__init__.py",
+        "corecoder/retrieval/repository_graph.py",
+        "corecoder/__init__.py",
+        "corecoder/context/retriever.py",
         "corecoder/retrieval/task_intent.py",
         "corecoder/retrieval/ranker.py",
-        "corecoder/retrieval/query_planner.py",
         "corecoder/retrieval/symbol_index.py",
         "corecoder/context/models.py",
-        "corecoder/__init__.py",
-        "corecoder/retrieval/models.py",
-        "corecoder/context/retriever.py",
-        "corecoder/retrieval/__init__.py"
+        "corecoder/retrieval/dependency_graph.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
         "hit_at_3": 0.0,
         "hit_at_5": 0.0,
         "recall_at_5": 0.0,
-        "mrr": 0.125
+        "mrr": 0.0
       },
       "retrieval_meta": {
         "retrieval_mode": "task_execution",
         "task_type": "targeted_change",
-        "total_files_considered": 8,
+        "understanding": {
+          "goal": "How is the retrieval plan generated?",
+          "objective": "How is the retrieval plan generated?",
+          "entities": [
+            {
+              "name": "retrieval",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            }
+          ],
+          "constraints": [],
+          "likely_modules": [
+            "retrieval"
+          ],
+          "query_terms": [
+            "retrieval"
+          ],
+          "confidence": 0.45999999999999996
+        },
+        "plan": {
+          "task_type": "targeted_change",
+          "objective": "How is the retrieval plan generated?",
+          "primary_symbols": [],
+          "retrieval_scopes": [
+            "retrieval"
+          ],
+          "expansion_depth": 1,
+          "retrieval_strategy": "task_execution",
+          "target_files": [],
+          "required_context": [
+            "active_files",
+            "primary_symbols"
+          ],
+          "plan_reasoning": [
+            "defaulting to focused execution search"
+          ]
+        },
+        "retrieval_context": {
+          "user_query": "How is the retrieval plan generated?",
+          "active_files": [],
+          "active_symbols": [],
+          "working_memory": [],
+          "previous_failures": [],
+          "previous_queries": [],
+          "retrieval_round": 1,
+          "requested_more_context": false,
+          "followup_requests": []
+        },
+        "total_files_considered": 7,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 1.994,
+        "retrieval_time_ms": 0.0,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
@@ -1418,16 +3630,16 @@
         "corecoder/retrieval/evaluation.py"
       ],
       "retrieved_files": [
-        "benchmarks/run_retrieval_benchmark.py",
         "tests/test_retrieval_improvements.py",
-        "corecoder/codebase/indexing/index.py",
+        "corecoder/retrieval/__init__.py",
+        "corecoder/retrieval/repository_graph.py",
+        "corecoder/__init__.py",
         "corecoder/context/retriever.py",
-        "corecoder/context/models.py",
         "corecoder/retrieval/task_intent.py",
         "corecoder/retrieval/ranker.py",
-        "corecoder/retrieval/query_planner.py",
         "corecoder/retrieval/symbol_index.py",
-        "corecoder/__init__.py"
+        "corecoder/context/models.py",
+        "corecoder/retrieval/dependency_graph.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
@@ -1439,9 +3651,74 @@
       "retrieval_meta": {
         "retrieval_mode": "task_execution",
         "task_type": "targeted_change",
-        "total_files_considered": 8,
+        "understanding": {
+          "goal": "Where are retrieval metrics like MRR and Recall@K defined?",
+          "objective": "Where are retrieval metrics like MRR and Recall@K defined?",
+          "entities": [
+            {
+              "name": "MRR",
+              "kind": "class",
+              "confidence": 0.9,
+              "source": "camel_case"
+            },
+            {
+              "name": "retrieval",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "metrics",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            }
+          ],
+          "constraints": [],
+          "likely_modules": [
+            "retrieval",
+            "metrics"
+          ],
+          "query_terms": [
+            "retrieval"
+          ],
+          "confidence": 0.5900000000000001
+        },
+        "plan": {
+          "task_type": "targeted_change",
+          "objective": "Where are retrieval metrics like MRR and Recall@K defined?",
+          "primary_symbols": [
+            "MRR"
+          ],
+          "retrieval_scopes": [
+            "retrieval",
+            "metrics"
+          ],
+          "expansion_depth": 1,
+          "retrieval_strategy": "task_execution",
+          "target_files": [],
+          "required_context": [
+            "active_files",
+            "primary_symbols"
+          ],
+          "plan_reasoning": [
+            "defaulting to focused execution search"
+          ]
+        },
+        "retrieval_context": {
+          "user_query": "Where are retrieval metrics like MRR and Recall@K defined?",
+          "active_files": [],
+          "active_symbols": [],
+          "working_memory": [],
+          "previous_failures": [],
+          "previous_queries": [],
+          "retrieval_round": 1,
+          "requested_more_context": false,
+          "followup_requests": []
+        },
+        "total_files_considered": 7,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 4.0,
+        "retrieval_time_ms": 2.0,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
@@ -1463,16 +3740,16 @@
         "corecoder/retrieval/models.py"
       ],
       "retrieved_files": [
-        "tests/test_retrieval_improvements.py",
         "tests/test_context_orchestrator.py",
-        "corecoder/cli.py",
-        "corecoder/__main__.py",
-        "corecoder/agent/dag/models.py",
+        "tests/test_retrieval_improvements.py",
+        "corecoder/codebase/shadow.py",
+        "corecoder/agent/workflow/executor.py",
+        "corecoder/agent/dag/__init__.py",
         "corecoder/agent/workflow/planner.py",
+        "corecoder/codebase/__init__.py",
         "corecoder/retrieval/ranker.py",
-        "corecoder/agent/workflow/orchestrator.py",
-        "corecoder/retrieval/evaluation.py",
-        "corecoder/agent/workflow/scheduler.py"
+        "tests/test_orchestration.py",
+        "tests/test_session.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
@@ -1484,9 +3761,91 @@
       "retrieval_meta": {
         "retrieval_mode": "causal_trace",
         "task_type": "implementation_explanation",
-        "total_files_considered": 16,
+        "understanding": {
+          "goal": "How does retrieval ask for more context when the first pass is insufficient?",
+          "objective": "How does retrieval ask for more context when the first pass is insufficient?",
+          "entities": [
+            {
+              "name": "retrieval",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "ask",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "context",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "pass",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "insufficient",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            }
+          ],
+          "constraints": [],
+          "likely_modules": [
+            "context",
+            "retrieval",
+            "ask",
+            "pass",
+            "insufficient"
+          ],
+          "query_terms": [
+            "context",
+            "retrieval"
+          ],
+          "confidence": 0.81
+        },
+        "plan": {
+          "task_type": "implementation_explanation",
+          "objective": "How does retrieval ask for more context when the first pass is insufficient?",
+          "primary_symbols": [],
+          "retrieval_scopes": [
+            "context",
+            "retrieval",
+            "ask",
+            "pass",
+            "insufficient"
+          ],
+          "expansion_depth": 3,
+          "retrieval_strategy": "causal_trace",
+          "target_files": [],
+          "required_context": [
+            "dependency_paths",
+            "related_symbols"
+          ],
+          "plan_reasoning": [
+            "explanation query detected"
+          ]
+        },
+        "retrieval_context": {
+          "user_query": "How does retrieval ask for more context when the first pass is insufficient?",
+          "active_files": [],
+          "active_symbols": [],
+          "working_memory": [],
+          "previous_failures": [],
+          "previous_queries": [],
+          "retrieval_round": 1,
+          "requested_more_context": false,
+          "followup_requests": []
+        },
+        "total_files_considered": 10,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 4.0,
+        "retrieval_time_ms": 0.998,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
@@ -1507,16 +3866,16 @@
         "corecoder/context/retriever.py"
       ],
       "retrieved_files": [
-        "tests/test_retrieval_improvements.py",
         "tests/test_context_orchestrator.py",
-        "corecoder/context/layers.py",
-        "corecoder/context/orchestrator.py",
-        "corecoder/context/models.py",
+        "tests/test_retrieval_improvements.py",
+        "corecoder/agent/runtime/__init__.py",
+        "corecoder/context/session.py",
+        "corecoder/agent/runtime/assembler.py",
+        "corecoder/retrieval/__init__.py",
+        "corecoder/retrieval/repository_graph.py",
         "corecoder/__init__.py",
-        "corecoder/context/policies.py",
-        "corecoder/context/ranker.py",
         "corecoder/context/retriever.py",
-        "corecoder/context/pipeline.py"
+        "corecoder/retrieval/task_intent.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
@@ -1528,9 +3887,84 @@
       "retrieval_meta": {
         "retrieval_mode": "targeted_lookup",
         "task_type": "symbol_navigation",
+        "understanding": {
+          "goal": "Where is state aware retrieval context modeled?",
+          "objective": "Where is state aware retrieval context modeled?",
+          "entities": [
+            {
+              "name": "state",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "aware",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "retrieval",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "context",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            }
+          ],
+          "constraints": [],
+          "likely_modules": [
+            "context",
+            "retrieval",
+            "state",
+            "aware"
+          ],
+          "query_terms": [
+            "context",
+            "retrieval",
+            "state"
+          ],
+          "confidence": 0.76
+        },
+        "plan": {
+          "task_type": "symbol_navigation",
+          "objective": "Where is state aware retrieval context modeled?",
+          "primary_symbols": [],
+          "retrieval_scopes": [
+            "context",
+            "retrieval",
+            "state",
+            "aware"
+          ],
+          "expansion_depth": 1,
+          "retrieval_strategy": "targeted_lookup",
+          "target_files": [],
+          "required_context": [
+            "symbol_definitions",
+            "file_locations"
+          ],
+          "plan_reasoning": [
+            "navigation query detected"
+          ]
+        },
+        "retrieval_context": {
+          "user_query": "Where is state-aware retrieval context modeled?",
+          "active_files": [],
+          "active_symbols": [],
+          "working_memory": [],
+          "previous_failures": [],
+          "previous_queries": [],
+          "retrieval_round": 1,
+          "requested_more_context": false,
+          "followup_requests": []
+        },
         "total_files_considered": 10,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 2.0,
+        "retrieval_time_ms": 1.002,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
@@ -1550,16 +3984,16 @@
         "corecoder/agent/runtime/state.py"
       ],
       "retrieved_files": [
-        "corecoder/cli.py",
         "tests/test_retrieval_improvements.py",
-        "corecoder/__main__.py",
-        "tests/test_core.py",
-        "corecoder/agent/dag/models.py",
+        "corecoder/codebase/shadow.py",
+        "corecoder/agent/workflow/executor.py",
+        "corecoder/agent/dag/__init__.py",
         "corecoder/agent/workflow/planner.py",
+        "corecoder/codebase/__init__.py",
         "corecoder/retrieval/ranker.py",
-        "corecoder/agent/workflow/orchestrator.py",
-        "corecoder/retrieval/evaluation.py",
-        "corecoder/agent/workflow/scheduler.py"
+        "tests/test_orchestration.py",
+        "tests/test_session.py",
+        "corecoder/retrieval/symbol_index.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
@@ -1571,9 +4005,99 @@
       "retrieval_meta": {
         "retrieval_mode": "causal_trace",
         "task_type": "implementation_explanation",
-        "total_files_considered": 7,
+        "understanding": {
+          "goal": "How does the runtime keep track of active files, failures, and retrieval requests?",
+          "objective": "How does the runtime keep track of active files, failures, and retrieval requests?",
+          "entities": [
+            {
+              "name": "runtime",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "keep",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "track",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "active",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "failures",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "retrieval",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            }
+          ],
+          "constraints": [],
+          "likely_modules": [
+            "retrieval",
+            "runtime",
+            "keep",
+            "track",
+            "active",
+            "failures"
+          ],
+          "query_terms": [
+            "retrieval",
+            "runtime"
+          ],
+          "confidence": 0.8400000000000001
+        },
+        "plan": {
+          "task_type": "implementation_explanation",
+          "objective": "How does the runtime keep track of active files, failures, and retrieval requests?",
+          "primary_symbols": [],
+          "retrieval_scopes": [
+            "retrieval",
+            "runtime",
+            "keep",
+            "track",
+            "active",
+            "failures"
+          ],
+          "expansion_depth": 3,
+          "retrieval_strategy": "causal_trace",
+          "target_files": [],
+          "required_context": [
+            "dependency_paths",
+            "related_symbols"
+          ],
+          "plan_reasoning": [
+            "explanation query detected"
+          ]
+        },
+        "retrieval_context": {
+          "user_query": "How does the runtime keep track of active files, failures, and retrieval requests?",
+          "active_files": [],
+          "active_symbols": [],
+          "working_memory": [],
+          "previous_failures": [],
+          "previous_queries": [],
+          "retrieval_round": 1,
+          "requested_more_context": false,
+          "followup_requests": []
+        },
+        "total_files_considered": 6,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 2.006,
+        "retrieval_time_ms": 1.999,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
@@ -1613,9 +4137,77 @@
       "retrieval_meta": {
         "retrieval_mode": "targeted_lookup",
         "task_type": "symbol_navigation",
+        "understanding": {
+          "goal": "Where is workflow execution implemented?",
+          "objective": "Where is workflow execution implemented?",
+          "entities": [
+            {
+              "name": "workflow",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "execution",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            }
+          ],
+          "constraints": [],
+          "likely_modules": [
+            "workflow",
+            "execution"
+          ],
+          "query_terms": [
+            "workflow"
+          ],
+          "confidence": 0.54
+        },
+        "plan": {
+          "task_type": "symbol_navigation",
+          "objective": "Where is workflow execution implemented?",
+          "primary_symbols": [],
+          "retrieval_scopes": [
+            "workflow",
+            "execution"
+          ],
+          "expansion_depth": 2,
+          "retrieval_strategy": "targeted_lookup",
+          "target_files": [],
+          "required_context": [
+            "symbol_definitions",
+            "file_locations"
+          ],
+          "plan_reasoning": [
+            "navigation query detected",
+            "adaptive expansion requested more context"
+          ]
+        },
+        "retrieval_context": {
+          "user_query": "Where is workflow execution implemented?",
+          "active_files": [],
+          "active_symbols": [],
+          "working_memory": [],
+          "previous_failures": [],
+          "previous_queries": [],
+          "retrieval_round": 2,
+          "requested_more_context": true,
+          "followup_requests": [
+            {
+              "reason": "low_confidence_initial_retrieval",
+              "additional_scopes": [
+                "workflow",
+                "execution"
+              ],
+              "missing_symbols": [],
+              "requested_files": []
+            }
+          ]
+        },
         "total_files_considered": 8,
         "total_files_ranked": 8,
-        "retrieval_time_ms": 3.549,
+        "retrieval_time_ms": 1.001,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
@@ -1636,30 +4228,113 @@
         "corecoder/agent/dag/models.py"
       ],
       "retrieved_files": [
-        "corecoder/cli.py",
-        "corecoder/agent/dag/models.py",
-        "corecoder/agent/workflow/orchestrator.py",
-        "corecoder/__init__.py",
         "corecoder/agent/dag/__init__.py",
-        "corecoder/agent/workflow/scheduler.py",
+        "corecoder/agent/workflow/planner.py",
+        "corecoder/retrieval/ranker.py",
         "tests/test_orchestration.py",
-        "corecoder/agent/__init__.py",
-        "corecoder/context/orchestrator.py",
-        "corecoder/context/models.py"
+        "tests/test_session.py",
+        "corecoder/retrieval/symbol_index.py",
+        "corecoder/infra/__init__.py",
+        "corecoder/codebase/indexing/__init__.py",
+        "corecoder/context/models.py",
+        "tests/test_tools.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
-        "hit_at_3": 1.0,
-        "hit_at_5": 1.0,
-        "recall_at_5": 0.5,
-        "mrr": 0.5
+        "hit_at_3": 0.0,
+        "hit_at_5": 0.0,
+        "recall_at_5": 0.0,
+        "mrr": 0.0
       },
       "retrieval_meta": {
         "retrieval_mode": "task_execution",
         "task_type": "targeted_change",
-        "total_files_considered": 5,
+        "understanding": {
+          "goal": "How are task retries and recovery policies implemented?",
+          "objective": "How are task retries and recovery policies implemented?",
+          "entities": [
+            {
+              "name": "task",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "retries",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "recovery",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "policies",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            }
+          ],
+          "constraints": [],
+          "likely_modules": [
+            "task",
+            "retries",
+            "recovery",
+            "policies"
+          ],
+          "query_terms": [],
+          "confidence": 0.67
+        },
+        "plan": {
+          "task_type": "targeted_change",
+          "objective": "How are task retries and recovery policies implemented?",
+          "primary_symbols": [],
+          "retrieval_scopes": [
+            "task",
+            "retries",
+            "recovery",
+            "policies"
+          ],
+          "expansion_depth": 2,
+          "retrieval_strategy": "task_execution",
+          "target_files": [],
+          "required_context": [
+            "active_files",
+            "primary_symbols"
+          ],
+          "plan_reasoning": [
+            "defaulting to focused execution search",
+            "adaptive expansion requested more context"
+          ]
+        },
+        "retrieval_context": {
+          "user_query": "How are task retries and recovery policies implemented?",
+          "active_files": [],
+          "active_symbols": [],
+          "working_memory": [],
+          "previous_failures": [],
+          "previous_queries": [],
+          "retrieval_round": 2,
+          "requested_more_context": true,
+          "followup_requests": [
+            {
+              "reason": "low_confidence_initial_retrieval",
+              "additional_scopes": [
+                "task",
+                "retries",
+                "recovery"
+              ],
+              "missing_symbols": [],
+              "requested_files": []
+            }
+          ]
+        },
+        "total_files_considered": 8,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 0.999,
+        "retrieval_time_ms": 1.999,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
@@ -1680,30 +4355,116 @@
         "corecoder/agent/dag/models.py"
       ],
       "retrieved_files": [
-        "corecoder/agent/dag/models.py",
-        "corecoder/agent/workflow/planner.py",
-        "corecoder/agent/workflow/orchestrator.py",
-        "corecoder/agent/workflow/scheduler.py",
-        "corecoder/agent/__init__.py",
-        "corecoder/infra/storage.py",
-        "corecoder/agent/workflow/__init__.py",
+        "corecoder/codebase/shadow.py",
+        "corecoder/agent/workflow/executor.py",
         "corecoder/agent/dag/__init__.py",
-        "corecoder/infra/observability.py",
-        "corecoder/infra/viz.py"
+        "corecoder/agent/workflow/planner.py",
+        "corecoder/agent/workflow/verifier.py",
+        "corecoder/infra/__init__.py",
+        "corecoder/context/models.py",
+        "corecoder/agent/workflow/orchestrator.py",
+        "corecoder/agent/dag/recovery.py",
+        "corecoder/agent/workflow/scheduler.py"
       ],
       "metrics": {
-        "hit_at_1": 1.0,
-        "hit_at_3": 1.0,
-        "hit_at_5": 1.0,
-        "recall_at_5": 0.5,
-        "mrr": 1.0
+        "hit_at_1": 0.0,
+        "hit_at_3": 0.0,
+        "hit_at_5": 0.0,
+        "recall_at_5": 0.0,
+        "mrr": 0.0
       },
       "retrieval_meta": {
         "retrieval_mode": "targeted_lookup",
         "task_type": "symbol_navigation",
+        "understanding": {
+          "goal": "Where is DAG execution memory stored?",
+          "objective": "Where is DAG execution memory stored?",
+          "entities": [
+            {
+              "name": "DAG",
+              "kind": "class",
+              "confidence": 0.9,
+              "source": "camel_case"
+            },
+            {
+              "name": "execution",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "memory",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "dag",
+              "kind": "module",
+              "confidence": 0.6,
+              "source": "canonical_term"
+            }
+          ],
+          "constraints": [],
+          "likely_modules": [
+            "memory",
+            "dag",
+            "execution"
+          ],
+          "query_terms": [
+            "memory",
+            "dag"
+          ],
+          "confidence": 0.7
+        },
+        "plan": {
+          "task_type": "symbol_navigation",
+          "objective": "Where is DAG execution memory stored?",
+          "primary_symbols": [
+            "DAG"
+          ],
+          "retrieval_scopes": [
+            "memory",
+            "dag",
+            "execution"
+          ],
+          "expansion_depth": 2,
+          "retrieval_strategy": "targeted_lookup",
+          "target_files": [],
+          "required_context": [
+            "symbol_definitions",
+            "file_locations"
+          ],
+          "plan_reasoning": [
+            "navigation query detected",
+            "adaptive expansion requested more context"
+          ]
+        },
+        "retrieval_context": {
+          "user_query": "Where is DAG execution memory stored?",
+          "active_files": [],
+          "active_symbols": [],
+          "working_memory": [],
+          "previous_failures": [],
+          "previous_queries": [],
+          "retrieval_round": 2,
+          "requested_more_context": true,
+          "followup_requests": [
+            {
+              "reason": "low_confidence_initial_retrieval",
+              "additional_scopes": [
+                "memory",
+                "dag",
+                "execution"
+              ],
+              "missing_symbols": [],
+              "requested_files": []
+            }
+          ]
+        },
         "total_files_considered": 8,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 5.999,
+        "retrieval_time_ms": 4.424,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
@@ -1724,16 +4485,16 @@
         "corecoder/agent/dag/graph.py"
       ],
       "retrieved_files": [
-        "corecoder/retrieval/ranker.py",
-        "corecoder/retrieval/evaluation.py",
-        "benchmarks/run_retrieval_benchmark.py",
-        "tests/test_context_orchestrator.py",
-        "tests/test_retrieval_improvements.py",
-        "corecoder/retrieval/__init__.py",
-        "corecoder/codebase/indexing/index.py",
-        "corecoder/retrieval/symbol_index.py",
-        "corecoder/__init__.py",
-        "corecoder/retrieval/summaries.py"
+        "corecoder/codebase/shadow.py",
+        "corecoder/agent/workflow/executor.py",
+        "corecoder/agent/dag/__init__.py",
+        "corecoder/agent/workflow/planner.py",
+        "tests/test_orchestration.py",
+        "corecoder/agent/workflow/verifier.py",
+        "corecoder/infra/__init__.py",
+        "corecoder/agent/dag/memory.py",
+        "corecoder/agent/workflow/orchestrator.py",
+        "corecoder/context/layers.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
@@ -1745,9 +4506,102 @@
       "retrieval_meta": {
         "retrieval_mode": "task_execution",
         "task_type": "targeted_change",
-        "total_files_considered": 7,
+        "understanding": {
+          "goal": "Where are task graph nodes and retry policies defined?",
+          "objective": "Where are task graph nodes and retry policies defined?",
+          "entities": [
+            {
+              "name": "task",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "graph",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "nodes",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "retry",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "policies",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            }
+          ],
+          "constraints": [],
+          "likely_modules": [
+            "graph",
+            "task",
+            "nodes",
+            "retry",
+            "policies"
+          ],
+          "query_terms": [
+            "graph"
+          ],
+          "confidence": 0.78
+        },
+        "plan": {
+          "task_type": "targeted_change",
+          "objective": "Where are task graph nodes and retry policies defined?",
+          "primary_symbols": [],
+          "retrieval_scopes": [
+            "graph",
+            "task",
+            "nodes",
+            "retry",
+            "policies"
+          ],
+          "expansion_depth": 2,
+          "retrieval_strategy": "task_execution",
+          "target_files": [],
+          "required_context": [
+            "active_files",
+            "primary_symbols"
+          ],
+          "plan_reasoning": [
+            "defaulting to focused execution search",
+            "adaptive expansion requested more context"
+          ]
+        },
+        "retrieval_context": {
+          "user_query": "Where are task graph nodes and retry policies defined?",
+          "active_files": [],
+          "active_symbols": [],
+          "working_memory": [],
+          "previous_failures": [],
+          "previous_queries": [],
+          "retrieval_round": 2,
+          "requested_more_context": true,
+          "followup_requests": [
+            {
+              "reason": "low_confidence_initial_retrieval",
+              "additional_scopes": [
+                "graph",
+                "task",
+                "nodes"
+              ],
+              "missing_symbols": [],
+              "requested_files": []
+            }
+          ]
+        },
+        "total_files_considered": 6,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 4.0,
+        "retrieval_time_ms": 2.09,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
@@ -1768,30 +4622,103 @@
         "corecoder/context/models.py"
       ],
       "retrieved_files": [
-        "corecoder/cli.py",
         "tests/test_context_orchestrator.py",
         "corecoder/agent/workflow/planner.py",
-        "corecoder/context/compression.py",
         "corecoder/context/orchestrator.py",
-        "corecoder/context/models.py",
-        "corecoder/__init__.py",
         "corecoder/context/__init__.py",
-        "corecoder/context/policies.py",
-        "corecoder/context/ranker.py"
+        "corecoder/__init__.py",
+        "corecoder/context/compression.py",
+        "corecoder/context/models.py",
+        "corecoder/context/pipeline.py",
+        "corecoder/context/ranker.py",
+        "corecoder/context/retriever.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
         "hit_at_3": 0.0,
         "hit_at_5": 0.0,
         "recall_at_5": 0.0,
-        "mrr": 0.16666666666666666
+        "mrr": 0.14285714285714285
       },
       "retrieval_meta": {
         "retrieval_mode": "task_execution",
         "task_type": "targeted_change",
-        "total_files_considered": 7,
+        "understanding": {
+          "goal": "How are context layers and task bounds derived?",
+          "objective": "How are context layers and task bounds derived?",
+          "entities": [
+            {
+              "name": "context",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "layers",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "task",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "bounds",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            }
+          ],
+          "constraints": [],
+          "likely_modules": [
+            "context",
+            "layers",
+            "task",
+            "bounds"
+          ],
+          "query_terms": [
+            "context"
+          ],
+          "confidence": 0.7000000000000001
+        },
+        "plan": {
+          "task_type": "targeted_change",
+          "objective": "How are context layers and task bounds derived?",
+          "primary_symbols": [],
+          "retrieval_scopes": [
+            "context",
+            "layers",
+            "task",
+            "bounds"
+          ],
+          "expansion_depth": 1,
+          "retrieval_strategy": "task_execution",
+          "target_files": [],
+          "required_context": [
+            "active_files",
+            "primary_symbols"
+          ],
+          "plan_reasoning": [
+            "defaulting to focused execution search"
+          ]
+        },
+        "retrieval_context": {
+          "user_query": "How are context layers and task bounds derived?",
+          "active_files": [],
+          "active_symbols": [],
+          "working_memory": [],
+          "previous_failures": [],
+          "previous_queries": [],
+          "retrieval_round": 1,
+          "requested_more_context": false,
+          "followup_requests": []
+        },
+        "total_files_considered": 6,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 2.135,
+        "retrieval_time_ms": 0.999,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
@@ -1813,14 +4740,14 @@
       ],
       "retrieved_files": [
         "tests/test_context_orchestrator.py",
-        "corecoder/context/layers.py",
         "corecoder/context/orchestrator.py",
-        "corecoder/context/models.py",
-        "corecoder/__init__.py",
-        "corecoder/context/ranker.py",
-        "corecoder/context/retriever.py",
-        "corecoder/context/pipeline.py",
         "corecoder/context/__init__.py",
+        "corecoder/context/retriever.py",
+        "corecoder/context/models.py",
+        "corecoder/context/pipeline.py",
+        "corecoder/context/ranker.py",
+        "corecoder/context/layers.py",
+        "corecoder/__init__.py",
         "corecoder/context/policies.py"
       ],
       "metrics": {
@@ -1828,14 +4755,79 @@
         "hit_at_3": 0.0,
         "hit_at_5": 0.0,
         "recall_at_5": 0.0,
-        "mrr": 0.16666666666666666
+        "mrr": 0.14285714285714285
       },
       "retrieval_meta": {
         "retrieval_mode": "task_execution",
         "task_type": "targeted_change",
-        "total_files_considered": 6,
+        "understanding": {
+          "goal": "Where are context truncation and selection policies implemented?",
+          "objective": "Where are context truncation and selection policies implemented?",
+          "entities": [
+            {
+              "name": "context",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "truncation",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "policies",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            }
+          ],
+          "constraints": [],
+          "likely_modules": [
+            "context",
+            "truncation",
+            "policies"
+          ],
+          "query_terms": [
+            "context"
+          ],
+          "confidence": 0.62
+        },
+        "plan": {
+          "task_type": "targeted_change",
+          "objective": "Where are context truncation and selection policies implemented?",
+          "primary_symbols": [],
+          "retrieval_scopes": [
+            "context",
+            "truncation",
+            "policies"
+          ],
+          "expansion_depth": 1,
+          "retrieval_strategy": "task_execution",
+          "target_files": [],
+          "required_context": [
+            "active_files",
+            "primary_symbols"
+          ],
+          "plan_reasoning": [
+            "defaulting to focused execution search"
+          ]
+        },
+        "retrieval_context": {
+          "user_query": "Where are context truncation and selection policies implemented?",
+          "active_files": [],
+          "active_symbols": [],
+          "working_memory": [],
+          "previous_failures": [],
+          "previous_queries": [],
+          "retrieval_round": 1,
+          "requested_more_context": false,
+          "followup_requests": []
+        },
+        "total_files_considered": 5,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 1.68,
+        "retrieval_time_ms": 0.998,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
@@ -1858,28 +4850,94 @@
       "retrieved_files": [
         "tests/test_context_orchestrator.py",
         "tests/test_retrieval_improvements.py",
-        "corecoder/context/layers.py",
-        "corecoder/context/orchestrator.py",
-        "corecoder/context/models.py",
+        "corecoder/retrieval/__init__.py",
+        "corecoder/retrieval/repository_graph.py",
         "corecoder/__init__.py",
-        "corecoder/context/policies.py",
-        "corecoder/context/ranker.py",
         "corecoder/context/retriever.py",
-        "corecoder/context/pipeline.py"
+        "corecoder/retrieval/task_intent.py",
+        "corecoder/retrieval/ranker.py",
+        "corecoder/retrieval/symbol_index.py",
+        "corecoder/context/models.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
         "hit_at_3": 0.0,
         "hit_at_5": 0.0,
         "recall_at_5": 0.0,
-        "mrr": 0.125
+        "mrr": 0.0
       },
       "retrieval_meta": {
         "retrieval_mode": "task_execution",
         "task_type": "targeted_change",
-        "total_files_considered": 11,
+        "understanding": {
+          "goal": "How are context fragments ranked after retrieval?",
+          "objective": "How are context fragments ranked after retrieval?",
+          "entities": [
+            {
+              "name": "context",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "fragments",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "retrieval",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            }
+          ],
+          "constraints": [],
+          "likely_modules": [
+            "context",
+            "retrieval",
+            "fragments"
+          ],
+          "query_terms": [
+            "context",
+            "retrieval"
+          ],
+          "confidence": 0.6499999999999999
+        },
+        "plan": {
+          "task_type": "targeted_change",
+          "objective": "How are context fragments ranked after retrieval?",
+          "primary_symbols": [],
+          "retrieval_scopes": [
+            "context",
+            "retrieval",
+            "fragments"
+          ],
+          "expansion_depth": 1,
+          "retrieval_strategy": "task_execution",
+          "target_files": [],
+          "required_context": [
+            "active_files",
+            "primary_symbols"
+          ],
+          "plan_reasoning": [
+            "defaulting to focused execution search"
+          ]
+        },
+        "retrieval_context": {
+          "user_query": "How are context fragments ranked after retrieval?",
+          "active_files": [],
+          "active_symbols": [],
+          "working_memory": [],
+          "previous_failures": [],
+          "previous_queries": [],
+          "retrieval_round": 1,
+          "requested_more_context": false,
+          "followup_requests": []
+        },
+        "total_files_considered": 10,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 2.047,
+        "retrieval_time_ms": 0.0,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
@@ -1901,14 +4959,13 @@
       ],
       "retrieved_files": [
         "corecoder/prompt.py",
-        "corecoder/cli.py",
-        "corecoder/__main__.py",
         ".claude/settings.local.json",
         ".env",
         ".gitignore",
         "LICENSE",
         "README.md",
-        "README_CN.md"
+        "README_CN.md",
+        "article/00-index.md"
       ],
       "metrics": {
         "hit_at_1": 1.0,
@@ -1920,9 +4977,58 @@
       "retrieval_meta": {
         "retrieval_mode": "targeted_lookup",
         "task_type": "symbol_navigation",
+        "understanding": {
+          "goal": "Where is the main system prompt defined?",
+          "objective": "Where is the main system prompt defined?",
+          "entities": [
+            {
+              "name": "prompt",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            }
+          ],
+          "constraints": [],
+          "likely_modules": [
+            "prompt"
+          ],
+          "query_terms": [
+            "prompt"
+          ],
+          "confidence": 0.45999999999999996
+        },
+        "plan": {
+          "task_type": "symbol_navigation",
+          "objective": "Where is the main system prompt defined?",
+          "primary_symbols": [],
+          "retrieval_scopes": [
+            "prompt"
+          ],
+          "expansion_depth": 1,
+          "retrieval_strategy": "targeted_lookup",
+          "target_files": [],
+          "required_context": [
+            "symbol_definitions",
+            "file_locations"
+          ],
+          "plan_reasoning": [
+            "navigation query detected"
+          ]
+        },
+        "retrieval_context": {
+          "user_query": "Where is the main system prompt defined?",
+          "active_files": [],
+          "active_symbols": [],
+          "working_memory": [],
+          "previous_failures": [],
+          "previous_queries": [],
+          "retrieval_round": 1,
+          "requested_more_context": false,
+          "followup_requests": []
+        },
         "total_files_considered": 8,
-        "total_files_ranked": 9,
-        "retrieval_time_ms": 2.0,
+        "total_files_ranked": 8,
+        "retrieval_time_ms": 0.0,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
@@ -1943,29 +5049,102 @@
       ],
       "retrieved_files": [
         "tests/test_tools.py",
-        "corecoder/tools/__init__.py",
-        "corecoder/__init__.py",
+        "corecoder/tools/glob_tool.py",
         "corecoder/tools/agent.py",
         "corecoder/tools/bash.py",
         "corecoder/tools/edit.py",
-        "corecoder/tools/glob_tool.py",
         "corecoder/tools/grep.py",
         "corecoder/tools/read.py",
-        "corecoder/tools/repo_info.py"
+        "corecoder/tools/repo_info.py",
+        "corecoder/tools/write.py",
+        "corecoder/tools/base.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
         "hit_at_3": 0.0,
         "hit_at_5": 0.0,
         "recall_at_5": 0.0,
-        "mrr": 0.0
+        "mrr": 0.1
       },
       "retrieval_meta": {
         "retrieval_mode": "targeted_lookup",
         "task_type": "symbol_navigation",
-        "total_files_considered": 17,
+        "understanding": {
+          "goal": "Where is the common base class for tools implemented?",
+          "objective": "Where is the common base class for tools implemented?",
+          "entities": [
+            {
+              "name": "base",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "class",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "tools",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "tool",
+              "kind": "module",
+              "confidence": 0.6,
+              "source": "canonical_term"
+            }
+          ],
+          "constraints": [],
+          "likely_modules": [
+            "tool",
+            "base",
+            "class",
+            "tools"
+          ],
+          "query_terms": [
+            "tool"
+          ],
+          "confidence": 0.7000000000000001
+        },
+        "plan": {
+          "task_type": "symbol_navigation",
+          "objective": "Where is the common base class for tools implemented?",
+          "primary_symbols": [],
+          "retrieval_scopes": [
+            "tool",
+            "base",
+            "class",
+            "tools"
+          ],
+          "expansion_depth": 1,
+          "retrieval_strategy": "targeted_lookup",
+          "target_files": [],
+          "required_context": [
+            "symbol_definitions",
+            "file_locations"
+          ],
+          "plan_reasoning": [
+            "navigation query detected"
+          ]
+        },
+        "retrieval_context": {
+          "user_query": "Where is the common base class for tools implemented?",
+          "active_files": [],
+          "active_symbols": [],
+          "working_memory": [],
+          "previous_failures": [],
+          "previous_queries": [],
+          "retrieval_round": 1,
+          "requested_more_context": false,
+          "followup_requests": []
+        },
+        "total_files_considered": 14,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 3.0,
+        "retrieval_time_ms": 0.998,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
@@ -2006,9 +5185,75 @@
       "retrieval_meta": {
         "retrieval_mode": "targeted_lookup",
         "task_type": "symbol_navigation",
+        "understanding": {
+          "goal": "Where is the file globbing tool implemented?",
+          "objective": "Where is the file globbing tool implemented?",
+          "entities": [
+            {
+              "name": "globbing",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "tool",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "glob",
+              "kind": "module",
+              "confidence": 0.6,
+              "source": "canonical_term"
+            }
+          ],
+          "constraints": [],
+          "likely_modules": [
+            "tool",
+            "glob",
+            "globbing"
+          ],
+          "query_terms": [
+            "tool",
+            "glob"
+          ],
+          "confidence": 0.6499999999999999
+        },
+        "plan": {
+          "task_type": "symbol_navigation",
+          "objective": "Where is the file globbing tool implemented?",
+          "primary_symbols": [],
+          "retrieval_scopes": [
+            "tool",
+            "glob",
+            "globbing"
+          ],
+          "expansion_depth": 1,
+          "retrieval_strategy": "targeted_lookup",
+          "target_files": [],
+          "required_context": [
+            "symbol_definitions",
+            "file_locations"
+          ],
+          "plan_reasoning": [
+            "navigation query detected"
+          ]
+        },
+        "retrieval_context": {
+          "user_query": "Where is the file globbing tool implemented?",
+          "active_files": [],
+          "active_symbols": [],
+          "working_memory": [],
+          "previous_failures": [],
+          "previous_queries": [],
+          "retrieval_round": 1,
+          "requested_more_context": false,
+          "followup_requests": []
+        },
         "total_files_considered": 14,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 3.0,
+        "retrieval_time_ms": 1.002,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
@@ -2049,9 +5294,75 @@
       "retrieval_meta": {
         "retrieval_mode": "targeted_lookup",
         "task_type": "symbol_navigation",
+        "understanding": {
+          "goal": "Where is the grep or search tool implemented?",
+          "objective": "Where is the grep or search tool implemented?",
+          "entities": [
+            {
+              "name": "grep",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "search",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "tool",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            }
+          ],
+          "constraints": [],
+          "likely_modules": [
+            "tool",
+            "grep",
+            "search"
+          ],
+          "query_terms": [
+            "tool",
+            "grep"
+          ],
+          "confidence": 0.6499999999999999
+        },
+        "plan": {
+          "task_type": "symbol_navigation",
+          "objective": "Where is the grep or search tool implemented?",
+          "primary_symbols": [],
+          "retrieval_scopes": [
+            "tool",
+            "grep",
+            "search"
+          ],
+          "expansion_depth": 1,
+          "retrieval_strategy": "targeted_lookup",
+          "target_files": [],
+          "required_context": [
+            "symbol_definitions",
+            "file_locations"
+          ],
+          "plan_reasoning": [
+            "navigation query detected"
+          ]
+        },
+        "retrieval_context": {
+          "user_query": "Where is the grep or search tool implemented?",
+          "active_files": [],
+          "active_symbols": [],
+          "working_memory": [],
+          "previous_failures": [],
+          "previous_queries": [],
+          "retrieval_round": 1,
+          "requested_more_context": false,
+          "followup_requests": []
+        },
         "total_files_considered": 14,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 2.0,
+        "retrieval_time_ms": 0.999,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
@@ -2071,16 +5382,16 @@
         "corecoder/infra/observability.py"
       ],
       "retrieved_files": [
-        "corecoder/agent/dag/models.py",
-        "corecoder/agent/workflow/planner.py",
-        "corecoder/agent/workflow/orchestrator.py",
-        "corecoder/agent/workflow/scheduler.py",
-        "corecoder/agent/__init__.py",
-        "corecoder/infra/storage.py",
-        "corecoder/agent/workflow/__init__.py",
+        "corecoder/codebase/shadow.py",
+        "corecoder/agent/workflow/executor.py",
         "corecoder/agent/dag/__init__.py",
+        "corecoder/agent/workflow/planner.py",
         "tests/test_orchestration.py",
-        "corecoder/infra/viz.py"
+        "corecoder/agent/workflow/verifier.py",
+        "corecoder/infra/__init__.py",
+        "corecoder/agent/dag/memory.py",
+        "corecoder/agent/workflow/orchestrator.py",
+        "corecoder/agent/dag/recovery.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
@@ -2092,9 +5403,75 @@
       "retrieval_meta": {
         "retrieval_mode": "targeted_lookup",
         "task_type": "symbol_navigation",
+        "understanding": {
+          "goal": "Where is observability or tracing implemented?",
+          "objective": "Where is observability or tracing implemented?",
+          "entities": [
+            {
+              "name": "observability",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "tracing",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            }
+          ],
+          "constraints": [],
+          "likely_modules": [
+            "observability",
+            "tracing"
+          ],
+          "query_terms": [],
+          "confidence": 0.51
+        },
+        "plan": {
+          "task_type": "symbol_navigation",
+          "objective": "Where is observability or tracing implemented?",
+          "primary_symbols": [],
+          "retrieval_scopes": [
+            "observability",
+            "tracing"
+          ],
+          "expansion_depth": 2,
+          "retrieval_strategy": "targeted_lookup",
+          "target_files": [],
+          "required_context": [
+            "symbol_definitions",
+            "file_locations"
+          ],
+          "plan_reasoning": [
+            "navigation query detected",
+            "adaptive expansion requested more context"
+          ]
+        },
+        "retrieval_context": {
+          "user_query": "Where is observability or tracing implemented?",
+          "active_files": [],
+          "active_symbols": [],
+          "working_memory": [],
+          "previous_failures": [],
+          "previous_queries": [],
+          "retrieval_round": 2,
+          "requested_more_context": true,
+          "followup_requests": [
+            {
+              "reason": "low_confidence_initial_retrieval",
+              "additional_scopes": [
+                "observability",
+                "tracing"
+              ],
+              "missing_symbols": [],
+              "requested_files": []
+            }
+          ]
+        },
         "total_files_considered": 8,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 3.615,
+        "retrieval_time_ms": 0.999,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
@@ -2115,16 +5492,16 @@
         "corecoder/codebase/shadow.py"
       ],
       "retrieved_files": [
-        "corecoder/__main__.py",
-        "corecoder/agent/dag/models.py",
-        "corecoder/agent/workflow/planner.py",
-        "corecoder/agent/workflow/orchestrator.py",
-        "corecoder/agent/workflow/scheduler.py",
-        "corecoder/agent/__init__.py",
-        "corecoder/agent/workflow/__init__.py",
+        "corecoder/agent/workflow/executor.py",
         "corecoder/agent/dag/__init__.py",
-        "corecoder/infra/observability.py",
-        "corecoder/infra/viz.py"
+        "corecoder/agent/workflow/planner.py",
+        "tests/test_orchestration.py",
+        "corecoder/agent/workflow/verifier.py",
+        "corecoder/infra/__init__.py",
+        "corecoder/agent/dag/memory.py",
+        "corecoder/agent/workflow/orchestrator.py",
+        "corecoder/agent/dag/recovery.py",
+        "corecoder/agent/workflow/scheduler.py"
       ],
       "metrics": {
         "hit_at_1": 0.0,
@@ -2136,9 +5513,84 @@
       "retrieval_meta": {
         "retrieval_mode": "targeted_lookup",
         "task_type": "symbol_navigation",
-        "total_files_considered": 10,
+        "understanding": {
+          "goal": "Where is storage for checkpoints or local metadata implemented?",
+          "objective": "Where is storage for checkpoints or local metadata implemented?",
+          "entities": [
+            {
+              "name": "storage",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "checkpoints",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            },
+            {
+              "name": "metadata",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            }
+          ],
+          "constraints": [],
+          "likely_modules": [
+            "storage",
+            "checkpoints",
+            "metadata"
+          ],
+          "query_terms": [],
+          "confidence": 0.59
+        },
+        "plan": {
+          "task_type": "symbol_navigation",
+          "objective": "Where is storage for checkpoints or local metadata implemented?",
+          "primary_symbols": [],
+          "retrieval_scopes": [
+            "storage",
+            "checkpoints",
+            "metadata"
+          ],
+          "expansion_depth": 2,
+          "retrieval_strategy": "targeted_lookup",
+          "target_files": [],
+          "required_context": [
+            "symbol_definitions",
+            "file_locations"
+          ],
+          "plan_reasoning": [
+            "navigation query detected",
+            "adaptive expansion requested more context"
+          ]
+        },
+        "retrieval_context": {
+          "user_query": "Where is storage for checkpoints or local metadata implemented?",
+          "active_files": [],
+          "active_symbols": [],
+          "working_memory": [],
+          "previous_failures": [],
+          "previous_queries": [],
+          "retrieval_round": 2,
+          "requested_more_context": true,
+          "followup_requests": [
+            {
+              "reason": "low_confidence_initial_retrieval",
+              "additional_scopes": [
+                "storage",
+                "checkpoints",
+                "metadata"
+              ],
+              "missing_symbols": [],
+              "requested_files": []
+            }
+          ]
+        },
+        "total_files_considered": 8,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 4.851,
+        "retrieval_time_ms": 1.0,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
@@ -2159,30 +5611,85 @@
         "corecoder/llm/client.py"
       ],
       "retrieved_files": [
-        "tests/test_litellm.py",
         "corecoder/llm/client.py",
+        "tests/test_litellm.py",
         "corecoder/llm/types.py",
+        "corecoder/config.py",
         "corecoder/__init__.py",
         "corecoder/llm/__init__.py",
-        "corecoder/config.py",
+        "tests/test_core.py",
         "corecoder/cli.py",
         "corecoder/__main__.py",
-        "tests/test_core.py",
         "corecoder/agent/core.py"
       ],
       "metrics": {
-        "hit_at_1": 0.0,
+        "hit_at_1": 1.0,
         "hit_at_3": 1.0,
         "hit_at_5": 1.0,
         "recall_at_5": 1.0,
-        "mrr": 0.5
+        "mrr": 1.0
       },
       "retrieval_meta": {
         "retrieval_mode": "task_execution",
         "task_type": "targeted_change",
+        "understanding": {
+          "goal": "Where are LLM request and response types defined?",
+          "objective": "Where are LLM request and response types defined?",
+          "entities": [
+            {
+              "name": "LLM",
+              "kind": "class",
+              "confidence": 0.9,
+              "source": "camel_case"
+            },
+            {
+              "name": "types",
+              "kind": "module",
+              "confidence": 0.55,
+              "source": "snake_case"
+            }
+          ],
+          "constraints": [],
+          "likely_modules": [
+            "types"
+          ],
+          "query_terms": [],
+          "confidence": 0.48
+        },
+        "plan": {
+          "task_type": "targeted_change",
+          "objective": "Where are LLM request and response types defined?",
+          "primary_symbols": [
+            "LLM"
+          ],
+          "retrieval_scopes": [
+            "types"
+          ],
+          "expansion_depth": 1,
+          "retrieval_strategy": "task_execution",
+          "target_files": [],
+          "required_context": [
+            "active_files",
+            "primary_symbols"
+          ],
+          "plan_reasoning": [
+            "defaulting to focused execution search"
+          ]
+        },
+        "retrieval_context": {
+          "user_query": "Where are LLM request and response types defined?",
+          "active_files": [],
+          "active_symbols": [],
+          "working_memory": [],
+          "previous_failures": [],
+          "previous_queries": [],
+          "retrieval_round": 1,
+          "requested_more_context": false,
+          "followup_requests": []
+        },
         "total_files_considered": 8,
         "total_files_ranked": 10,
-        "retrieval_time_ms": 2.0,
+        "retrieval_time_ms": 1.001,
         "pipeline_stages": [
           "task_understanding",
           "retrieval_planning",
