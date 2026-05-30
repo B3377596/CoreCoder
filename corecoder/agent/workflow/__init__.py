@@ -1,4 +1,4 @@
-"""Execution engine ?*scheduler, planner, executor, and verifier."""
+"""Execution engine  scheduler, planner, executor, and verifier."""
 
 from corecoder.agent.workflow.scheduler import (
     Scheduler,

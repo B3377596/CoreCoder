@@ -1,4 +1,4 @@
-"""DAG structure ?*task graph, models, memory, and recovery."""
+"""DAG structure  task graph, models, memory, and recovery."""
 
 from corecoder.agent.dag.models import (
     TaskStatus,

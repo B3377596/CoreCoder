@@ -4,14 +4,14 @@ Replaces the old _full_messages() which blindly concatenated
 [system] + self.messages.  Instead, builds a fresh message list
 each turn by layering:
 
-    1. system          ?*stable rules (always)
-    2. assistant(mem)  ?*working memory (ephemeral, rebuilt each turn)
-    3. assistant(repo) ?*repository cognition (ephemeral)
-    4. assistant(run)  ?*execution constraints (ephemeral)
-    5. persistent_history ?*real conversation (append-only)
+    1. system           stable rules (always)
+    2. assistant(mem)   working memory (ephemeral, rebuilt each turn)
+    3. assistant(repo)  repository cognition (ephemeral)
+    4. assistant(run)   execution constraints (ephemeral)
+    5. persistent_history  real conversation (append-only)
 
 Layers 2-4 are reconstructed from SessionState on every call.
-They are NEVER appended to persistent_history ?*only the assembler
+They are NEVER appended to persistent_history  only the assembler
 prepends them before sending to the LLM.
 
 Design principle: the LLM sees a clean, layered message structure
@@ -39,11 +39,11 @@ def build_runtime_messages(
 
     Layers (in order):
     1. system message (always)
-    2. assistant(memory) ?*working memory, if any fields are non-empty
-    3. assistant(repo)   ?*repository context, if any fields are non-empty
-    4. assistant(runtime) ?*execution constraints, if any fields are non-empty
-    5. current_turn user message (if provided ?*used by CLI one-shot path)
-    6. persistent_history ?*the real conversation so far
+    2. assistant(memory)  working memory, if any fields are non-empty
+    3. assistant(repo)    repository context, if any fields are non-empty
+    4. assistant(runtime)  execution constraints, if any fields are non-empty
+    5. current_turn user message (if provided  used by CLI one-shot path)
+    6. persistent_history  the real conversation so far
 
     Args:
         state: Current SessionState with all runtime fields.
@@ -59,17 +59,17 @@ def build_runtime_messages(
     # Layer 1: system (always first)
     messages.append({"role": "system", "content": system_prompt})
 
-    # Layer 2: assistant(memory) ?*working memory
+    # Layer 2: assistant(memory)  working memory
     mem_content = _build_memory_prefix(state)
     if mem_content:
         messages.append({"role": "assistant", "content": mem_content})
 
-    # Layer 3: assistant(repo) ?*repository cognition
+    # Layer 3: assistant(repo)  repository cognition
     repo_content = _build_repo_prefix(state)
     if repo_content:
         messages.append({"role": "assistant", "content": repo_content})
 
-    # Layer 4: assistant(runtime) ?*execution constraints
+    # Layer 4: assistant(runtime)  execution constraints
     runtime_content = _build_runtime_prefix(state)
     if runtime_content:
         messages.append({"role": "assistant", "content": runtime_content})
@@ -88,7 +88,7 @@ def estimate_ephemeral_tokens(state: SessionState, system_prompt: str) -> int:
     """Estimate token count of the ephemeral prefix layers.
 
     This is the overhead ABOVE persistent_history.  Used by compression
-    to determine when to trigger summarization ?*compression thresholds
+    to determine when to trigger summarization  compression thresholds
     should account for this overhead.
 
     Uses ``count_tokens`` from the compression module for consistency.
@@ -107,14 +107,14 @@ def estimate_ephemeral_tokens(state: SessionState, system_prompt: str) -> int:
 
 
 # ------------------------------------------------------------------
-# Layer builders ?*each returns a string or ""
+# Layer builders  each returns a string or ""
 # ------------------------------------------------------------------
 
 
 def _build_memory_prefix(state: SessionState) -> str:
-    """Build the assistant(memory) prefix ?*completed work and decisions.
+    """Build the assistant(memory) prefix  completed work and decisions.
 
-    Goal and current task are deliberately EXCLUDED ?*they belong in the
+    Goal and current task are deliberately EXCLUDED  they belong in the
     user message, not duplicated here.  This layer only carries "what we've
     done so far" to give the agent continuity without polluting the instruction.
     """
@@ -134,7 +134,7 @@ def _build_memory_prefix(state: SessionState) -> str:
 
 
 def _build_repo_prefix(state: SessionState) -> str:
-    """Build the assistant(repo) prefix ?*repository structure knowledge."""
+    """Build the assistant(repo) prefix  repository structure knowledge."""
     parts: list[str] = []
 
     if state.repo_summary:
@@ -154,7 +154,7 @@ def _build_repo_prefix(state: SessionState) -> str:
 
 
 def _build_runtime_prefix(state: SessionState) -> str:
-    """Build the assistant(runtime) prefix ?*execution boundaries and constraints."""
+    """Build the assistant(runtime) prefix  execution boundaries and constraints."""
     parts: list[str] = []
 
     if state.allowed_actions:

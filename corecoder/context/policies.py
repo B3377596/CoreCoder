@@ -58,7 +58,7 @@ class StatePolicy:
 POLICIES: dict[ExecutionState, StatePolicy] = {
     ExecutionState.PLANNING: StatePolicy(
         state=ExecutionState.PLANNING,
-        description="Decomposing goal into task graph ?*broad overview needed",
+        description="Decomposing goal into task graph  broad overview needed",
         token_budget=TokenBudget.planning(),
         max_files=20,           # Broad overview
         max_symbols=30,
@@ -89,7 +89,7 @@ POLICIES: dict[ExecutionState, StatePolicy] = {
 
     ExecutionState.CODING: StatePolicy(
         state=ExecutionState.CODING,
-        description="Writing/editing code ?*focused file context",
+        description="Writing/editing code  focused file context",
         token_budget=TokenBudget.coding(),
         max_files=8,            # Focused, not broad
         max_symbols=15,
@@ -120,7 +120,7 @@ POLICIES: dict[ExecutionState, StatePolicy] = {
 
     ExecutionState.DEBUGGING: StatePolicy(
         state=ExecutionState.DEBUGGING,
-        description="Investigating failures ?*errors and traces are critical",
+        description="Investigating failures  errors and traces are critical",
         token_budget=TokenBudget.debugging(),
         max_files=6,            # Focused on failing files
         max_symbols=10,

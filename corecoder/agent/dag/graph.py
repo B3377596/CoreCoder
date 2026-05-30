@@ -5,7 +5,7 @@ It enforces acyclicity at edge-insertion time (not during traversal) so
 that all downstream consumers can assume the graph is valid.
 
 Implementation uses adjacency lists rather than a matrix because task
-graphs are sparse ?*most nodes have 1-3 edges, so O(V+E) algorithms
+graphs are sparse  most nodes have 1-3 edges, so O(V+E) algorithms
 are practical even for large plans.
 """
 
@@ -24,16 +24,16 @@ class CycleDetectedError(ValueError):
         self.from_id = from_id
         self.to_id = to_id
         self.path = path
-        cycle_str = " ?*".join(path)
+        cycle_str = "  ".join(path)
         super().__init__(
-            f"Adding edge {from_id} ?*{to_id} would create cycle: {cycle_str}"
+            f"Adding edge {from_id}  {to_id} would create cycle: {cycle_str}"
         )
 
 
 class TaskGraph:
     """A directed acyclic graph of TaskNodes.
 
-    Nodes are stored by ID.  Edges represent "A depends on B" ?*    task A cannot start until task B completes successfully.
+    Nodes are stored by ID.  Edges represent "A depends on B"      task A cannot start until task B completes successfully.
 
     The graph is NOT thread-safe.  All mutations should happen during
     the planning phase or under the scheduler's lock.
@@ -257,7 +257,7 @@ class TaskGraph:
             path.append(node_id)
             for succ in self._successors.get(node_id, set()):
                 if color[succ] == GRAY:
-                    # found a cycle ?*extract the portion from succ to end
+                    # found a cycle  extract the portion from succ to end
                     cycle_start = path.index(succ)
                     cycles.append(path[cycle_start:] + [succ])
                 elif color[succ] == WHITE:
@@ -317,10 +317,10 @@ class TaskGraph:
     ) -> None:
         """Insert a new node into an existing dependency chain.
 
-        Before:  predecessor ?*successor
-        After:   predecessor ?*new_node ?*successor
+        Before:  predecessor  successor
+        After:   predecessor  new_node  successor
 
-        This is the primary mechanism for dynamic replanning ?*when the
+        This is the primary mechanism for dynamic replanning  when the
         verifier detects a missing step, the planner can inject a new
         node without rebuilding the entire graph.
         """

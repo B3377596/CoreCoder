@@ -120,8 +120,8 @@ def evaluate_case(
             "mrr": reciprocal_rank(ranked_files, expected),
         },
         "retrieval_meta": {
-            "intent_family": meta.intent.family if meta else "",
-            "intent_type": meta.intent.type if meta else "",
+            "retrieval_mode": meta.retrieval_mode if meta else "",
+            "task_type": meta.task_type if meta else "",
             "total_files_considered": meta.total_files_considered if meta else 0,
             "total_files_ranked": meta.total_files_ranked if meta else 0,
             "retrieval_time_ms": round(meta.retrieval_time_ms, 3) if meta else 0.0,

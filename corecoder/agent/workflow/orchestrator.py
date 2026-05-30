@@ -1,7 +1,7 @@
-"""Top-level orchestrator ?*the single entry point for DAG-based execution.
+"""Top-level orchestrator  the single entry point for DAG-based execution.
 
 The Orchestrator owns the full lifecycle:
-    User Goal ?*Plan ?*Schedule ?*Execute ?*Verify ?*(Replan) ?*Done
+    User Goal  Plan  Schedule  Execute  Verify  (Replan)  Done
 
 It wires together Planner, TaskGraph, Scheduler, Executor, Verifier,
 RecoveryManager, MemoryInjector, Storage, and Observability into a
@@ -49,7 +49,7 @@ class OrchestratorConfig:
     """Top-level configuration for the orchestration pipeline.
 
     Orchestrator-unique settings live here.  Scheduler-specific settings
-    are in the embedded ``scheduler`` SchedulerConfig ?*no field duplication.
+    are in the embedded ``scheduler`` SchedulerConfig  no field duplication.
     """
 
     goal: str = ""
@@ -67,7 +67,7 @@ class OrchestratorConfig:
     run_lint: bool = False
     lint_command: str = ""
 
-    # Scheduler configuration ?*single source of truth for scheduling knobs
+    # Scheduler configuration  single source of truth for scheduling knobs
     scheduler: SchedulerConfig = field(default_factory=SchedulerConfig)
 
     def to_scheduler_config(self, goal: str = "") -> SchedulerConfig:
@@ -110,7 +110,7 @@ class OrchestratorResult:
 class Orchestrator:
     """Top-level coordinator for DAG-based task execution.
 
-    Owns the lifecycle: Plan ?*Schedule ?*Execute ?*Verify ?*(Replan).
+    Owns the lifecycle: Plan  Schedule  Execute  Verify  (Replan).
 
     The orchestrator is deliberately stateless between runs.  Each call
     to run() creates a fresh pipeline.  This makes it safe to reuse
@@ -120,7 +120,7 @@ class Orchestrator:
     def __init__(self, config: OrchestratorConfig | None = None):
         self.config = config or OrchestratorConfig()
 
-        # Components ?*created per-run or lazily
+        # Components  created per-run or lazily
         self._planner: BasePlanner | None = None
         self._storage: BaseStorage | None = None
         self._agent_chat_fn: Callable[..., Awaitable[str]] | None = None
@@ -130,7 +130,7 @@ class Orchestrator:
         # Replan hooks
         self._replan_hooks: list[Callable[[PlanResult, dict[str, Any]], PlanResult]] = []
 
-        # Progress callback ?*notified on every task transition
+        # Progress callback  notified on every task transition
         self._progress_callback: Callable[[TaskNode, str], None] | None = None
 
         # Last run state (for introspection)
@@ -161,7 +161,7 @@ class Orchestrator:
         """Inject a ContextOrchestrator for dynamic context assembly.
 
         When set, each task execution uses the orchestrator's pipeline
-        (collect ?*rank ?*deduplicate ?*compress ?*budget) instead of
+        (collect  rank  deduplicate  compress  budget) instead of
         the flat prompt builder in the Executor.
         """
         self._context_orchestrator = orchestrator
@@ -361,7 +361,7 @@ class Orchestrator:
             max_rounds_per_task=scheduler_config.max_rounds_per_task,
         )
 
-        # Wire ContextOrchestrator ?*enables dynamic context assembly by default.
+        # Wire ContextOrchestrator  enables dynamic context assembly by default.
         # If an external orchestrator was injected via set_context_orchestrator(),
         # use that.  Otherwise, create one from the agent instance.
         if self._context_orchestrator is not None:
@@ -456,7 +456,7 @@ class Orchestrator:
     def _build_verifier(self) -> BaseVerifier:
         """Build a verifier using the VerificationPolicyEngine.
 
-        The engine implements verify() directly ?*at call time it inspects
+        The engine implements verify() directly  at call time it inspects
         the patch and dynamically selects appropriate verifiers.
         """
         from corecoder.agent.workflow.verifier import VerificationPolicyEngine

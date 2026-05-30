@@ -379,22 +379,8 @@ class FileSummary:
 
 
 @dataclass
-class TaskIntent:
-    """Legacy compatibility layer around richer task understanding."""
-
-    family: str = ""
-    type: str = ""
-    symbols: list[str] = field(default_factory=list)
-    concepts: list[str] = field(default_factory=list)
-    entrypoint_related: bool = False
-    affected_files: list[str] = field(default_factory=list)
-    confidence: float = 0.5
-    understanding: TaskUnderstanding | None = None
-
-
-@dataclass
 class RetrievalQuery:
-    """Legacy query object preserved for backward compatibility."""
+    """Repository retrieval query derived from a RetrievalPlan."""
 
     symbols: list[str] = field(default_factory=list)
     concepts: list[str] = field(default_factory=list)
@@ -447,10 +433,11 @@ class RankedFile:
 @dataclass
 class RetrievalMeta:
     query: RetrievalQuery = field(default_factory=RetrievalQuery)
-    intent: TaskIntent = field(default_factory=TaskIntent)
     understanding: TaskUnderstanding | None = None
     plan: RetrievalPlan | None = None
     retrieval_context: RetrievalContext | None = None
+    retrieval_mode: str = ""
+    task_type: str = ""
     total_files_considered: int = 0
     total_files_ranked: int = 0
     retrieval_time_ms: float = 0.0

@@ -1,8 +1,8 @@
-"""Symbol Ownership Graph ?*the backbone of symbolic retrieval.
+"""Symbol Ownership Graph  the backbone of symbolic retrieval.
 
 Provides:
-- symbol ?*file lookup (where is X defined*)
-- file ?*symbols lookup (what does this file contain*)
+- symbol  file lookup (where is X defined*)
+- file  symbols lookup (what does this file contain*)
 - partial symbol match (fuzzy prefix/suffix matching)
 - reverse lookup (which files reference symbol X*)
 
@@ -18,7 +18,7 @@ from corecoder.codebase.indexing.index import should_skip_path
 
 
 class SymbolOwnershipGraph:
-    """Bidirectional index: symbol ?*file.
+    """Bidirectional index: symbol  file.
 
     Built once from the repository index, then queried repeatedly.
     Supports exact lookup, partial matching, and fuzzy search.
@@ -32,17 +32,17 @@ class SymbolOwnershipGraph:
     """
 
     def __init__(self):
-        # symbol_name ?*list of SymbolInfo (handles overloads / same name in multiple files)
+        # symbol_name  list of SymbolInfo (handles overloads / same name in multiple files)
         self._symbol_map: dict[str, list[SymbolInfo]] = {}
 
-        # filepath ?*list of SymbolInfo
+        # filepath  list of SymbolInfo
         self._file_map: dict[str, list[SymbolInfo]] = {}
 
         # Lowercase index for case-insensitive lookup
-        self._lower_index: dict[str, list[str]] = {}  # lower_name ?*[exact_names]
+        self._lower_index: dict[str, list[str]] = {}  # lower_name  [exact_names]
 
-        # Prefix index: first 3 chars ?*matching symbol names
-        self._prefix_index: dict[str, list[str]] = {}  # prefix(len 3) ?*[exact_names]
+        # Prefix index: first 3 chars  matching symbol names
+        self._prefix_index: dict[str, list[str]] = {}  # prefix(len 3)  [exact_names]
 
         self._built = False
 
@@ -165,7 +165,7 @@ class SymbolOwnershipGraph:
     def fuzzy_search(self, query: str, limit: int = 10) -> list[SymbolInfo]:
         """Partial/fuzzy symbol search.
 
-        Tries: exact ?*prefix ?*substring matching.
+        Tries: exact  prefix  substring matching.
         """
         query_lower = query.lower()
 

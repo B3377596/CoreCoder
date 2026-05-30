@@ -2,7 +2,7 @@
 __version__ = "0.3.0"
 # Lazy imports so subpackages can be imported without
 # requiring all runtime dependencies (openai, etc.) to be installed.
-# Access Agent/LLM/etc. through the module as normal ?*they are loaded
+# Access Agent/LLM/etc. through the module as normal  they are loaded
 # on first access.
 def __getattr__(name: str):
     _imports = {

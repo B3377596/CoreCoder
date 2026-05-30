@@ -1,4 +1,4 @@
-"""Planner layer ?*converts user goals into executable TaskGraphs.
+"""Planner layer  converts user goals into executable TaskGraphs.
 
 The planner is the "brain" of the orchestration system.  It takes a
 high-level user goal and produces a structured DAG of tasks with
@@ -39,7 +39,7 @@ class PlanResult:
 
 
 class BasePlanner(ABC):
-    """Abstract planner ?*converts a goal into a TaskGraph.
+    """Abstract planner  converts a goal into a TaskGraph.
 
     Implementations:
     - StaticPlanner: manual task definition
@@ -141,7 +141,7 @@ class LLMPlanner(BasePlanner):
     4. Assign priorities
 
     The LLM is expected to produce a JSON structure that this planner
-    parses into a TaskGraph.  This is a placeholder ?*the actual
+    parses into a TaskGraph.  This is a placeholder  the actual
     implementation depends on the specific LLM interface being used.
 
     Design note: the LLMPlanner does NOT own an LLM instance.  It receives
@@ -265,14 +265,14 @@ Return ONLY JSON:
         return self._parse_response(response.content, goal)
 
     def plan(self, goal: str, context: dict[str, Any] | None = None) -> PlanResult:
-        """Synchronous plan ?*returns an empty graph with a hint to use aplan().
+        """Synchronous plan  returns an empty graph with a hint to use aplan().
 
         For synchronous usage, use StaticPlanner or call aplan() directly.
         """
         graph = TaskGraph(name="llm_plan_pending")
         return PlanResult(
             graph=graph,
-            plan_summary="LLM plan pending ?*use aplan() for async planning",
+            plan_summary="LLM plan pending  use aplan() for async planning",
             estimated_tasks=0,
             metadata={"status": "pending", "hint": "Call aplan() instead"},
         )
@@ -330,7 +330,7 @@ Return ONLY JSON:
         nodes: list[TaskNode] = []
 
         # First pass: create nodes.
-        # Planner no longer generates verification metadata ?*verification is
+        # Planner no longer generates verification metadata  verification is
         # handled by the runtime (patch analysis + VerificationPolicyEngine).
         for i, td in enumerate(tasks_data):
             extra_meta = {
@@ -417,7 +417,7 @@ Return ONLY JSON:
             description=(
                 f"The task '{failed_node.title}' failed.  {replan_hint}\n\n"
                 f"Investigate the failure and report findings.  "
-                f"Do NOT modify code yet ?*just understand what went wrong."
+                f"Do NOT modify code yet  just understand what went wrong."
             ),
             priority=failed_node.priority + 1,  # Higher priority than the original
             retry_policy=RetryPolicy(max_retries=1),
@@ -435,7 +435,7 @@ Return ONLY JSON:
                 except Exception:
                     pass
         else:
-            # No dependents ?*just add as a dependent of the failed task
+            # No dependents  just add as a dependent of the failed task
             original_plan.graph.add_node(diag_task)
             try:
                 original_plan.graph.add_dependency(diag_task.id, failed_task_id)

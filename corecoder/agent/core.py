@@ -1,4 +1,4 @@
-"""Core agent loop ?*state-centric runtime orchestration.
+"""Core agent loop  state-centric runtime orchestration.
 
 This is the heart of CoreCoder.  The pattern is simple:
 
@@ -11,14 +11,14 @@ which means it's done working and ready to report back.
 Architecture (state-centric, NOT chat-history centric):
 
     SessionState
-      ????? persistent_history   ?*real conversation only
-      ????? repo_summary         ?*stable repository cognition
-      ????? active_files/symbols ?*current task scope
-      ????? working memory       ?*completed steps, decisions (compactable)
-      ????? execution state      ?*bounds, constraints, stop conditions
+      ????? persistent_history    real conversation only
+      ????? repo_summary          stable repository cognition
+      ????? active_files/symbols  current task scope
+      ????? working memory        completed steps, decisions (compactable)
+      ????? execution state       bounds, constraints, stop conditions
 
     build_runtime_messages(state, system_prompt)
-      ?*[system] + [assistant(mem)] + [assistant(repo)] + [assistant(run)]
+       [system] + [assistant(mem)] + [assistant(repo)] + [assistant(run)]
         + ... persistent_history ...
 
 Ephemeral context (repo, memory, constraints, execution policies) is
@@ -39,6 +39,7 @@ import asyncio
 import inspect
 import logging
 import os
+import json
 from typing import TYPE_CHECKING
 
 from ..tools import ALL_TOOLS, get_tool
@@ -73,13 +74,13 @@ class Agent:
         self.tools = tools if tools is not None else ALL_TOOLS
         self.working_dir = os.getcwd()
 
-        # State-centric runtime ?*all context flows through SessionState.
+        # State-centric runtime  all context flows through SessionState.
         self.state = SessionState()
 
         self.context = ContextManager(max_tokens=max_context_tokens)
         self.max_rounds = max_rounds
 
-        # repository index ?*structured codebase memory (~/.corecoder/)
+        # repository index  structured codebase memory (~/.corecoder/)
         self.repo_index = RepoIndex(os.getcwd())
         if self.repo_index.needs_rebuild() or not self.repo_index.load():
             self.repo_index.build()
@@ -121,7 +122,7 @@ class Agent:
         merged into SessionState and the assembler rebuilds ephemeral
         prefixes from state fields each turn.
 
-        Ephemeral context is NEVER written into persistent_history ?*        only real conversation (user, assistant, tool messages) lives there.
+        Ephemeral context is NEVER written into persistent_history          only real conversation (user, assistant, tool messages) lives there.
 
         Args:
             user_input: The user message.
@@ -131,7 +132,6 @@ class Agent:
         """
         if state_updates:
             self.state.apply_state_updates(state_updates)
-
         # git snapshot before this turn (lightweight: only commits if dirty)
         self.shadow.snapshot(f"checkpoint: {user_input[:60]}")
         head = self._shadow_head()
@@ -139,7 +139,7 @@ class Agent:
             (len(self.state.persistent_history), f"user: {user_input[:60]}", head)
         )
 
-        # User message goes into persistent_history ?*this IS real conversation.
+        # User message goes into persistent_history this IS real conversation.
         self.state.persistent_history.append({"role": "user", "content": user_input})
 
         # Compression only touches persistent_history.  Ephemeral overhead
@@ -185,7 +185,7 @@ class Agent:
                             "role": "tool", "tool_call_id": tc.id, "content": result,
                         })
 
-            # Recompute ephemeral overhead after each turn ?*tool results
+            # Recompute ephemeral overhead after each turn  tool results
             # may have changed what's in active context.
             ephemeral_overhead = estimate_ephemeral_tokens(self.state, self._system)
             await self.context.maybe_compress(
@@ -193,7 +193,7 @@ class Agent:
                 ephemeral_overhead=ephemeral_overhead,
             )
 
-        # Rebuild repo index after every user turn ?*files may have changed
+        # Rebuild repo index after every user turn  files may have changed
         try:
             self.repo_index.build()
         except Exception:
@@ -213,7 +213,7 @@ class Agent:
     def undo(self) -> str | None:
         """Restore files and conversation to before the last user turn.
 
-        Operates on persistent_history only ?*ephemeral context is
+        Operates on persistent_history only  ephemeral context is
         not checkpointed (it's rebuilt from SessionState fields).
         """
         if not self._checkpoints:
@@ -234,7 +234,7 @@ class Agent:
                     self.shadow._git("reset", "--hard", commit)
                 except Exception as e:
                     logger.warning("Shadow reset failed: %s", e)
-            file_info = f" ?*restored {n_files} file(s)" if n_files else ""
+            file_info = f"  restored {n_files} file(s)" if n_files else ""
             return f"{desc}{file_info}"
 
         # git reset to the pre-turn commit
@@ -247,7 +247,7 @@ class Agent:
         target_len, _, _ = self._checkpoints[-1]
         self.state.persistent_history = self.state.persistent_history[:target_len]
 
-        suffix = f" ?*restored {n_files} file(s)" if n_files else ""
+        suffix = f"  restored {n_files} file(s)" if n_files else ""
         return desc + suffix
 
     # ------------------------------------------------------------------
@@ -278,6 +278,7 @@ class Agent:
         return await self._invoke(tool, tc.arguments)
 
     async def _call_tools_parallel(self, tool_calls, on_tool=None) -> list[str]:
+        '''Execute multiple tool calls in parallel, returning results in the same order.but not used yet as we implement SSE'''
         for tc in tool_calls:
             if on_tool:
                 on_tool(tc.name, tc.arguments)
@@ -305,7 +306,7 @@ class Agent:
             return f"Error executing {tool.name}: {e}"
 
     # ------------------------------------------------------------------
-    # SSE execution ?*start tools immediately as they arrive
+    # SSE execution  start tools immediately as they arrive
     # ------------------------------------------------------------------
 
     async def _execute_turn_sse(self, on_token=None, on_tool=None) -> str | None:
@@ -325,7 +326,7 @@ class Agent:
         content_parts: list[str] = []
         reasoning_parts: list[str] = []
         tool_calls: list[LlmToolCall] = []
-        # (tool_call, future) ?*started immediately when tool_call event arrives
+        # (tool_call, future)  started immediately when tool_call event arrives
         pending: list[tuple[LlmToolCall, asyncio.Task]] = []
         prompt_tok = 0
         completion_tok = 0
@@ -370,7 +371,7 @@ class Agent:
             elif event.type == "error":
                 logger.warning("SSE error: %s", event.error)
 
-        # No tool calls ?*LLM responded with text only
+        # No tool calls  LLM responded with text only
         if not tool_calls:
             resp = LLMResponse(
                 content="".join(content_parts),
@@ -415,7 +416,7 @@ class Agent:
 
         The assembler layers ephemeral context prefixes (memory, repo,
         runtime constraints) over persistent_history.  All context flows
-        through SessionState ?*no raw string injection.
+        through SessionState  no raw string injection.
         """
         return build_runtime_messages(self.state, self._system)
 

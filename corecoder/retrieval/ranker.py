@@ -2,7 +2,7 @@
 
 Replaces: score = keyword_count
 With:     score = symbol_match + summary_match + filename_match
-                  + dependency_bonus + task_intent_bonus
+                  + dependency_bonus + task_type_bonus
 
 Every ranked file carries a score breakdown and a list of "why_selected"
 reasons.  This makes retrieval decisions auditable and useful for
@@ -20,7 +20,7 @@ from corecoder.retrieval.models import (
     RepositoryGraph,
     RetrievalContext,
     RetrievalQuery,
-    TaskIntent,
+    TaskUnderstanding,
     FileSummary,
     ArchitecturalCentrality,
 )
@@ -49,12 +49,12 @@ class StructuredRanker:
     """Multi-factor file ranker for retrieval.
 
     Two scoring modes:
-    - EXECUTION: symbol matching + summary + filename + task intent
+    - EXECUTION: symbol matching + summary + filename + task-type alignment
     - UNDERSTANDING: architectural centrality + entrypoint + architecture relevance
 
     Usage:
         ranker = StructuredRanker(symbol_graph, summaries, dep_graph)
-        ranked = ranker.rank(candidate_files, query, intent)
+        ranked = ranker.rank(candidate_files, query)
     """
 
     def __init__(
@@ -80,24 +80,24 @@ class StructuredRanker:
         self,
         candidate_files: list[str],
         query: RetrievalQuery,
-        intent: TaskIntent,
+        understanding: TaskUnderstanding | None = None,
         retrieval_context: RetrievalContext | None = None,
     ) -> list[RankedFile]:
         """Rank candidate files.  Mode-aware: understanding vs execution."""
-        if intent.family == "understanding":
-            return self._rank_understanding(candidate_files, query, intent, retrieval_context)
+        if self._is_understanding_query(query):
+            return self._rank_understanding(candidate_files, query, understanding, retrieval_context)
         else:
-            return self._rank_execution(candidate_files, query, intent, retrieval_context)
+            return self._rank_execution(candidate_files, query, understanding, retrieval_context)
 
     def rank_understanding(
         self,
         candidate_files: list[str],
         query: RetrievalQuery,
-        intent: TaskIntent,
+        understanding: TaskUnderstanding | None = None,
         retrieval_context: RetrievalContext | None = None,
     ) -> list[RankedFile]:
         """Public understanding-mode ranking API."""
-        return self._rank_understanding(candidate_files, query, intent, retrieval_context)
+        return self._rank_understanding(candidate_files, query, understanding, retrieval_context)
 
     def get_centrality(self) -> dict[str, ArchitecturalCentrality]:
         """Return cached centrality, computing it lazily if needed."""
@@ -112,12 +112,12 @@ class StructuredRanker:
         self,
         candidate_files: list[str],
         query: RetrievalQuery,
-        intent: TaskIntent,
+        understanding: TaskUnderstanding | None,
         retrieval_context: RetrievalContext | None,
     ) -> list[RankedFile]:
         scored: list[RankedFile] = []
         for filepath in candidate_files:
-            rf = self._score_one_execution(filepath, query, intent, retrieval_context)
+            rf = self._score_one_execution(filepath, query, understanding, retrieval_context)
             scored.append(rf)
 
         if self._dep_graph and scored:
@@ -134,19 +134,19 @@ class StructuredRanker:
         self,
         candidate_files: list[str],
         query: RetrievalQuery,
-        intent: TaskIntent,
+        understanding: TaskUnderstanding | None,
         retrieval_context: RetrievalContext | None,
     ) -> list[RankedFile]:
         """Rank files for understanding queries.
 
         Uses architectural centrality, entrypoint importance, and
-        architecture relevance ?*NOT symbol matching.
+        architecture relevance  NOT symbol matching.
         """
         self._ensure_centrality()
 
         scored: list[RankedFile] = []
         for filepath in candidate_files:
-            rf = self._score_one_understanding(filepath, query, intent, retrieval_context)
+            rf = self._score_one_understanding(filepath, query, understanding, retrieval_context)
             scored.append(rf)
 
         scored.sort(key=lambda r: r.score, reverse=True)
@@ -156,7 +156,7 @@ class StructuredRanker:
         self,
         filepath: str,
         query: RetrievalQuery,
-        intent: TaskIntent,
+        understanding: TaskUnderstanding | None,
         retrieval_context: RetrievalContext | None,
     ) -> RankedFile:
         """Score a file for understanding relevance.
@@ -195,7 +195,7 @@ class StructuredRanker:
         breakdown["entrypoint"] = round(entrypoint_score, 3)
 
         # 3. Architecture relevance
-        arch_score = self._score_architecture_relevance(filepath, summary, query, intent)
+        arch_score = self._score_architecture_relevance(filepath, summary, query, understanding)
         if arch_score > 0.5:
             reasons.append(f"reveals architecture: {summary.purpose if summary else filepath}")
         breakdown["architecture"] = round(arch_score, 3)
@@ -273,7 +273,7 @@ class StructuredRanker:
         filepath: str,
         summary: FileSummary | None,
         query: RetrievalQuery,
-        intent: TaskIntent,
+        understanding: TaskUnderstanding | None,
     ) -> float:
         """Score how much this file reveals about project architecture."""
         fname = filepath.split("/")[-1].lower()
@@ -343,7 +343,7 @@ class StructuredRanker:
         self,
         filepath: str,
         query: RetrievalQuery,
-        intent: TaskIntent,
+        understanding: TaskUnderstanding | None,
         retrieval_context: RetrievalContext | None,
     ) -> RankedFile:
         """Score a single file for execution relevance (existing logic)."""
@@ -364,10 +364,10 @@ class StructuredRanker:
         filename_score = self._score_filename(filepath, query, reasons)
         breakdown["filename_match"] = filename_score
 
-        intent_bonus = self._score_task_intent(
-            filepath, summary, symbol_names, intent, reasons
+        intent_bonus = self._score_task_type(
+            filepath, summary, symbol_names, query, understanding, reasons
         )
-        breakdown["task_intent"] = intent_bonus
+        breakdown["task_type"] = intent_bonus
 
         graph_score = self._score_graph_relevance(
             filepath, query, symbol_names, reasons
@@ -502,7 +502,7 @@ class StructuredRanker:
     ) -> float:
         """Score by filename keyword match.
 
-        Lowest weight ?*filenames are weak signals.  But still useful
+        Lowest weight  filenames are weak signals.  But still useful
         when symbols are not mentioned explicitly.
         """
         stem = filepath.split("/")[-1].lower()
@@ -524,22 +524,18 @@ class StructuredRanker:
         reasons.append(f"filename match: `{stem}`")
         return min(1.0, matches * 0.3)
 
-    def _score_task_intent(
+    def _score_task_type(
         self,
         filepath: str,
         summary: FileSummary | None,
         symbol_names: list[str],
-        intent: TaskIntent,
+        query: RetrievalQuery,
+        understanding: TaskUnderstanding | None,
         reasons: list[str],
     ) -> float:
-        """Task-type-specific scoring bonus.
-
-        Different task types have different file preferences:
-        - cli_change: prioritize main.py, cli.py, argparse handlers
-        - bug_fix: prioritize test files, error handlers
-        - feature_integration: prioritize entrypoints, dispatch code
-        """
-        if intent.type == "unknown":
+        """Task-type-specific scoring bonus derived from the RetrievalPlan."""
+        task_type = query.task_type or (query.plan.task_type if query.plan else "unknown")
+        if task_type == "unknown":
             return 0.0
 
         fname = filepath.split("/")[-1].lower()
@@ -547,7 +543,7 @@ class StructuredRanker:
 
         bonus = 0.0
 
-        if intent.type == "cli_change":
+        if task_type == "cli_change":
             if cat == "cli" or fname in ("main.py", "cli.py", "app.py", "run.py"):
                 bonus = 1.0
                 reasons.append("CLI entrypoint (cli_change task)")
@@ -556,7 +552,7 @@ class StructuredRanker:
                 bonus = 0.7
                 reasons.append("argument parsing (cli_change task)")
 
-        elif intent.type == "bug_fix":
+        elif task_type in {"bug_fix", "failure_investigation"}:
             if cat == "test":
                 bonus = 0.8
                 reasons.append("test file (bug_fix task)")
@@ -565,7 +561,7 @@ class StructuredRanker:
                 bonus = 0.5
                 reasons.append("error/validation code (bug_fix task)")
 
-        elif intent.type == "feature_integration":
+        elif task_type == "feature_integration":
             if cat == "cli" or fname in ("main.py", "cli.py", "app.py",
                                           "__init__.py"):
                 bonus = 1.0
@@ -574,14 +570,14 @@ class StructuredRanker:
                 bonus = 0.6
                 reasons.append("package init (feature_integration task)")
 
-        elif intent.type == "refactor":
-            # Refactoring: broad context ?*boost all non-test, non-config files
+        elif task_type == "refactor":
+            # Refactoring: broad context  boost all non-test, non-config files
             if cat not in ("test", "config"):
                 bonus = 0.3
             if cat == "core_logic":
                 bonus = 0.6
 
-        elif intent.type == "dependency_change":
+        elif task_type == "dependency_change":
             if cat == "config" or fname in (
                 "pyproject.toml", "setup.py", "requirements.txt",
                 "setup.cfg", "__init__.py",
@@ -589,12 +585,18 @@ class StructuredRanker:
                 bonus = 1.0
                 reasons.append("dependency config (dependency_change task)")
 
-        elif intent.type == "test_addition":
+        elif task_type == "test_addition":
             if cat == "test":
                 bonus = 0.9
                 reasons.append("test file (test_addition task)")
             elif cat == "core_logic":
                 bonus = 0.5  # code that needs tests
+
+        if task_type == "implementation_explanation" and cat == "core_logic":
+            bonus = max(bonus, 0.55)
+            reasons.append("core implementation file (explanation task)")
+        if task_type == "architecture_understanding" and cat in {"package", "cli", "core_logic"}:
+            bonus = max(bonus, 0.35)
 
         return bonus
 
@@ -937,3 +939,10 @@ class StructuredRanker:
         # Re-sort
         scored.sort(key=lambda r: r.score, reverse=True)
         return scored
+
+    @staticmethod
+    def _is_understanding_query(query: RetrievalQuery) -> bool:
+        plan = query.plan
+        if plan is None:
+            return query.task_type in {"overview", "architecture"}
+        return plan.retrieval_strategy == "architecture_scan" or plan.task_type == "architecture_understanding"

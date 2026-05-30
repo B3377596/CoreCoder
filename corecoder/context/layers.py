@@ -1,4 +1,4 @@
-"""Context layers ?*each layer is a factory producing typed ContextFragments.
+"""Context layers  each layer is a factory producing typed ContextFragments.
 
 Each layer:
 - Has its own retrieval logic
@@ -44,7 +44,7 @@ class ContextLayer:
         # Stamp source and priority on every fragment
         for f in fragments:
             f.source = self.source
-            if f.priority == 5:  # Unset ?*use layer default
+            if f.priority == 5:  # Unset  use layer default
                 f.priority = self.default_priority
             if self.default_max_tokens > 0 and f.max_tokens == 0:
                 f.max_tokens = self.default_max_tokens
@@ -56,7 +56,7 @@ class ContextLayer:
 
 
 # ===========================================================================
-# System context ?*global instructions, role, capabilities
+# System context  global instructions, role, capabilities
 # ===========================================================================
 
 class SystemContextLayer(ContextLayer):
@@ -87,7 +87,7 @@ class SystemContextLayer(ContextLayer):
 
 
 # ===========================================================================
-# Task context ?*the current task node from the DAG
+# Task context  the current task node from the DAG
 # ===========================================================================
 
 class TaskContextLayer(ContextLayer):
@@ -127,7 +127,7 @@ class TaskContextLayer(ContextLayer):
 
 
 # ===========================================================================
-# Working memory ?*in-flight execution state
+# Working memory  in-flight execution state
 # ===========================================================================
 
 class WorkingMemoryContextLayer(ContextLayer):
@@ -188,14 +188,14 @@ class WorkingMemoryContextLayer(ContextLayer):
 
 
 # ===========================================================================
-# Failure memory ?*past errors to avoid repeating
+# Failure memory  past errors to avoid repeating
 # ===========================================================================
 
 class FailureMemoryContextLayer(ContextLayer):
     """Produces context about past failures and their root causes."""
 
     source = ContextSource.FAILURE_MEMORY
-    default_priority = 8  # High priority ?*avoiding repeat failures is critical
+    default_priority = 8  # High priority  avoiding repeat failures is critical
 
     def _produce(self, request: ContextRequest) -> list[ContextFragment]:
         fragments: list[ContextFragment] = []
@@ -218,7 +218,7 @@ class FailureMemoryContextLayer(ContextLayer):
 
 
 # ===========================================================================
-# Constraint context ?*hard rules and limits
+# Constraint context  hard rules and limits
 # ===========================================================================
 
 class ConstraintContextLayer(ContextLayer):
@@ -245,18 +245,18 @@ class ConstraintContextLayer(ContextLayer):
 
 
 # ===========================================================================
-# Execution policy ?*task contract: boundaries, stop conditions, anti-redundancy
+# Execution policy  task contract: boundaries, stop conditions, anti-redundancy
 # ===========================================================================
 
 class ExecutionPolicyContextLayer(ContextLayer):
-    """Produces the task contract ?*hard execution boundaries.
+    """Produces the task contract  hard execution boundaries.
 
     This is the "action gating" layer.  Without it, the agent treats task
     descriptions as suggestions and freely does downstream work.
     """
 
     source = ContextSource.CONSTRAINT
-    default_priority = 10  # Highest priority ?*contract must always be visible
+    default_priority = 10  # Highest priority  contract must always be visible
 
     def _produce(self, request: ContextRequest) -> list[ContextFragment]:
         fragments: list[ContextFragment] = []
@@ -319,7 +319,7 @@ class ExecutionPolicyContextLayer(ContextLayer):
 
 
 # ===========================================================================
-# Shared keyword heuristics ?*used by both ExecutionPolicyContextLayer
+# Shared keyword heuristics  used by both ExecutionPolicyContextLayer
 # (fallback) and LLMPlanner (auto-fill missing bounds after parsing).
 # ===========================================================================
 

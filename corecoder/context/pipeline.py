@@ -3,7 +3,7 @@
 The pipeline transforms a ContextRequest into a ContextBundle through
 a series of modular stages:
 
-    collect_candidates ?*rank ?*deduplicate ?*compress ?*budget_trim ?*assemble
+    collect_candidates  rank  deduplicate  compress  budget_trim  assemble
 
 Each stage is a pure function from state to state, making the pipeline
 testable and composable.  Stages can be extended, reordered, or replaced
@@ -29,7 +29,7 @@ from corecoder.context.ranker import ContextRanker
 
 
 # ===========================================================================
-# Pipeline context ?*mutable state flowing through stages
+# Pipeline context  mutable state flowing through stages
 # ===========================================================================
 
 @dataclass
@@ -162,7 +162,7 @@ class ContextAssemblyPipeline:
             # Exact hash check
             content_hash = hash(f.content[:500])  # First 500 chars as fingerprint
             if content_hash in seen_hashes:
-                # Duplicate ?*keep the one with higher score
+                # Duplicate  keep the one with higher score
                 existing = next((df for df in deduped if hash(df.content[:500]) == content_hash), None)
                 if existing and f.effective_score > existing.effective_score:
                     deduped.remove(existing)

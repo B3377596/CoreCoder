@@ -1,10 +1,10 @@
-"""Runtime state management ?*state-centric orchestration.
+"""Runtime state management  state-centric orchestration.
 
 SessionState is the single source of truth for the agent's runtime cognition.
 It cleanly separates:
 
 - persistent_history: real conversation (user, assistant replies, tool traces)
-- ephemeral context: repo cognition, working memory, execution policies ?*rebuilt
+- ephemeral context: repo cognition, working memory, execution policies  rebuilt
   each turn, never written into conversation history
 """
 

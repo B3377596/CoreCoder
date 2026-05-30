@@ -1,4 +1,4 @@
-"""Bidirectional Dependency Graph ?*forward + reverse edges pre-computed.
+"""Bidirectional Dependency Graph  forward + reverse edges pre-computed.
 
 Replaces the old flat dict-based dependency model with a proper
 bidirectional structure.  Both directions are pre-computed at build
@@ -26,8 +26,8 @@ def build_dependency_graph(
         }
 
     Produces both:
-    - imports: file ?*what it imports
-    - imported_by: file ?*who imports it
+    - imports: file  what it imports
+    - imported_by: file  who imports it
     """
     raw_imports = (
         dependencies_json.get("resolved_internal_imports")

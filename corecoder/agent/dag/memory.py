@@ -25,7 +25,7 @@ from corecoder.agent.dag.models import TaskStatus
 class WorkingMemory:
     """Per-task execution context.
 
-    This is the "consciousness" of a single task node ?*everything the
+    This is the "consciousness" of a single task node  everything the
     agent needs to know to execute this specific piece of work, and
     nothing it doesn't.
 
@@ -51,7 +51,7 @@ class WorkingMemory:
     # Maps task_id -> {description, files, outputs, ...}
     completed_artifacts: dict[str, dict[str, Any]] = field(default_factory=dict)
 
-    # Downstream task titles ?*shown to agent so it knows what NOT to do
+    # Downstream task titles  shown to agent so it knows what NOT to do
     downstream_tasks: list[str] = field(default_factory=list)
 
     # Free-form notes the agent can read/write
@@ -101,11 +101,11 @@ class WorkingMemory:
                 parts.append(f"- {a}")
 
         if self.completed_artifacts:
-            parts.append("\n## Completed Work (from dependencies) ?*already done, do NOT repeat")
+            parts.append("\n## Completed Work (from dependencies)  already done, do NOT repeat")
             for tid, art in self.completed_artifacts.items():
                 desc = art.get("description", tid)
                 parts.append(f"- COMPLETED: **{desc}**")
-                # Show what files were created ?*this is the key working memory
+                # Show what files were created  this is the key working memory
                 created = (art.get("created_files", []) or
                           art.get("all_changed", []))
                 if created:
@@ -172,7 +172,7 @@ class WorkingMemory:
 class MemoryInjector:
     """Builds and injects working memory into task execution.
 
-    This is a stateless factory ?*it reads the graph state and
+    This is a stateless factory  it reads the graph state and
     constructs a WorkingMemory for a specific task node.
 
     Usage:

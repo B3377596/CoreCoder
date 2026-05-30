@@ -1,14 +1,14 @@
-"""Symbolic repository retrieval ?*the "repository cognition" layer.
+"""Symbolic repository retrieval  the "repository cognition" layer.
 
 Architecture:
     Task text
-      ?*    TaskIntentAnalyzer     ?*classify task type, extract symbols/concepts
-      ?*    RetrievalQueryPlanner  ?*expand query based on task type
-      ?*    SymbolOwnershipGraph   ?*route symbols to files, fuzzy match
-      ?*    BidirectionalDepGraph  ?*expand by dependency neighborhood
-      ?*    FileSummaryManager     ?*semantic summary matching
-      ?*    StructuredRanker       ?*multi-factor scoring with reasoning
-      ?*    ContextFragments       ?*metadata-only output (no file contents)
+           TaskUnderstandingAnalyzer understand goal, entities, constraints
+           RetrievalQueryPlanner   expand query from RetrievalPlan
+           SymbolOwnershipGraph    route symbols to files, fuzzy match
+           BidirectionalDepGraph   expand by dependency neighborhood
+           FileSummaryManager      semantic summary matching
+           StructuredRanker        multi-factor scoring with reasoning
+           ContextFragments        metadata-only output (no file contents)
 
 Design invariants:
 - Metadata-first: retrieve() returns file listings, symbols, dependencies.
@@ -45,7 +45,7 @@ from corecoder.retrieval.models import (
 from corecoder.retrieval.repository_graph import build_repository_graph
 from corecoder.retrieval.symbol_index import SymbolOwnershipGraph
 from corecoder.retrieval.summaries import FileSummaryManager
-from corecoder.retrieval.task_intent import TaskIntentAnalyzer
+from corecoder.retrieval.task_intent import TaskUnderstandingAnalyzer
 from corecoder.retrieval.query_planner import RetrievalQueryPlanner
 from corecoder.retrieval.retrieval_planner import RetrievalPlanner
 from corecoder.retrieval.dependency_graph import build_dependency_graph
@@ -55,7 +55,7 @@ from corecoder.codebase.indexing.index import should_skip_path, RepoIndex
 
 
 # ===========================================================================
-# RetrievalOptions ?*kept backward-compatible
+# RetrievalOptions  kept backward-compatible
 # ===========================================================================
 
 @dataclass
@@ -74,7 +74,7 @@ class RetrievalOptions:
 
 
 # ===========================================================================
-# RepositoryContextRetriever ?*refactored
+# RepositoryContextRetriever  refactored
 # ===========================================================================
 
 class RepositoryContextRetriever:
@@ -85,9 +85,9 @@ class RepositoryContextRetriever:
     files by symbolic proximity rather than raw text matching.
 
     Pipeline:
-        1. TaskIntent analysis
+        1. Task understanding
         2. RetrievalQuery planning
-        3. Symbol routing (symbol ?*file)
+        3. Symbol routing (symbol  file)
         4. Dependency expansion (follow imports)
         5. Semantic summary ranking
         6. Metadata-only ContextFragment output
@@ -101,7 +101,7 @@ class RepositoryContextRetriever:
         self._working_dir = Path(working_dir)
         self._index_dir = self._working_dir / ".corecoder"
 
-        # Optional RepoIndex ?*when provided, data is read from it instead
+        # Optional RepoIndex  when provided, data is read from it instead
         # of re-reading .corecoder/*.json from disk.
         self._repo_index = repo_index
 
@@ -118,7 +118,7 @@ class RepositoryContextRetriever:
         self._symbol_graph = SymbolOwnershipGraph()
         self._summary_manager = FileSummaryManager(str(working_dir))
         self._dep_graph = None  # Lazy: built after loading
-        self._intent_analyzer = TaskIntentAnalyzer()
+        self._understanding_analyzer = TaskUnderstandingAnalyzer()
         self._retrieval_planner = RetrievalPlanner()
         self._query_planner = RetrievalQueryPlanner()
         self._ranker: StructuredRanker | None = None  # Lazy: built after loading
@@ -136,7 +136,7 @@ class RepositoryContextRetriever:
         request: ContextRequest,
         options: RetrievalOptions | None = None,
     ) -> list[ContextFragment]:
-        """Retrieve repository context ?*metadata only, no file contents.
+        """Retrieve repository context  metadata only, no file contents.
 
         Returns ContextFragments containing:
         - Relevant files with symbols and selection reasoning
@@ -156,12 +156,7 @@ class RepositoryContextRetriever:
             return fragments
 
         # ---- Stage 1: Task Understanding ----
-        understanding = self._intent_analyzer.understand(
-            task_title=request.task_title,
-            task_description=request.task_description,
-            goal=request.goal,
-        )
-        intent = self._intent_analyzer.analyze(
+        understanding = self._understanding_analyzer.understand(
             task_title=request.task_title,
             task_description=request.task_description,
             goal=request.goal,
@@ -171,17 +166,17 @@ class RepositoryContextRetriever:
         # ---- Stage 2: Retrieval Planning ----
         plan = self._retrieval_planner.plan(understanding, retrieval_context)
         retrieval_context.current_plan = plan
-        query = self._query_planner.from_plan(plan, intent)
+        query = self._query_planner.plan(understanding, plan)
 
         # ---- Mode Switch: understanding vs execution ----
-        if intent.family == "understanding":
-            return self._retrieve_understanding(request, intent, query, opts, t0)
+        if self._is_understanding_plan(plan):
+            return self._retrieve_understanding(request, understanding, plan, query, opts, t0)
 
         # ---- Stage 3: Graph-aware candidate collection ----
         candidates = self._collect_candidates(query, retrieval_context)
 
         # ---- Stage 4: Structured ranking ----
-        ranked = self._ranker.rank(candidates, query, intent, retrieval_context)
+        ranked = self._ranker.rank(candidates, query, understanding, retrieval_context)
 
         # ---- Stage 5: Adaptive retrieval ----
         if (not ranked or ranked[0].score < 0.2) and not retrieval_context.requested_more_context:
@@ -196,9 +191,9 @@ class RepositoryContextRetriever:
                 requested_files=plan.target_files[:3],
             )
             plan = self._retrieval_planner.plan(understanding, retrieval_context)
-            query = self._query_planner.from_plan(plan, intent)
+            query = self._query_planner.plan(understanding, plan)
             candidates = self._collect_candidates(query, retrieval_context)
-            ranked = self._ranker.rank(candidates, query, intent, retrieval_context)
+            ranked = self._ranker.rank(candidates, query, understanding, retrieval_context)
 
         # ---- Stage 6: Graph expansion ----
         if self._dep_graph and query.expand_dependencies:
@@ -216,7 +211,7 @@ class RepositoryContextRetriever:
                 summary = self._summary_manager.get(rf.filepath)
                 symbols = rf.symbols[:5]
                 if summary and summary.purpose:
-                    lines.append(f"- {rf.filepath} ?*{summary.purpose}")
+                    lines.append(f"- {rf.filepath}  {summary.purpose}")
                     if symbols:
                         lines.append(f"  symbols: {', '.join(symbols)}")
                 elif symbols:
@@ -279,10 +274,11 @@ class RepositoryContextRetriever:
         retrieval_time_ms = (time.time() - t0) * 1000.0
         self._last_retrieval_meta = RetrievalMeta(
             query=query,
-            intent=intent,
             understanding=understanding,
             plan=plan,
             retrieval_context=retrieval_context,
+            retrieval_mode=plan.retrieval_strategy,
+            task_type=plan.task_type,
             total_files_considered=len(candidates),
             total_files_ranked=len(ranked),
             retrieval_time_ms=retrieval_time_ms,
@@ -424,7 +420,8 @@ class RepositoryContextRetriever:
     def _retrieve_understanding(
         self,
         request: ContextRequest,
-        intent,
+        understanding,
+        plan,
         query,
         opts,
         t0: float,
@@ -496,7 +493,7 @@ class RepositoryContextRetriever:
                     break
 
         # ---- Understanding-mode ranking ----
-        ranked = self._ranker.rank_understanding(candidates, query, intent, None)
+        ranked = self._ranker.rank_understanding(candidates, query, understanding, None)
 
         # ---- Build fragments ----
         top_files = ranked[:opts.max_files]
@@ -518,7 +515,7 @@ class RepositoryContextRetriever:
                 summary = self._summary_manager.get(rf.filepath)
                 symbols = rf.symbols[:5]
                 if summary and summary.purpose:
-                    lines.append(f"- {rf.filepath} ?*{summary.purpose}")
+                    lines.append(f"- {rf.filepath}  {summary.purpose}")
                     if symbols:
                         lines.append(f"  symbols: {', '.join(symbols)}")
                 elif symbols:
@@ -542,7 +539,7 @@ class RepositoryContextRetriever:
                 },
             ))
 
-        # Dependency relationships (lightweight ?*only for top files)
+        # Dependency relationships (lightweight  only for top files)
         if self._dependencies_json:
             internal = self._dependencies_json.get("internal_imports", {})
             if internal:
@@ -571,13 +568,16 @@ class RepositoryContextRetriever:
         retrieval_time_ms = (time.time() - t0) * 1000.0
         self._last_retrieval_meta = RetrievalMeta(
             query=query,
-            intent=intent,
+            understanding=understanding,
+            plan=plan,
+            retrieval_mode=plan.retrieval_strategy,
+            task_type=plan.task_type,
             total_files_considered=len(candidates),
             total_files_ranked=len(ranked),
             retrieval_time_ms=retrieval_time_ms,
             pipeline_stages=[
-                "intent_analysis",
-                "query_planning",
+                "task_understanding",
+                "retrieval_planning",
                 "understanding_candidate_collection",
                 "understanding_ranking",
                 "fragment_assembly",
@@ -585,8 +585,15 @@ class RepositoryContextRetriever:
         )
         return fragments
 
+    @staticmethod
+    def _is_understanding_plan(plan) -> bool:
+        return (
+            getattr(plan, "retrieval_strategy", "") == "architecture_scan"
+            or getattr(plan, "task_type", "") == "architecture_understanding"
+        )
+
     def retrieve_project_overview(self) -> ProjectCognition:
-        """Dedicated project overview ?*returns a ProjectCognition struct.
+        """Dedicated project overview  returns a ProjectCognition struct.
 
         Use this for onboarding, project explanation, and architecture
         understanding queries.  Does NOT go through the retrieval pipeline.
@@ -758,7 +765,7 @@ class RepositoryContextRetriever:
         """Lazy-load the repository index and build all components.
 
         When a RepoIndex is provided, data is read from its in-memory
-        fields ?*no redundant file I/O.  Otherwise falls back to reading
+        fields  no redundant file I/O.  Otherwise falls back to reading
         .corecoder/*.json directly from disk.
         """
         if self._loaded:
@@ -766,7 +773,7 @@ class RepositoryContextRetriever:
         self._loaded = True
 
         if self._repo_index is not None:
-            # Use the passed-in RepoIndex ?*avoids re-reading the same files
+            # Use the passed-in RepoIndex  avoids re-reading the same files
             self._symbols_json = dict(self._repo_index._symbols)
             self._dependencies_json = dict(self._repo_index._deps)
             self._summary = self._repo_index._summary

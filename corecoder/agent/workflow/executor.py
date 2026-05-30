@@ -1,4 +1,4 @@
-"""Executor ?*wraps the existing ReAct agent loop for task execution.
+"""Executor  wraps the existing ReAct agent loop for task execution.
 
 Each task node in the DAG is executed by the existing Agent.chat() loop.
 This module provides the bridge between orchestration-level task nodes
@@ -13,7 +13,7 @@ the agent loop.  It:
 5. Returns control to the scheduler
 
 The executor owns NO mutable state.  It's a pure function from
-(task, memory, agent) ?*ExecutionResult.
+(task, memory, agent)  ExecutionResult.
 """
 
 from __future__ import annotations
@@ -42,7 +42,7 @@ class TaskContext:
     preprocess: Callable[[list[dict]], list[dict]] | None = None
 
 
-# Type alias for the agent callable ?*this is what we wrap
+# Type alias for the agent callable  this is what we wrap
 # AgentCallable = Callable[[str], Awaitable[str]]
 AgentCallable = Callable[..., Awaitable[str]]
 
@@ -90,10 +90,10 @@ class Executor:
         self._timeout_ms = default_timeout_ms
         self._max_rounds = max_rounds_per_task
 
-        # Optional ContextOrchestrator ?*when set, replaces flat prompt building
+        # Optional ContextOrchestrator  when set, replaces flat prompt building
         self._context_orchestrator: Any = None  # ContextOrchestrator (lazy import)
 
-        # Optional callbacks ?*set by the scheduler for observability
+        # Optional callbacks  set by the scheduler for observability
         self._on_tool: Callable[[str, dict], None] | None = None
         self._on_token: Callable[[str], None] | None = None
 
@@ -164,7 +164,7 @@ class Executor:
 
         try:
             # Use agent factory (parallel mode) if available, otherwise shared agent.
-            # Agent factory creates a fresh Agent per task ?*no message interleaving.
+            # Agent factory creates a fresh Agent per task  no message interleaving.
             if self._agent_factory is not None:
                 agent = self._agent_factory()
                 output = await agent.chat(
@@ -257,7 +257,7 @@ class Executor:
         if not memory.completed_artifacts and not memory.known_constraints:
             state_updates["repo_summary"] = (
                 (state_updates.get("repo_summary", "") + "\n"
-                 "EMPTY PROJECT ?*no code, no venv, no config. "
+                 "EMPTY PROJECT  no code, no venv, no config. "
                  "Start everything from scratch.").strip()
             )
 
@@ -268,7 +268,7 @@ class Executor:
 
         Returns (user_message, state_updates):
         - user_message: Goal + Current Task (the instruction string)
-        - state_updates: Dict of SessionState fields ?*extracted once by
+        - state_updates: Dict of SessionState fields  extracted once by
           the orchestrator from the fragment bundle.  No reconstruction here.
         """
         orch = self._context_orchestrator
@@ -289,7 +289,7 @@ class Executor:
         completed_map = {tid: dict(art) for tid, art in memory.completed_artifacts.items()}
         task_meta = ctx.task.metadata
 
-        # Single call to the orchestrator ?*computes strings AND state_updates
+        # Single call to the orchestrator  computes strings AND state_updates
         # in one pipeline run.
         result = orch.build_task_context(
             task_id=memory.current_task_id,
@@ -312,20 +312,20 @@ class Executor:
 
         user_msg = result.user_message.strip()
         if not user_msg:
-            user_msg = "EMPTY PROJECT ?*create everything from scratch."
+            user_msg = "EMPTY PROJECT  create everything from scratch."
         user_msg += (
             "\n\nWhen you have completed this task, summarize what you did "
             "and what files you changed.  Be specific about file paths."
         )
 
         # State updates were computed once by the orchestrator from the
-        # fragment bundle ?*no duplicate reconstruction here.
+        # fragment bundle  no duplicate reconstruction here.
         return user_msg, result.state_updates
 
     def _extract_artifacts(self, ctx: TaskContext) -> dict[str, Any]:
         """Extract artifact information from what the agent actually produced.
 
-        Reads file paths from the agent's output text ?*the natural language
+        Reads file paths from the agent's output text  the natural language
         summary the agent writes after completing the task.  This is a
         best-effort extraction; the real ground truth comes from patch
         analysis in the scheduler.

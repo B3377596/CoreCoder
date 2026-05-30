@@ -29,7 +29,7 @@ from corecoder.context.models import (
 
 
 # ===========================================================================
-# Scoring function registry ?*each scorer returns [0.0, 1.0]
+# Scoring function registry  each scorer returns [0.0, 1.0]
 # ===========================================================================
 
 @dataclass
@@ -46,7 +46,7 @@ class ContextRanker:
     """Ranks context fragments by relevance to the current execution state.
 
     The ranker combines multiple scoring functions into a weighted composite
-    score.  Each scorer is a simple, fast heuristic ?*no external API calls.
+    score.  Each scorer is a simple, fast heuristic  no external API calls.
 
     For production use with embeddings, subclass and override _score_semantic().
     """

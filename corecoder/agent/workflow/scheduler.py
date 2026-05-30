@@ -1,4 +1,4 @@
-"""Scheduler ?*the execution engine for the task DAG.
+"""Scheduler  the execution engine for the task DAG.
 
 The scheduler is the central coordinator.  It:
 1. Queries the graph for ready tasks
@@ -11,7 +11,7 @@ The scheduler is the central coordinator.  It:
 8. Signals the orchestrator when done or when replanning is needed
 
 The scheduler is designed for sequential execution initially.  The
-_execute_single method is the extension point for parallel execution ?*replace the await loop with asyncio.gather and a semaphore for
+_execute_single method is the extension point for parallel execution  replace the await loop with asyncio.gather and a semaphore for
 concurrency control.
 """
 
@@ -170,7 +170,7 @@ class Scheduler:
                         else SchedulingDecision.FAILED
                     )
 
-                # Check for blocked tasks ?*if tasks exist but none are ready,
+                # Check for blocked tasks  if tasks exist but none are ready,
                 # and there are no running tasks, we're stuck
                 blocked = self.graph.get_blocked_tasks()
                 if blocked and not self._has_running():
@@ -179,7 +179,7 @@ class Scheduler:
                                    blocked_count=len(blocked))
                     # Check if any blocked tasks are blocked by FAILED tasks.
                     # If retries are exhausted and downstream tasks are stuck,
-                    # replan rather than just failing ?*the plan itself may need
+                    # replan rather than just failing  the plan itself may need
                     # restructuring (e.g., insert a fixup task).
                     failed_tasks = self.graph.get_failed_tasks()
                     if failed_tasks:
@@ -201,7 +201,7 @@ class Scheduler:
                         return SchedulingDecision.REPLAN
                     return SchedulingDecision.ABORT
 
-                # Nothing ready but graph not complete ?*wait (for parallel mode)
+                # Nothing ready but graph not complete  wait (for parallel mode)
                 # In sequential mode, this shouldn't happen
                 break
 
@@ -209,7 +209,7 @@ class Scheduler:
             if self.config.parallel and len(ready) > 1:
                 # Parallel mode: execute all independent ready tasks concurrently.
                 # Each task gets its own Agent via the factory, so conversation
-                # state is isolated ?*no message interleaving.
+                # state is isolated  no message interleaving.
                 batch = ready[:self.config.max_parallel]
                 for t in batch:
                     self.olog.emit(EventType.SCHEDULE_PICK,
@@ -273,7 +273,7 @@ class Scheduler:
         """Execute one task node through the full lifecycle.
 
         Lifecycle:
-        1. Transition PENDING ?*RUNNING
+        1. Transition PENDING  RUNNING
         2. Build working memory
         3. Execute via agent
         4. Verify result
@@ -318,7 +318,7 @@ class Scheduler:
                        duration_ms=result.duration_ms)
         self.olog.execution_timing(task_id, result.duration_ms, result.tokens_used)
 
-        # Verify ?*grounded in runtime facts (patch analysis), not planner metadata.
+        # Verify  grounded in runtime facts (patch analysis), not planner metadata.
         self.olog.emit(EventType.VERIFY_START, task_id=task_id)
         patch = None
         try:
@@ -337,7 +337,7 @@ class Scheduler:
         task.verification = verification
 
         # Populate artifacts from RUNTIME FACTS (patch analysis / git diff).
-        # This is authoritative ?*no regex guessing from agent output text.
+        # This is authoritative  no regex guessing from agent output text.
         if patch and patch.has_changes:
             task.artifacts["created_files"] = list(patch.created_files)
             task.artifacts["modified_files"] = list(patch.modified_files)
@@ -363,10 +363,10 @@ class Scheduler:
     def _handle_success(
         self, task: TaskNode, result: ExecutionResult
     ) -> SchedulingDecision:
-        """Process a successful task execution (sync ?*no I/O needed)."""
+        """Process a successful task execution (sync  no I/O needed)."""
         task.record_result(result)
         # record_result sets status to SUCCESS, but verification result
-        # was already recorded ?*no override needed
+        # was already recorded  no override needed
         self.graph.mark_completed(task.id, result)
 
         # Carry artifacts forward for downstream tasks
@@ -390,7 +390,7 @@ class Scheduler:
         error: str,
         verification,
     ) -> SchedulingDecision:
-        """Process a failed task execution ?*retry, skip, or escalate (async for backoff)."""
+        """Process a failed task execution  retry, skip, or escalate (async for backoff)."""
         self.olog.node_transition(
             task.id, task.title, "running", "failed",
             reason=error[:120],
@@ -415,7 +415,7 @@ class Scheduler:
             )
             # Run rollback hooks before retrying
             self.recovery.run_rollbacks(task)
-            # Wait for backoff ?*must await, not create_task, otherwise
+            # Wait for backoff  must await, not create_task, otherwise
             # retries fire immediately without any delay
             await self.recovery.wait_backoff(action.backoff_ms)
             # Prepare for retry
@@ -425,7 +425,7 @@ class Scheduler:
                 task.id, task.title, "failed", "pending",
                 reason=f"Retry {task.retry_count}/{task.retry_policy.max_retries}",
             )
-            # Don't block dependents on retry ?*task is still PENDING
+            # Don't block dependents on retry  task is still PENDING
             return SchedulingDecision.CONTINUE
 
         elif action.action == "skip":

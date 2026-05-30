@@ -1,10 +1,10 @@
-"""Heuristic file summarization ?*no embeddings, no LLM calls.
+"""Heuristic file summarization  no embeddings, no LLM calls.
 
 Generates FileSummary objects from structural code analysis:
-- Symbol names ?*infer purpose
-- File path ?*infer category
-- Import patterns ?*infer role
-- Module structure ?*infer responsibilities
+- Symbol names  infer purpose
+- File path  infer category
+- Import patterns  infer role
+- Module structure  infer responsibilities
 
 All summaries are cached in .corecoder/file_summaries.json.
 Each summary is ~50-100 tokens designed for agent reasoning loops.
@@ -24,7 +24,7 @@ class FileSummaryManager:
     """Heuristic file summarizer.
 
     Categorizes files by analyzing their path, symbol names, and import
-    patterns.  No LLM, no embeddings ?*pure structural heuristics.
+    patterns.  No LLM, no embeddings  pure structural heuristics.
 
     Usage:
         mgr = FileSummaryManager(working_dir="/path/to/repo")
@@ -81,7 +81,7 @@ class FileSummaryManager:
         """Generate a file summary using an LLM (async, one file).
 
         Uses a minimal prompt (~100 input tokens) to produce a structured
-        summary.  Designed for offline/batch use ?*call once per file,
+        summary.  Designed for offline/batch use  call once per file,
         cache the result.
 
         Args:
@@ -132,7 +132,7 @@ Return ONLY valid JSON:
             self._summaries[filepath] = summary
             return summary
         except Exception:
-            # LLM call failed ?*fall back to heuristic
+            # LLM call failed  fall back to heuristic
             return self._summaries.get(filepath) or FileSummary(path=filepath)
 
     async def generate_all_with_llm(
@@ -304,7 +304,7 @@ Return ONLY valid JSON:
         if category == "web":
             return f"Web handlers/routes: {', '.join(symbols[:3])}"
 
-        # core_logic ?*describe by key symbols
+        # core_logic  describe by key symbols
         exported = [s for s in symbols if not s.startswith("_")][:3]
         return f"Core module: {', '.join(exported)}" if exported else f"Module: {fname}"
 
@@ -359,7 +359,7 @@ Return ONLY valid JSON:
 
     def _guess_domain(self, filepath: str) -> str:
         """Guess the domain name from the file path."""
-        # e.g. "src/myapp/cli.py" ?*"myapp"
+        # e.g. "src/myapp/cli.py"  "myapp"
         parts = filepath.replace("\\", "/").split("/")
         for part in reversed(parts[:-1]):
             if part not in ("src", "lib", "app", "core", "."):

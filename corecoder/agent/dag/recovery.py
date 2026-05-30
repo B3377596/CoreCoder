@@ -88,16 +88,16 @@ class RecoveryManager:
         """Decide what to do about a failed task.
 
         Decision priority:
-        1. Same error repeated ?*escalate immediately (not transient)
-        2. Verifier says replan ?*replan
-        3. Too many consecutive failures ?*abort (checked BEFORE verifier override)
-        4. Retry budget remaining ?*retry
-        5. Verifier override ?*retry (with hard cap at 2x max_retries)
-        6. Otherwise ?*skip
+        1. Same error repeated  escalate immediately (not transient)
+        2. Verifier says replan  replan
+        3. Too many consecutive failures  abort (checked BEFORE verifier override)
+        4. Retry budget remaining  retry
+        5. Verifier override  retry (with hard cap at 2x max_retries)
+        6. Otherwise  skip
         """
         max_r = node.retry_policy.max_retries
 
-        # ---- Hard guard: same error repeating ?*not transient, stop ----
+        # ---- Hard guard: same error repeating  not transient, stop ----
         prev_errors: list[str] = node.metadata.get("failure_history", [])
         if prev_errors and len(prev_errors) >= 3:
             # Check if the last N errors are all the same
@@ -111,7 +111,7 @@ class RecoveryManager:
                 return RecoveryAction(
                     action="skip",
                     task_id=node.id,
-                    reason=f"Same error repeated {len(prev_errors)} times ?*"
+                    reason=f"Same error repeated {len(prev_errors)} times  "
                            f"not a transient failure. Last error: {error[:120]}",
                 )
 
@@ -210,6 +210,6 @@ def resume_graph_state(graph, from_dict: dict) -> list[str]:
             node = graph.get_node(node_id)
             if node is not None:
                 node.transition_to(TaskStatus.PENDING)
-                node.error = "Interrupted ?*reset for recovery"
+                node.error = "Interrupted  reset for recovery"
                 reset_ids.append(node_id)
     return reset_ids

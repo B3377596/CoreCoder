@@ -1,14 +1,14 @@
-"""Central Context Orchestrator ?*the runtime context assembly engine.
+"""Central Context Orchestrator  the runtime context assembly engine.
 
 Sits BETWEEN the Scheduler and Executor in the DAG pipeline:
 
-    Scheduler ?*ContextOrchestrator.build_context() ?*Executor ?*Agent
+    Scheduler  ContextOrchestrator.build_context()  Executor  Agent
 
 The orchestrator is the single entry point for context assembly.  It:
 1. Receives a ContextRequest from the scheduler
 2. Invokes each context layer to collect candidate fragments
 3. Retrieves repository context via the graph-aware retriever
-4. Runs the assembly pipeline (rank ?*deduplicate ?*compress ?*budget)
+4. Runs the assembly pipeline (rank  deduplicate  compress  budget)
 5. Assembles the final prompt
 6. Returns a fully baked ContextBundle + formatted prompt string
 
@@ -59,7 +59,7 @@ class AssemblyResult:
     Splits the assembled context into two messages plus structured state:
     - user_message: Goal + Current Task (the actual instruction)
     - context_message: Working Memory, Constraints, Repo files, Symbols,
-      Dependencies, Failures, Artifacts ?*injected as an *assistant* message
+      Dependencies, Failures, Artifacts  injected as an *assistant* message
       so structured environment metadata doesn't pollute the user instruction.
     - state_updates: Dict of SessionState fields extracted from the fragment
       bundle.  The Executor passes this to Agent.chat(state_updates=...)
@@ -110,14 +110,14 @@ class ContextOrchestrator:
         self._constraint_layer = ConstraintContextLayer()
         self._policy_layer = ExecutionPolicyContextLayer()
 
-        # Retrieval ?*pass RepoIndex when available to avoid re-reading files
+        # Retrieval  pass RepoIndex when available to avoid re-reading files
         self._retriever = RepositoryContextRetriever(working_dir, repo_index=repo_index)
 
         # Pipeline
         self._ranker = ContextRanker()
         self._pipeline = ContextAssemblyPipeline(ranker=self._ranker)
 
-        # Cache (per-run ?*cleared on each build_context call by default)
+        # Cache (per-run  cleared on each build_context call by default)
         self._fragment_cache: dict[str, list[ContextFragment]] = {}
 
     # ------------------------------------------------------------------
@@ -198,16 +198,16 @@ class ContextOrchestrator:
                 type=ContextType.INSTRUCTION,
                 content=(
                     "## Project State\n"
-                    "EMPTY PROJECT ?*no code, no venv, no config, no package manager. "
+                    "EMPTY PROJECT  no code, no venv, no config, no package manager. "
                     "Start everything from scratch. "
-                    "Do NOT explore or list files to confirm ?*there is nothing here."
+                    "Do NOT explore or list files to confirm  there is nothing here."
                 ),
                 priority=10,
                 relevance_score=1.0,
                 token_count=40,
             ))
 
-        # ---- Phase 2: Pipeline (rank ?*deduplicate ?*compress ?*budget) ----
+        # ---- Phase 2: Pipeline (rank  deduplicate  compress  budget) ----
         bundle = self._pipeline.run(fragments, request, budget)
 
         # ---- Phase 3: Assemble messages ----
@@ -244,7 +244,7 @@ class ContextOrchestrator:
     # ------------------------------------------------------------------
 
     def _assemble_user_message(self, bundle: ContextBundle) -> str:
-        """Assemble the USER message ?*only Goal + Current Task.
+        """Assemble the USER message  only Goal + Current Task.
 
         These are the actual instructions the agent must act on.
         Everything else (working memory, repo files, constraints) goes
@@ -258,7 +258,7 @@ class ContextOrchestrator:
         return "\n".join(parts).strip()
 
     def _assemble_context_message(self, bundle: ContextBundle) -> str:
-        """Assemble the CONTEXT (assistant) message ?*structured environment info.
+        """Assemble the CONTEXT (assistant) message  structured environment info.
 
         Includes: Working Memory, Repo Files, Symbols, Dependencies,
         Completed Artifacts, Failures, Constraints, Tool Results.
@@ -298,7 +298,7 @@ class ContextOrchestrator:
         """Extract SessionState fields from an already-computed ContextBundle.
 
         Called internally by build_context() so state_updates are computed
-        once alongside the string assembly ?*no double pipeline run.
+        once alongside the string assembly  no double pipeline run.
         The Executor reads result.state_updates and passes it to
         Agent.chat(state_updates=...) for structured ephemeral injection.
 
@@ -332,7 +332,7 @@ class ContextOrchestrator:
                 if request.recent_errors:
                     updates["failures"] = list(request.recent_errors)
 
-        # Execution policy ?*always from metadata (planner-generated or keyword fallback)
+        # Execution policy  always from metadata (planner-generated or keyword fallback)
         meta = request.metadata
         if meta.get("task_allowed"):
             updates["allowed_actions"] = list(meta["task_allowed"])
@@ -343,7 +343,7 @@ class ContextOrchestrator:
         if meta.get("downstream_tasks"):
             updates["downstream_tasks"] = list(meta["downstream_tasks"])
 
-        # Completed artifacts ?*working memory
+        # Completed artifacts  working memory
         if request.completed_artifact_map:
             steps: list[str] = []
             decisions: list[str] = []
@@ -383,7 +383,7 @@ class ContextOrchestrator:
         task_stop_when: str = "",
         token_budget: TokenBudget | None = None,
     ) -> AssemblyResult:
-        """Convenience method ?*builds the ContextRequest and calls build_context()."""
+        """Convenience method  builds the ContextRequest and calls build_context()."""
         meta: dict[str, Any] = {"downstream_tasks": downstream_tasks or []}
         if task_allowed:
             meta["task_allowed"] = task_allowed

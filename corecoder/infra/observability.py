@@ -2,7 +2,7 @@
 
 Provides event-based logging for every state transition and decision
 point in the DAG execution pipeline.  This is NOT a general-purpose
-logging framework ?*it's a domain-specific observability layer that
+logging framework  it's a domain-specific observability layer that
 emits typed events the user (or future monitoring systems) can consume.
 
 Design decision: we use Python's `logging` module under the hood rather
@@ -163,12 +163,12 @@ class OrchestrationLogger:
         )
 
         self._logger.info(
-            "[%s ?*%s] %s (%s)%s",
+            "[%s  %s] %s (%s)%s",
             from_status,
             to_status,
             task_title,
             task_id,
-            f" ?*{reason}" if reason else "",
+            f"  {reason}" if reason else "",
         )
 
     def retry_event(

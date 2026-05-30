@@ -109,24 +109,24 @@ CoreCoder's `maybe_compress()` uses this mechanism—automatically checking at t
 
 The hardest part of context compression isn't "how to compress," but "what to compress."
 
-**What information absolutely cannot be lost?** 
+**What information absolutely cannot be lost * 
 - File Paths: LLM needs to know which files have been edited previously; otherwise, it might read or overwrite files repeatedly. 
 - Critical decisions made: if instructions like "The user said not to modify config.yaml" are suppressed, LLM might violate them. 
 - Unresolved Errors: if information about bugs being processed is lost, LLM will start the investigation from scratch.
 
 Claude Code's digest prompt explicitly lists these reserved items. CoreCoder does the same.
 
-**How many tokens does the digest itself occupy?**
+**How many tokens does the digest itself occupy *
 
 If the digest is too long, compression is wasted. Claude Code limits the output length of digest calls using the `max_tokens` parameter. CoreCoder limits the digest call prompt to 15,000 characters.
 
-**Will LLM "forget" its tasks after compression?**
+**Will LLM "forget" its tasks after compression *
 
 This is the biggest risk. Suppose you write, ‘Modify the auth module and then run a full test.’ If the first part gets carried out by the LLM, but the second part gets absorbed into a summary during compression, the model might end up forgetting to run the tests.
 
 Claude Code's strategy emphasizes "preserving user-explicitly requested operations and constraints" in the summary prompt. However, this isn't 100% reliable—the summary LLM itself can make mistakes. This is a known imperfection, and there's currently no perfect solution.
 
-**Which model to use for summarizing?**
+**Which model to use for summarizing *
 
 Claude Code uses the same model. The cost of one summary call is approximately equal to the cost of one normal conversation. CoreCoder works similarly. If you want to save money, you can use a cheaper model specifically for summarizing (e.g., using DeepSeek as the primary model but GPT-4o-mini for summarizing).
 

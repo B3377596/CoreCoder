@@ -1,4 +1,4 @@
-"""Context Orchestrator ?*dynamic context assembly for the agent runtime.
+"""Context Orchestrator  dynamic context assembly for the agent runtime.
 
 Sits between the Scheduler and Executor, assembling context dynamically
 based on the current task, execution state, token budget, and repository
@@ -7,11 +7,11 @@ structure.  Never sends raw history or full repo to the agent.
 Key components:
 - ContextOrchestrator: central engine
 - ContextFragment: typed, scored context atom
-- ContextAssemblyPipeline: collect ?*rank ?*deduplicate ?*compress ?*budget
+- ContextAssemblyPipeline: collect  rank  deduplicate  compress  budget
 - RepositoryContextRetriever: symbolic graph-aware retrieval
-- SymbolOwnershipGraph: symbol ?*file, file ?*symbols, fuzzy lookup
+- SymbolOwnershipGraph: symbol  file, file  symbols, fuzzy lookup
 - FileSummaryManager: heuristic file purpose/responsibility summaries
-- TaskIntentAnalyzer: classify task type (bug_fix, cli_change, etc.)
+- TaskUnderstandingAnalyzer: understand goal, entities, and likely modules
 - StructuredRanker: multi-factor scoring with retrieval reasoning
 - StatePolicy: per-execution-state context profiles
 """
@@ -57,14 +57,14 @@ from corecoder.context.orchestrator import (
 from corecoder.retrieval.models import (
     SymbolInfo,
     FileSummary,
-    TaskIntent,
+    TaskUnderstanding,
     RetrievalQuery,
     RankedFile,
     RetrievalMeta,
 )
 from corecoder.retrieval.symbol_index import SymbolOwnershipGraph
 from corecoder.retrieval.summaries import FileSummaryManager
-from corecoder.retrieval.task_intent import TaskIntentAnalyzer
+from corecoder.retrieval.task_intent import TaskUnderstandingAnalyzer
 from corecoder.retrieval.query_planner import RetrievalQueryPlanner
 from corecoder.retrieval.ranker import StructuredRanker
 
@@ -104,12 +104,12 @@ __all__ = [
     # Symbolic retrieval layer
     "SymbolOwnershipGraph",
     "FileSummaryManager",
-    "TaskIntentAnalyzer",
+    "TaskUnderstandingAnalyzer",
     "RetrievalQueryPlanner",
     "StructuredRanker",
     "SymbolInfo",
     "FileSummary",
-    "TaskIntent",
+    "TaskUnderstanding",
     "RetrievalQuery",
     "RankedFile",
     "RetrievalMeta",

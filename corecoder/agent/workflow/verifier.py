@@ -1,12 +1,12 @@
-"""Verification layer ?*patch-aware, grounded in runtime facts.
+"""Verification layer  patch-aware, grounded in runtime facts.
 
 Architecture principle: verification MUST be based on what ACTUALLY happened,
 not what the planner predicted.  Planner metadata is intentionally ignored.
 
 The verifier chain is dynamically routed by a VerificationPolicyEngine:
     ExecutionResult + PatchAnalysis
-           ?*    VerificationPolicyEngine (routes based on what changed)
-           ?*    Selected verifiers (syntax, import, file-exists, test, lint)
+                VerificationPolicyEngine (routes based on what changed)
+                Selected verifiers (syntax, import, file-exists, test, lint)
 
 Verifiers check runtime facts:
 - Files created/modified (from git diff)
@@ -31,7 +31,7 @@ from corecoder.agent.dag.models import ExecutionResult, VerificationResult
 
 
 # ===========================================================================
-# PatchAnalysis ?*what actually changed during execution
+# PatchAnalysis  what actually changed during execution
 # ===========================================================================
 
 @dataclass
@@ -112,7 +112,7 @@ class PatchAnalysis:
 
 
 # ===========================================================================
-# ArtifactExtractor ?*extracts artifacts from execution + patch
+# ArtifactExtractor  extracts artifacts from execution + patch
 # ===========================================================================
 
 class ArtifactExtractor:
@@ -144,7 +144,7 @@ class ArtifactExtractor:
 # ===========================================================================
 
 class BaseVerifier(ABC):
-    """Abstract verifier ?*inspect execution result and return pass/fail.
+    """Abstract verifier  inspect execution result and return pass/fail.
 
     Verifiers receive runtime facts (patch analysis, working directory)
     in addition to the execution result.  They do NOT read planner metadata.
@@ -192,7 +192,7 @@ class FileCreatedVerifier(BaseVerifier):
                 mentioned_files.add(m.group(1))
 
         if not mentioned_files:
-            # No file paths mentioned ?*use patch analysis instead
+            # No file paths mentioned  use patch analysis instead
             if patch and patch.created_files:
                 mentioned_files = set(patch.created_files)
             else:
@@ -256,7 +256,7 @@ class SyntaxVerifier(BaseVerifier):
             except SyntaxError as e:
                 failures.append(f"Syntax error in {py_file}: {e}")
             except Exception:
-                pass  # Non-syntax errors (encoding, etc.) ?*skip
+                pass  # Non-syntax errors (encoding, etc.)  skip
 
         return VerificationResult(
             passed=len(failures) == 0,
@@ -269,7 +269,7 @@ class SyntaxVerifier(BaseVerifier):
 class TestVerifier(BaseVerifier):
     """Run a test command when test files were modified.
 
-    Skips for setup/init tasks ?*those should never run tests.
+    Skips for setup/init tasks  those should never run tests.
     """
 
     def verify(
@@ -280,7 +280,7 @@ class TestVerifier(BaseVerifier):
     ) -> VerificationResult:
         cwd = working_dir or "."
 
-        # Skip tests for setup/init tasks ?*verification should be task-aware
+        # Skip tests for setup/init tasks  verification should be task-aware
         title = (task_meta or {}).get("title", "").lower()
         if any(kw in title for kw in ("init", "venv", "setup", "create project", "virtual environment")):
             return VerificationResult(passed=True, checks_run=["test:skipped_setup_task"])
@@ -406,7 +406,7 @@ class CompositeVerifier(BaseVerifier):
 
 
 # ===========================================================================
-# Verification Policy Engine ?*routes based on what actually changed
+# Verification Policy Engine  routes based on what actually changed
 # ===========================================================================
 
 class VerificationPolicyEngine:
@@ -414,10 +414,10 @@ class VerificationPolicyEngine:
 
     The policy engine looks at what files were actually modified and
     selects the appropriate verifiers.  This means:
-    - Python changes ?*syntax + import checks
-    - Test changes ?*test runner
-    - Config changes ?*config validation
-    - No changes ?*lightweight "file mentioned" check only
+    - Python changes  syntax + import checks
+    - Test changes  test runner
+    - Config changes  config validation
+    - No changes  lightweight "file mentioned" check only
 
     Default policy: always run FileCreatedVerifier (zero-cost),
     add SyntaxVerifier for Python changes, add TestVerifier for test changes.
@@ -432,11 +432,11 @@ class VerificationPolicyEngine:
         if patch is None or not patch.has_changes:
             return verifiers
 
-        # Python changes ?*syntax check
+        # Python changes  syntax check
         if patch.python_files:
             verifiers.append(SyntaxVerifier())
 
-        # Test file changes ?*run tests
+        # Test file changes  run tests
         if patch.test_files:
             verifiers.append(TestVerifier())
 

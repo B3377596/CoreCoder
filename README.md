@@ -175,7 +175,7 @@ I wrote [7 articles](article/) breaking down Claude Code's architecture — the 
 
 ## FAQ
 
-**Does CoreCoder support Skills / Subagents / MCP?**
+**Does CoreCoder support Skills / Subagents / MCP *
 
 Skills and plugin-style layers are still intentionally out of scope. MCP support is lightweight and optional: if you configure MCP servers, CoreCoder will register their tools at startup, but the project is still centered on the minimal agent loop, tools, streaming, compaction, and repository cognition core.
 

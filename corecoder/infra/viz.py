@@ -48,7 +48,7 @@ STATUS_ICONS: dict[str, str] = {
     "skipped": "[SK]",
 }
 
-# Status ?*color name (for rich console rendering)
+# Status  color name (for rich console rendering)
 STATUS_COLORS: dict[str, str] = {
     "pending": "dim",
     "ready": "cyan",
@@ -207,11 +207,11 @@ def render_graph(graph: TaskGraph, goal: str = "", max_width: int = 80) -> str:
     success, failed, _, _ = graph.progress()
     summary_parts = []
     if success:
-        summary_parts.append(f"[green]?*{success} succeeded[/]")
+        summary_parts.append(f"[green] {success} succeeded[/]")
     if failed:
-        summary_parts.append(f"[red]?*{failed} failed[/]")
+        summary_parts.append(f"[red] {failed} failed[/]")
     if running:
-        summary_parts.append(f"[yellow]?*{running} running[/]")
+        summary_parts.append(f"[yellow] {running} running[/]")
 
     lines.append(HLINE * min(max_width, 60))
 

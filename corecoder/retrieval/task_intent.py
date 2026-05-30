@@ -1,4 +1,4 @@
-"""Task understanding and legacy intent compatibility for Retrieval V2."""
+"""Task understanding for Retrieval V2."""
 
 from __future__ import annotations
 
@@ -8,26 +8,12 @@ from corecoder.retrieval.models import (
     IntentFamily,
     TaskConstraint,
     TaskEntity,
-    TaskIntent,
     TaskUnderstanding,
 )
 
 
-class TaskIntentAnalyzer:
-    """Produces rich task understanding, plus a compatibility TaskIntent view.
-
-    Retrieval V2 weakens hard-coded task classification.  Instead of mapping
-    every request into narrow labels like ``bug_fix`` or ``feature_addition``,
-    this analyzer extracts:
-
-    - goal/objective
-    - entities (symbols/modules/files)
-    - constraints
-    - likely modules / scopes
-
-    ``analyze()`` is retained as a compatibility wrapper because the rest of the
-    retrieval stack still expects a ``TaskIntent`` during migration.
-    """
+class TaskUnderstandingAnalyzer:
+    """Extract rich task semantics without collapsing into a legacy intent."""
 
     _UNDERSTANDING_HINTS = (
         "what does this",
@@ -112,30 +98,7 @@ class TaskIntentAnalyzer:
             confidence=confidence,
         )
 
-    def analyze(
-        self,
-        task_title: str = "",
-        task_description: str = "",
-        goal: str = "",
-    ) -> TaskIntent:
-        understanding = self.understand(task_title, task_description, goal)
-        family = self._infer_family(understanding)
-        symbols = [e.name for e in understanding.entities if e.kind in {"symbol", "class", "function", "method"}]
-        concepts = list(dict.fromkeys(understanding.query_terms + understanding.likely_modules))[:8]
-        affected_files = self._guess_affected_files(understanding)
-
-        return TaskIntent(
-            family=family.value,
-            type=self._infer_legacy_type(family, understanding),
-            symbols=symbols[:8],
-            concepts=concepts,
-            entrypoint_related=any(term in ("cli", "command", "entrypoint") for term in understanding.query_terms),
-            affected_files=affected_files,
-            confidence=understanding.confidence,
-            understanding=understanding,
-        )
-
-    def _infer_family(self, understanding: TaskUnderstanding) -> IntentFamily:
+    def infer_family(self, understanding: TaskUnderstanding) -> IntentFamily:
         text = understanding.goal.lower()
         if any(hint in text for hint in self._NAVIGATION_HINTS):
             return IntentFamily.NAVIGATION
@@ -147,7 +110,8 @@ class TaskIntentAnalyzer:
             return IntentFamily.PLANNING
         return IntentFamily.EXECUTION
 
-    def _infer_legacy_type(self, family: IntentFamily, understanding: TaskUnderstanding) -> str:
+    def infer_task_type(self, understanding: TaskUnderstanding) -> str:
+        family = self.infer_family(understanding)
         if family == IntentFamily.NAVIGATION:
             return "navigation"
         if family == IntentFamily.EXPLANATION:
@@ -159,6 +123,16 @@ class TaskIntentAnalyzer:
                 return "architecture"
             return "overview"
         return "general_task"
+
+    def build_query_hints(self, understanding: TaskUnderstanding) -> tuple[list[str], list[str], list[str]]:
+        symbols = [
+            entity.name
+            for entity in understanding.entities
+            if entity.kind in {"symbol", "class", "function", "method"}
+        ]
+        concepts = list(dict.fromkeys(understanding.query_terms + understanding.likely_modules))[:8]
+        likely_files = self._guess_affected_files(understanding)
+        return symbols[:8], concepts, likely_files
 
     def _extract_entities(self, text_original: str) -> list[TaskEntity]:
         entities: list[TaskEntity] = []

@@ -1,63 +1,63 @@
-"""Legacy RetrievalQuery planner built on top of Retrieval V2 planning."""
+"""Retrieval query construction from Retrieval V2 planning artifacts."""
 
 from __future__ import annotations
 
-from corecoder.retrieval.models import RetrievalContext, RetrievalPlan, RetrievalQuery, TaskIntent
-from corecoder.retrieval.retrieval_planner import RetrievalPlanner
+from corecoder.retrieval.models import RetrievalPlan, RetrievalQuery, TaskUnderstanding
+from corecoder.retrieval.task_intent import TaskUnderstandingAnalyzer
 
 
 class RetrievalQueryPlanner:
-    """Compatibility adapter from TaskIntent to RetrievalQuery.
+    """Build a RetrievalQuery from TaskUnderstanding and RetrievalPlan."""
 
-    Retrieval V2 introduces ``RetrievalPlan`` as the primary planning artifact.
-    ``RetrievalQuery`` is retained so existing ranking/retriever code can migrate
-    incrementally without breaking call sites.
-    """
-
-    def __init__(self, planner: RetrievalPlanner | None = None):
-        self._planner = planner or RetrievalPlanner()
+    def __init__(self, analyzer: TaskUnderstandingAnalyzer | None = None):
+        self._analyzer = analyzer or TaskUnderstandingAnalyzer()
 
     def plan(
         self,
-        intent: TaskIntent,
-        retrieval_context: RetrievalContext | None = None,
+        understanding: TaskUnderstanding,
+        plan: RetrievalPlan,
     ) -> RetrievalQuery:
-        understanding = intent.understanding
-        if understanding is None:
-            from corecoder.retrieval.task_intent import TaskIntentAnalyzer
-
-            understanding = TaskIntentAnalyzer().understand(goal=" ".join(intent.symbols + intent.concepts))
-
-        retrieval_context = retrieval_context or RetrievalContext(
-            user_query=understanding.goal or understanding.objective,
-            active_files=intent.affected_files,
-            active_symbols=intent.symbols,
-        )
-        plan = self._planner.plan(understanding, retrieval_context)
-        return self.from_plan(plan, intent)
+        symbols, concepts, likely_files = self._analyzer.build_query_hints(understanding)
+        return self.from_plan(plan, symbols=symbols, concepts=concepts, likely_files=likely_files)
 
     @staticmethod
-    def from_plan(plan: RetrievalPlan, intent: TaskIntent | None = None) -> RetrievalQuery:
-        intent = intent or TaskIntent()
-        legacy_extra_files = {
+    def from_plan(
+        plan: RetrievalPlan,
+        symbols: list[str] | None = None,
+        concepts: list[str] | None = None,
+        likely_files: list[str] | None = None,
+    ) -> RetrievalQuery:
+        query_symbols = list(dict.fromkeys((symbols or []) + plan.primary_symbols))
+        query_concepts = list(dict.fromkeys((concepts or []) + plan.retrieval_scopes))
+        query_files = list(dict.fromkeys((likely_files or []) + plan.target_files))
+
+        strategy_extra_files = {
+            "task_execution": ["__main__.py"],
+            "failure_recovery": ["tests"],
+        }
+        task_type_extra_files = {
             "dependency_change": ["pyproject.toml", "setup.py", "requirements.txt", "setup.cfg", "__init__.py"],
             "cli_change": ["main.py", "cli.py", "app.py", "run.py", "__main__.py"],
         }
-        legacy_extra_concepts = {
+        task_type_extra_concepts = {
             "dependency_change": ["import", "dependency", "package", "install"],
             "cli_change": ["argparse", "click", "typer", "command", "argument", "flag", "option", "terminal", "console"],
         }
-        concepts = list(dict.fromkeys((intent.concepts or []) + plan.retrieval_scopes))
-        if intent.type in legacy_extra_concepts:
-            concepts.extend(c for c in legacy_extra_concepts[intent.type] if c not in concepts)
-        likely_files = list(dict.fromkeys((intent.affected_files or []) + plan.target_files))
-        if intent.type in legacy_extra_files:
-            likely_files.extend(f for f in legacy_extra_files[intent.type] if f not in likely_files)
+        for concept in task_type_extra_concepts.get(plan.task_type, []):
+            if concept not in query_concepts:
+                query_concepts.append(concept)
+        for filename in task_type_extra_files.get(plan.task_type, []):
+            if filename not in query_files:
+                query_files.append(filename)
+        for filename in strategy_extra_files.get(plan.retrieval_strategy, []):
+            if filename not in query_files:
+                query_files.append(filename)
+
         return RetrievalQuery(
-            symbols=list(dict.fromkeys((intent.symbols or []) + plan.primary_symbols)),
-            concepts=concepts[:12],
-            likely_files=likely_files[:12],
-            task_type=intent.type or plan.task_type,
+            symbols=query_symbols[:12],
+            concepts=query_concepts[:12],
+            likely_files=query_files[:12],
+            task_type=plan.task_type,
             expand_dependencies=plan.expansion_depth > 0,
             dependency_radius=plan.expansion_depth,
             plan=plan,
