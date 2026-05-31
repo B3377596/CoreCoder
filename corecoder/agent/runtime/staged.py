@@ -29,6 +29,7 @@ if TYPE_CHECKING:
 
 
 ChatFn = Callable[..., Awaitable[str]]
+RuntimeEventFn = Callable[[dict[str, Any]], None]
 
 
 DEFAULT_STAGE_TOOLSETS: dict[str, list[str]] = {
@@ -673,12 +674,19 @@ class LocalReactExecutor:
         max_tool_steps: int = 8,
         on_token: Callable[[str], None] | None = None,
         on_tool: Callable[[str, dict], None] | None = None,
+        on_event: RuntimeEventFn | None = None,
     ) -> LocalExecutionTrace:
         allowed = self._expand_allowed_tools(allowed_tools or [])
         trace_steps: list[ExecutionTraceStep] = []
         tool_steps = [0]
         before_history_len = len(self._agent_owner.state.persistent_history) if self._agent_owner else 0
         before_checkpoint_len = len(self._agent_owner._checkpoints) if self._agent_owner else 0
+        if on_event is not None:
+            on_event({
+                "type": "react_loop_start",
+                "allowed_tools": sorted(allowed),
+                "max_tool_steps": max_tool_steps,
+            })
 
         def _on_tool(name: str, kwargs: dict) -> None:
             if allowed and name not in allowed:
@@ -714,6 +722,12 @@ class LocalReactExecutor:
             if not trace_steps:
                 trace_steps = self._backfill_trace_steps_from_transcript(transcript)
             self._attach_tool_results(trace_steps, transcript)
+            if on_event is not None:
+                on_event({
+                    "type": "react_loop_complete",
+                    "tool_steps": tool_steps[0],
+                    "trace_count": len(trace_steps),
+                })
             return LocalExecutionTrace(
                 output=output,
                 tool_steps=tool_steps[0],
@@ -827,10 +841,23 @@ class StageExecutor:
         global_state: GlobalTaskState,
         on_token: Callable[[str], None] | None = None,
         on_tool: Callable[[str, dict], None] | None = None,
+        on_event: RuntimeEventFn | None = None,
     ) -> ExecutionResult:
         user_message, state_updates = self._build_stage_context(stage_plan, global_state)
         session_state_updates = self._summarize_state_updates(stage_plan, state_updates)
         retrieval_meta = session_state_updates.get("retrieval_cache", {}).get("latest", {})
+        self._emit_event(
+            on_event,
+            {
+                "type": "execute_start",
+                "stage": stage_plan.stage,
+                "objective": stage_plan.objective,
+                "allowed_tools": list(stage_plan.allowed_tools),
+                "retrieval_mode": "fresh" if retrieval_meta.get("used_retrieval") else "cached",
+                "retrieval_reason": retrieval_meta.get("reason", ""),
+                "target_files": list(stage_plan.target_files[:8]),
+            },
+        )
         _stage_debug(
             "StageExecutor Input",
             {
@@ -853,6 +880,7 @@ class StageExecutor:
                 max_tool_steps=stage_plan.max_tool_steps,
                 on_token=on_token,
                 on_tool=on_tool,
+                on_event=on_event,
             )
             changed_files = self._collect_changed_files()
             tool_failures = self._collect_failures(trace.trace_steps)
@@ -873,6 +901,19 @@ class StageExecutor:
                     "needs_replan": needs_replan,
                 },
             )
+            self._emit_event(
+                on_event,
+                {
+                    "type": "execute_complete",
+                    "stage": stage_plan.stage,
+                    "success": not needs_replan,
+                    "tool_count": len(trace_preview),
+                    "observation_count": len(observations),
+                    "evidence_count": len(evidence),
+                    "needs_replan": needs_replan,
+                    "summary_preview": summary[:300],
+                },
+            )
             return ExecutionResult(
                 stage=stage_plan.stage,
                 success=not needs_replan,
@@ -886,6 +927,19 @@ class StageExecutor:
                 needs_replan=needs_replan,
             )
         except (MaxToolStepsExceededError, ToolNotAllowedError) as exc:
+            self._emit_event(
+                on_event,
+                {
+                    "type": "execute_complete",
+                    "stage": stage_plan.stage,
+                    "success": False,
+                    "tool_count": 0,
+                    "observation_count": 0,
+                    "evidence_count": 1,
+                    "needs_replan": True,
+                    "summary_preview": str(exc)[:300],
+                },
+            )
             return ExecutionResult(
                 stage=stage_plan.stage,
                 success=False,
@@ -898,6 +952,19 @@ class StageExecutor:
                 needs_replan=True,
             )
         except Exception as exc:
+            self._emit_event(
+                on_event,
+                {
+                    "type": "execute_complete",
+                    "stage": stage_plan.stage,
+                    "success": False,
+                    "tool_count": 0,
+                    "observation_count": 0,
+                    "evidence_count": 1,
+                    "needs_replan": True,
+                    "summary_preview": f"{type(exc).__name__}: {exc}"[:300],
+                },
+            )
             return ExecutionResult(
                 stage=stage_plan.stage,
                 success=False,
@@ -909,6 +976,11 @@ class StageExecutor:
                 failures=[f"{type(exc).__name__}: {exc}"],
                 needs_replan=True,
             )
+
+    @staticmethod
+    def _emit_event(on_event: RuntimeEventFn | None, payload: dict[str, Any]) -> None:
+        if on_event is not None:
+            on_event(payload)
 
     def _build_stage_context(
         self,
@@ -1521,20 +1593,43 @@ class AgentRuntime:
         user_request: str,
         on_token: Callable[[str], None] | None = None,
         on_tool: Callable[[str, dict], None] | None = None,
+        on_event: RuntimeEventFn | None = None,
     ) -> GlobalTaskState:
         state = self.initialize_state(user_request)
 
         while not state.done and not self.exceed_limits(state):
+            self._emit_event(on_event, {
+                "type": "think_start",
+                "current_stage": state.current_stage,
+                "completed_stages": [plan.stage for plan in state.stage_history],
+                "failures": list(state.failures[-3:]),
+            })
             decision = self.think_engine.think(state)
+            self._emit_event(on_event, {
+                "type": "think_complete",
+                "decision_type": decision.type,
+                "reason": decision.reason,
+                "stage": decision.stage_plan.stage if decision.stage_plan else None,
+                "objective": decision.stage_plan.objective if decision.stage_plan else None,
+            })
             if decision.type in {"final", "final_answer"}:
                 state.done = True
                 state.final_answer = decision.answer or AnswerComposer.compose(state)
+                self._emit_event(on_event, {
+                    "type": "final_answer",
+                    "reason": decision.reason,
+                    "answer_preview": (state.final_answer or "")[:300],
+                })
                 break
 
             stage_plan = decision.stage_plan
             if stage_plan is None:
                 state.done = True
                 state.final_answer = self.build_incomplete_result(state)
+                self._emit_event(on_event, {
+                    "type": "runtime_incomplete",
+                    "answer_preview": (state.final_answer or "")[:300],
+                })
                 break
 
             execution_result = await self.stage_executor.execute(
@@ -1542,13 +1637,33 @@ class AgentRuntime:
                 global_state=state,
                 on_token=on_token,
                 on_tool=on_tool,
+                on_event=on_event,
             )
             state = self.state_manager.apply_stage_result(state, stage_plan, execution_result)
+            self._emit_event(on_event, {
+                "type": "state_update",
+                "current_stage": state.current_stage,
+                "active_files": list(state.active_files[:8]),
+                "changed_files": list(state.changed_files[:8]),
+                "failures": list(state.failures[-3:]),
+            })
             evaluation = self.evaluator.evaluate(state, execution_result)
+            self._emit_event(on_event, {
+                "type": "evaluation",
+                "done": evaluation.done,
+                "needs_replan": evaluation.needs_replan,
+                "reason": evaluation.reason,
+                "final_answer_preview": (evaluation.final_answer or "")[:300] if evaluation.final_answer else "",
+            })
 
             if evaluation.done:
                 state.done = True
                 state.final_answer = evaluation.final_answer
+                self._emit_event(on_event, {
+                    "type": "final_answer",
+                    "reason": evaluation.reason,
+                    "answer_preview": (state.final_answer or "")[:300],
+                })
                 break
 
             if evaluation.needs_replan:
@@ -1556,6 +1671,10 @@ class AgentRuntime:
 
         if not state.final_answer:
             state.final_answer = self.build_incomplete_result(state)
+            self._emit_event(on_event, {
+                "type": "runtime_incomplete",
+                "answer_preview": (state.final_answer or "")[:300],
+            })
         self.last_state = state
         return state
 
@@ -1564,9 +1683,15 @@ class AgentRuntime:
         user_request: str,
         on_token: Callable[[str], None] | None = None,
         on_tool: Callable[[str, dict], None] | None = None,
+        on_event: RuntimeEventFn | None = None,
     ) -> str:
-        state = await self.run_state(user_request, on_token=on_token, on_tool=on_tool)
+        state = await self.run_state(user_request, on_token=on_token, on_tool=on_tool, on_event=on_event)
         return state.final_answer or self.build_incomplete_result(state)
+
+    @staticmethod
+    def _emit_event(on_event: RuntimeEventFn | None, payload: dict[str, Any]) -> None:
+        if on_event is not None:
+            on_event(payload)
 
     @staticmethod
     def build_incomplete_result(state: GlobalTaskState) -> str:

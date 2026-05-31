@@ -213,6 +213,7 @@ class Agent:
         max_stages: int = 8,
         on_token=None,
         on_tool=None,
+        on_event=None,
     ):
         """Run the agent with an outer Think-Execute loop and inner local ReAct stages."""
         stage_executor = StageExecutor(
@@ -227,7 +228,7 @@ class Agent:
             evaluator=StageEvaluator(agent=self, working_dir=self.working_dir),
             max_stages=max_stages,
         )
-        return await runtime.run_state(user_request, on_token=on_token, on_tool=on_tool)
+        return await runtime.run_state(user_request, on_token=on_token, on_tool=on_tool, on_event=on_event)
 
     def reset(self):
         """Clear conversation history and checkpoints.  Fresh SessionState."""

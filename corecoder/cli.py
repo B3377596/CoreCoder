@@ -28,6 +28,92 @@ from .context.retriever import RepositoryContextRetriever
 console = Console()
 logger = logging.getLogger("corecoder")
 
+
+class _StagedCliPresenter:
+    """Small CLI presenter for the outer Think and inner Execute loop."""
+
+    def __init__(self, console: Console):
+        self.console = console
+        self._active_stage: str | None = None
+        self._in_execute = False
+        self._react_announced = False
+
+    def on_event(self, event: dict):
+        event_type = str(event.get("type", ""))
+        if event_type == "think_start":
+            self._in_execute = False
+            self._react_announced = False
+            self.console.print("\n[bold cyan]Think[/] [dim]assessing current state and deciding the next bounded step...[/]")
+            return
+        if event_type == "think_complete":
+            decision_type = event.get("decision_type")
+            if decision_type == "stage_plan":
+                stage = event.get("stage") or "unknown"
+                objective = (event.get("objective") or "").strip()
+                reason = (event.get("reason") or "").strip()
+                self.console.print(
+                    Panel(
+                        f"[bold]{stage}[/bold]\n"
+                        + (f"{objective}\n" if objective else "")
+                        + (f"[dim]{reason}[/dim]" if reason else ""),
+                        title="Think -> Next Stage",
+                        border_style="cyan",
+                    )
+                )
+            elif decision_type in {"final", "final_answer"}:
+                reason = (event.get("reason") or "").strip()
+                self.console.print(f"\n[bold green]Think[/] [dim]ready to answer directly[/]" + (f" [dim]({reason})[/]" if reason else ""))
+            return
+        if event_type == "execute_start":
+            self._active_stage = str(event.get("stage") or "")
+            self._in_execute = True
+            self._react_announced = False
+            allowed_tools = ", ".join(event.get("allowed_tools", [])) or "none"
+            retrieval_mode = event.get("retrieval_mode") or "cached"
+            retrieval_reason = (event.get("retrieval_reason") or "").strip()
+            lines = [
+                f"[bold]{self._active_stage}[/bold]",
+                f"Tools: [cyan]{allowed_tools}[/]",
+                f"Retrieval: [yellow]{retrieval_mode}[/]" + (f" [dim]({retrieval_reason})[/]" if retrieval_reason else ""),
+            ]
+            self.console.print(Panel("\n".join(lines), title="Execute", border_style="yellow"))
+            return
+        if event_type == "react_loop_start":
+            self._react_announced = True
+            allowed_tools = ", ".join(event.get("allowed_tools", [])) or "none"
+            max_steps = event.get("max_tool_steps")
+            self.console.print(
+                f"[yellow]ReAct[/] [dim]entered local tool loop[/] "
+                f"[dim](allowed: {allowed_tools}; max steps: {max_steps})[/]"
+            )
+            return
+        if event_type == "execute_complete":
+            stage = event.get("stage") or self._active_stage or "unknown"
+            success = bool(event.get("success"))
+            tool_count = event.get("tool_count", 0)
+            observation_count = event.get("observation_count", 0)
+            needs_replan = bool(event.get("needs_replan"))
+            color = "green" if success and not needs_replan else "yellow"
+            status = "completed" if success and not needs_replan else "needs rethink"
+            self.console.print(
+                f"[{color}]Execute[/] [bold]{stage}[/bold] [dim]{status}[/] "
+                f"[dim](tools: {tool_count}, observations: {observation_count})[/]"
+            )
+            self._in_execute = False
+            return
+        if event_type == "evaluation":
+            if event.get("needs_replan"):
+                reason = (event.get("reason") or "").strip()
+                self.console.print(f"[yellow]Evaluate[/] [dim]replan requested[/]" + (f" [dim]({reason})[/]" if reason else ""))
+            return
+
+    def on_tool(self, name: str, kwargs: dict):
+        if self._in_execute and not self._react_announced:
+            self.console.print("[yellow]ReAct[/] [dim]entered local tool loop[/]")
+            self._react_announced = True
+        prefix = f"[{self._active_stage}] " if self._active_stage else ""
+        self.console.print(f"[dim]> {prefix}{name}({_brief(kwargs)})[/dim]")
+
 # ------------------------------------------------------------------
 # argument parsing
 # ------------------------------------------------------------------
@@ -146,19 +232,19 @@ async def _async_main(agent: Agent, config: Config, args):
 async def _run_once(agent: Agent, prompt: str):
     """Non-interactive: run one prompt and exit."""
     streamed: list[str] = []
+    presenter = _StagedCliPresenter(console)
     def on_token(tok):
         if tok.startswith("[think]"):
             return
         streamed.append(tok)
-    def on_tool(name, kwargs):
-        console.print(f"[dim]> {name}({_brief(kwargs)})[/dim]")
     from .context.orchestrator import ContextOrchestrator
     orch = ContextOrchestrator(working_dir=agent.working_dir, repo_index=agent.repo_index)
     state = await agent.run_staged(
         prompt,
         context_orchestrator=orch,
         on_token=on_token,
-        on_tool=on_tool,
+        on_tool=presenter.on_tool,
+        on_event=presenter.on_event,
     )
     output = "".join(streamed) or state.final_answer or ""
     if output:
@@ -280,12 +366,11 @@ async def _repl(agent: Agent, config: Config):
             _show_help()
             continue
         streamed: list[str] = []
+        presenter = _StagedCliPresenter(console)
         def on_token(tok):
             if tok.startswith("[think]"):
                 return
             streamed.append(tok)
-        def on_tool(name, kwargs):
-            console.print(f"[dim]> {name}({_brief(kwargs)})[/dim]")
         try:
             from .context.orchestrator import ContextOrchestrator
             orch = ContextOrchestrator(working_dir=agent.working_dir, repo_index=agent.repo_index)
@@ -293,7 +378,8 @@ async def _repl(agent: Agent, config: Config):
                 user_input,
                 context_orchestrator=orch,
                 on_token=on_token,
-                on_tool=on_tool,
+                on_tool=presenter.on_tool,
+                on_event=presenter.on_event,
             )
             output = "".join(streamed) or state.final_answer or ""
             if output:
