@@ -87,7 +87,7 @@ class SystemContextLayer(ContextLayer):
 
 
 # ===========================================================================
-# Task context  the current task node from the DAG
+# Task context  the current stage task / objective
 # ===========================================================================
 
 class TaskContextLayer(ContextLayer):

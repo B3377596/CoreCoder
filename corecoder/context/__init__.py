@@ -1,8 +1,8 @@
-"""Context Orchestrator  dynamic context assembly for the agent runtime.
+"""Context Orchestrator  dynamic context assembly for the staged runtime.
 
-Sits between the Scheduler and Executor, assembling context dynamically
-based on the current task, execution state, token budget, and repository
-structure.  Never sends raw history or full repo to the agent.
+Assembles context dynamically based on the current task, execution state,
+token budget, and repository structure. Never sends raw history or full repo
+to the agent.
 
 Key components:
 - ContextOrchestrator: central engine

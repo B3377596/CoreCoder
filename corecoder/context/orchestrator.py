@@ -1,11 +1,11 @@
-"""Central Context Orchestrator  the runtime context assembly engine.
+"""Central Context Orchestrator for staged runtime context assembly.
 
-Sits BETWEEN the Scheduler and Executor in the DAG pipeline:
+Sits between stage planning and stage execution:
 
-    Scheduler  ContextOrchestrator.build_context()  Executor  Agent
+    ThinkEngine  ContextOrchestrator.build_context()  LocalReactExecutor  Agent
 
 The orchestrator is the single entry point for context assembly.  It:
-1. Receives a ContextRequest from the scheduler
+1. Receives a ContextRequest from the staged runtime
 2. Invokes each context layer to collect candidate fragments
 3. Retrieves repository context via the graph-aware retriever
 4. Runs the assembly pipeline (rank  deduplicate  compress  budget)
@@ -416,9 +416,7 @@ class ContextOrchestrator:
         stage: str,
         objective: str,
         target_files: list[str],
-        retrieval_focus: str,
         global_state: Any,
-        context_policy: str = "",
         allowed_tools: list[str] | None = None,
         stage_plan: Any | None = None,
     ) -> AssemblyResult:
@@ -461,8 +459,6 @@ class ContextOrchestrator:
             retrieval_context=None,
             metadata={
                 "stage": stage,
-                "context_policy": context_policy,
-                "retrieval_focus": retrieval_focus,
                 "active_files": list(getattr(global_state, "active_files", [])),
                 "previous_failures": list(getattr(global_state, "failures", [])[-6:]),
                 "working_memory": working_memory_items,

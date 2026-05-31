@@ -26,7 +26,7 @@ class ContextSource(str, Enum):
     """
 
     SYSTEM = "system"               # System prompt, global instructions
-    TASK = "task"                    # Current task node from the DAG
+    TASK = "task"                    # Current stage task / objective
     WORKING_MEMORY = "working_memory"  # In-flight execution state
     REPOSITORY = "repository"       # Files, directory structure
     SYMBOL = "symbol"               # Functions, classes, types

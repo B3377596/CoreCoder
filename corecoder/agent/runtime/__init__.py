@@ -23,6 +23,7 @@ from corecoder.agent.runtime.staged import (
     ThinkDecision,
     ThinkEngine,
 )
+from corecoder.agent.runtime.verification import PatchAnalysis, VerificationResult, VerificationPolicyEngine
 
 __all__ = [
     "SessionState",
@@ -39,4 +40,7 @@ __all__ = [
     "StageEvaluator",
     "GlobalStateManager",
     "AgentRuntime",
+    "PatchAnalysis",
+    "VerificationResult",
+    "VerificationPolicyEngine",
 ]

@@ -385,8 +385,6 @@ class RepositoryContextRetriever:
                 str(part)
                 for part in (
                     getattr(stage_plan, "objective", ""),
-                    getattr(stage_plan, "rationale", ""),
-                    getattr(stage_plan, "retrieval_focus", ""),
                 )
                 if part
             )

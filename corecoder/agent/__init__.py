@@ -1,4 +1,4 @@
-"""Agent package: core loop, runtime state, DAG, and workflow orchestration."""
+"""Agent package: core loop and staged runtime orchestration."""
 
 from corecoder.agent.core import Agent
 from corecoder.agent.runtime import AgentRuntime, StagePlan, ThinkEngine, StageExecutor, GlobalTaskState

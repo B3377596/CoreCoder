@@ -16,9 +16,12 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, TYPE_CHECKING
 
-from corecoder.agent.dag.models import ExecutionResult as DagExecutionResult
 from corecoder.agent.runtime.state import SessionState
-from corecoder.agent.workflow.verifier import PatchAnalysis, VerificationPolicyEngine
+from corecoder.agent.runtime.verification import (
+    PatchAnalysis,
+    VerificationInput,
+    VerificationPolicyEngine,
+)
 from corecoder.context.models import ExecutionState
 from corecoder.prompt import system_prompt
 from corecoder.retrieval.task_understanding import TaskUnderstandingAnalyzer
@@ -40,16 +43,6 @@ DEFAULT_STAGE_TOOLSETS: dict[str, list[str]] = {
     "verify": ["read_file", "grep", "bash"],
     "recover": ["repo_info", "glob", "grep", "read_file", "bash"],
     "finalize": [],
-}
-
-STAGE_CONTEXT_POLICIES: dict[str, str] = {
-    "understand": "overview_first",
-    "analyze": "targeted_analysis",
-    "implement": "editable_exact_files",
-    "modify": "editable_exact_files",
-    "verify": "verification_first",
-    "recover": "failure_recovery",
-    "finalize": "summary_only",
 }
 
 TOOL_ALIASES: dict[str, set[str]] = {
@@ -115,8 +108,6 @@ def _sanitize_debug_payload(title: str, payload: dict[str, Any]) -> dict[str, An
             "stage": payload.get("stage"),
             "objective": payload.get("objective"),
             "allowed_tools": payload.get("allowed_tools"),
-            "retrieval_focus": payload.get("retrieval_focus"),
-            "context_policy": payload.get("context_policy"),
             "target_file_count": len(payload.get("target_files", [])),
             "target_files": payload.get("target_files", [])[:8],
             "retrieval_mode": payload.get("retrieval_mode"),
@@ -149,11 +140,8 @@ def _sanitize_debug_payload(title: str, payload: dict[str, Any]) -> dict[str, An
 class StagePlan:
     stage: str
     objective: str
-    rationale: str
     target_files: list[str] = field(default_factory=list)
     allowed_tools: list[str] = field(default_factory=list)
-    retrieval_focus: str = ""
-    context_policy: str = ""
     success_criteria: list[str] = field(default_factory=list)
     exit_conditions: list[str] = field(default_factory=list)
     max_tool_steps: int = 8
@@ -192,7 +180,6 @@ class GlobalTaskState:
     user_request: str
     task_type: str | None = None
     task_family: str | None = None
-    current_stage: str | None = None
     stage_history: list[StagePlan] = field(default_factory=list)
     execution_history: list[ExecutionResult] = field(default_factory=list)
     stage_summaries: list[StageSummary] = field(default_factory=list)
@@ -203,11 +190,15 @@ class GlobalTaskState:
     changed_files: list[str] = field(default_factory=list)
     validation_passed: bool = False
     failures: list[str] = field(default_factory=list)
-    planner_history: list[dict[str, Any]] = field(default_factory=list)
-    decision_history: list[dict[str, Any]] = field(default_factory=list)
     done: bool = False
     final_answer: str | None = None
     session_state: SessionState = field(default_factory=SessionState)
+
+    @property
+    def current_stage(self) -> str | None:
+        if self.stage_history:
+            return self.stage_history[-1].stage
+        return None
 
 
 @dataclass
@@ -555,7 +546,6 @@ If it still needs work, use decision_type="stage_plan".
         payload = {
             "user_request": state.user_request,
             "completed_stages": [plan.stage for plan in state.stage_history],
-            "current_stage": state.current_stage,
             "task_family": state.task_family,
             "active_files": state.active_files,
             "target_files": state.target_files,
@@ -771,11 +761,8 @@ If it still needs work, use decision_type="stage_plan".
             return StagePlan(
                 stage=stage,
                 objective="Build enough grounding to decide the next bounded move by inspecting the relevant repository evidence, files, or symbols.",
-                rationale="The current state does not yet contain enough grounded evidence to decide the next step confidently.",
                 target_files=target_files,
                 allowed_tools=DEFAULT_STAGE_TOOLSETS[stage],
-                retrieval_focus="grounding evidence: relevant files, entry points, symbols, and repository summaries",
-                context_policy=STAGE_CONTEXT_POLICIES[stage],
                 success_criteria=[
                     "ground the request in the repository or confirm that no relevant code exists yet",
                     "identify the most relevant files, entry points, or symbols when they exist",
@@ -787,11 +774,8 @@ If it still needs work, use decision_type="stage_plan".
             return StagePlan(
                 stage=stage,
                 objective="Understand implementation details, local call flow, and modification boundaries.",
-                rationale="The task still lacks enough implementation detail for a confident answer or change.",
                 target_files=target_files,
                 allowed_tools=DEFAULT_STAGE_TOOLSETS[stage],
-                retrieval_focus="targeted snippets, call graph, local dependencies, constraints",
-                context_policy=STAGE_CONTEXT_POLICIES[stage],
                 success_criteria=[
                     "understand the key implementation path",
                     "capture impact boundaries and constraints",
@@ -803,11 +787,8 @@ If it still needs work, use decision_type="stage_plan".
             return StagePlan(
                 stage=stage,
                 objective="Create the requested implementation in a new or empty code area.",
-                rationale="The task is an implementation request, so the runtime should create the required files and logic rather than assume an existing file must already be edited. Verification should be deferred to the verify stage.",
                 target_files=target_files,
                 allowed_tools=DEFAULT_STAGE_TOOLSETS[stage],
-                retrieval_focus="create the target implementation files and runnable logic",
-                context_policy=STAGE_CONTEXT_POLICIES[stage],
                 success_criteria=[
                     "create the requested implementation",
                     "record newly created or updated files",
@@ -820,11 +801,8 @@ If it still needs work, use decision_type="stage_plan".
             return StagePlan(
                 stage=stage,
                 objective="Apply the required code changes within a bounded set of files.",
-                rationale="The state indicates a concrete modification is still required.",
                 target_files=target_files,
                 allowed_tools=DEFAULT_STAGE_TOOLSETS[stage],
-                retrieval_focus="exact files to edit, editable context, adjacent dependencies",
-                context_policy=STAGE_CONTEXT_POLICIES[stage],
                 success_criteria=[
                     "apply the requested change",
                     "record modified files and meaningful deltas",
@@ -837,28 +815,22 @@ If it still needs work, use decision_type="stage_plan".
             return StagePlan(
                 stage=stage,
                 objective="Validate changes and gather concise verification evidence.",
-                rationale="The requested changes exist, but we still need proof that they hold.",
                 target_files=target_files,
                 allowed_tools=DEFAULT_STAGE_TOOLSETS[stage],
-                retrieval_focus="changed files, test logs, verification artifacts",
-                context_policy=STAGE_CONTEXT_POLICIES[stage],
                 success_criteria=[
                     "confirm the changed file set",
                     "run or collect the minimal necessary verification evidence",
                     "decide whether the task is ready to finish",
                 ],
                 exit_conditions=["verification completed", "success or actionable failure captured"],
-                max_tool_steps=6,
+                max_tool_steps=15,
             )
         if stage == "recover":
             return StagePlan(
                 stage=stage,
                 objective="Recover from the last failed attempt and find a smaller viable next move.",
-                rationale=replan_reason or "The previous attempt failed or requested replanning.",
                 target_files=target_files,
                 allowed_tools=DEFAULT_STAGE_TOOLSETS[stage],
-                retrieval_focus="failure-oriented retrieval, alternative files, wider dependency search",
-                context_policy=STAGE_CONTEXT_POLICIES[stage],
                 success_criteria=[
                     "identify the failure cause",
                     "propose an alternate approach or broader search",
@@ -869,11 +841,8 @@ If it still needs work, use decision_type="stage_plan".
         return StagePlan(
             stage="finalize",
             objective="Produce a concise final answer grounded in the evidence collected so far.",
-            rationale="The state indicates that the current evidence is sufficient to answer the user directly.",
             target_files=target_files,
             allowed_tools=[],
-            retrieval_focus="final summaries only",
-            context_policy=STAGE_CONTEXT_POLICIES["finalize"],
             success_criteria=[
                 "summarize completed work or findings",
                 "mention touched or relevant files when useful",
@@ -1224,8 +1193,6 @@ class StageExecutor:
                 "stage": stage_plan.stage,
                 "objective": stage_plan.objective,
                 "allowed_tools": stage_plan.allowed_tools,
-                "retrieval_focus": stage_plan.retrieval_focus,
-                "context_policy": stage_plan.context_policy,
                 "target_files": stage_plan.target_files,
                 "retrieval_mode": "fresh" if retrieval_meta.get("used_retrieval") else "cached",
                 "retrieval_reason": retrieval_meta.get("reason", ""),
@@ -1361,9 +1328,7 @@ class StageExecutor:
                     stage=stage_plan.stage,
                     objective=stage_plan.objective,
                     target_files=stage_plan.target_files,
-                    retrieval_focus=stage_plan.retrieval_focus,
                     global_state=global_state,
-                    context_policy=stage_plan.context_policy,
                     allowed_tools=stage_plan.allowed_tools,
                     stage_plan=stage_plan,
                 )
@@ -1466,9 +1431,16 @@ class StageExecutor:
                 "- If a target file does not exist, create it instead of repeatedly trying to read it.\n"
                 "- Keep this stage focused on implementation; leave runtime validation and broader testing to the verify stage.\n"
             )
+        elif stage_plan.stage == "verify":
+            guidance = (
+                "Execution guidance:\n"
+                "- Perform the smallest sufficient set of checks needed to validate the requested behavior.\n"
+                "- Prefer one representative positive-path check and only a small number of targeted edge-case checks.\n"
+                "- Avoid repeating the same command with only minor variations unless the previous result was inconclusive.\n"
+                "- Use bash for runnable validation when needed, but keep the verification bounded and concise.\n"
+            )
         return (
             "\n\n## Stage Contract\n"
-            f"Rationale: {stage_plan.rationale}\n"
             f"Allowed tools: {', '.join(stage_plan.allowed_tools) or 'none'}\n"
             f"Success criteria:\n{success or '- complete the stage objective'}\n"
             f"Exit conditions:\n{exit_conditions or '- stop when objective is satisfied'}\n"
@@ -1595,7 +1567,6 @@ class StageExecutor:
     def _focus_signature(stage_plan: StagePlan, global_state: GlobalTaskState) -> str:
         focus_parts = [
             stage_plan.stage,
-            stage_plan.retrieval_focus,
             ",".join(sorted(stage_plan.target_files)),
             ",".join(sorted(global_state.active_files)),
         ]
@@ -1889,7 +1860,6 @@ class GlobalStateManager:
         if isinstance(session_state_updates, dict) and session_state_updates:
             state.session_state.apply_state_updates(session_state_updates)
 
-        state.current_stage = stage_plan.stage
         state.stage_history.append(stage_plan)
         state.execution_history.append(execution_result)
         state.target_files = list(dict.fromkeys(
@@ -1994,7 +1964,7 @@ class StageEvaluator:
 
         if execution_result.stage == "verify":
             patch = self._patch_analysis()
-            dag_result = DagExecutionResult(
+            verification_input = VerificationInput(
                 success=execution_result.success,
                 output=execution_result.stage_summary,
                 error="; ".join(execution_result.failures),
@@ -2002,7 +1972,7 @@ class StageEvaluator:
                 artifacts=execution_result.evidence,
             )
             verification = self._verifier.verify(
-                dag_result,
+                verification_input,
                 patch=patch,
                 working_dir=self._working_dir,
                 task_meta={"title": execution_result.stage},
@@ -2087,15 +2057,6 @@ class AgentRuntime:
                 "failures": list(state.failures[-3:]),
             })
             decision = await self.think_engine.think(state)
-            state.decision_history.append({
-                "type": decision.type,
-                "reason": decision.reason,
-                "task_family": decision.task_family,
-                "confidence": decision.confidence,
-                "raw_decision": decision.raw_decision,
-            })
-            if decision.raw_decision:
-                state.planner_history.append(decision.raw_decision)
             if decision.task_family:
                 state.task_family = decision.task_family
             self._emit_event(on_event, {
