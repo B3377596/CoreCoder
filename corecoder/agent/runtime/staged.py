@@ -33,9 +33,9 @@ RuntimeEventFn = Callable[[dict[str, Any]], None]
 
 
 DEFAULT_STAGE_TOOLSETS: dict[str, list[str]] = {
-    "understand": ["repo_info", "glob", "grep", "read_file"],
-    "locate": ["repo_info", "glob", "grep", "read_file"],
+    "understand": ["repo_info", "grep", "read_file"],
     "analyze": ["read_file", "grep", "glob", "repo_info"],
+    "implement": ["read_file", "edit_file", "write_file", "grep"],
     "modify": ["read_file", "edit_file", "write_file", "grep", "bash"],
     "verify": ["read_file", "grep", "bash"],
     "recover": ["repo_info", "glob", "grep", "read_file", "bash"],
@@ -44,8 +44,8 @@ DEFAULT_STAGE_TOOLSETS: dict[str, list[str]] = {
 
 STAGE_CONTEXT_POLICIES: dict[str, str] = {
     "understand": "overview_first",
-    "locate": "symbol_path_focus",
     "analyze": "targeted_analysis",
+    "implement": "editable_exact_files",
     "modify": "editable_exact_files",
     "verify": "verification_first",
     "recover": "failure_recovery",
@@ -109,6 +109,8 @@ def _sanitize_debug_payload(title: str, payload: dict[str, Any]) -> dict[str, An
         }
 
     if title == "StageExecutor Input":
+        state_updates = payload.get("state_updates", {}) if isinstance(payload.get("state_updates"), dict) else {}
+        repo_summary = str(state_updates.get("repo_summary", ""))
         return {
             "stage": payload.get("stage"),
             "objective": payload.get("objective"),
@@ -116,8 +118,16 @@ def _sanitize_debug_payload(title: str, payload: dict[str, Any]) -> dict[str, An
             "retrieval_focus": payload.get("retrieval_focus"),
             "context_policy": payload.get("context_policy"),
             "target_file_count": len(payload.get("target_files", [])),
+            "target_files": payload.get("target_files", [])[:8],
             "retrieval_mode": payload.get("retrieval_mode"),
             "retrieval_reason": payload.get("retrieval_reason"),
+            "user_message_preview": str(payload.get("user_message", ""))[:800],
+            "state_updates_keys": sorted(state_updates.keys()),
+            "repo_summary_preview": repo_summary[:800],
+            "active_files_preview": list(state_updates.get("active_files", []))[:8],
+            "active_symbols_preview": list(state_updates.get("active_symbols", []))[:8],
+            "allowed_actions": list(state_updates.get("allowed_actions", [])),
+            "stop_conditions": state_updates.get("stop_conditions", ""),
         }
 
     if title == "GlobalTaskState Update":
@@ -167,6 +177,7 @@ class ExecutionResult:
     stage: str
     success: bool
     stage_summary: str
+    exit_conditions_satisfied: bool = False
     changed_files: list[str] = field(default_factory=list)
     trace: list[ExecutionTraceStep] = field(default_factory=list)
     observations: list[str] = field(default_factory=list)
@@ -180,6 +191,7 @@ class ExecutionResult:
 class GlobalTaskState:
     user_request: str
     task_type: str | None = None
+    task_family: str | None = None
     current_stage: str | None = None
     stage_history: list[StagePlan] = field(default_factory=list)
     execution_history: list[ExecutionResult] = field(default_factory=list)
@@ -187,8 +199,12 @@ class GlobalTaskState:
     evidence_store: dict[str, Any] = field(default_factory=dict)
     working_memory: dict[str, Any] = field(default_factory=dict)
     active_files: list[str] = field(default_factory=list)
+    target_files: list[str] = field(default_factory=list)
     changed_files: list[str] = field(default_factory=list)
+    validation_passed: bool = False
     failures: list[str] = field(default_factory=list)
+    planner_history: list[dict[str, Any]] = field(default_factory=list)
+    decision_history: list[dict[str, Any]] = field(default_factory=list)
     done: bool = False
     final_answer: str | None = None
     session_state: SessionState = field(default_factory=SessionState)
@@ -200,6 +216,9 @@ class ThinkDecision:
     stage_plan: StagePlan | None = None
     answer: str | None = None
     reason: str = ""
+    task_family: str | None = None
+    confidence: float = 0.0
+    raw_decision: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -244,7 +263,21 @@ class RetrievalDecision:
 
 @dataclass
 class OverviewBudget:
-    max_files: int = 5
+    max_files: int = 4
+
+
+@dataclass
+class CompletionContract:
+    task_family: str
+    requires_target_file: bool = False
+    requires_code_change: bool = False
+    requires_validation: bool = False
+
+
+@dataclass
+class ContractGateResult:
+    allowed: bool
+    blocking_reasons: list[str] = field(default_factory=list)
 
 
 class AnswerComposer:
@@ -348,38 +381,107 @@ class ToolNotAllowedError(RuntimeError):
 
 
 class ThinkEngine:
-    """Produces the next StagePlan from state, evidence gaps, and completion criteria."""
+    """Produces the next StagePlan from state, using an LLM planner plus contract gating."""
 
-    def __init__(self):
+    THINK_PROMPT = """You are the outer ThinkEngine for a coding agent.
+
+Return ONLY JSON.
+
+Your job is to choose the next bounded task decision for the runtime.
+Do not execute tools. Do not write code. Do not decide completion by yourself;
+the runtime enforces completion separately.
+
+Decision fields:
+- decision_type:
+  - "stage_plan": more work is needed; pick the next bounded stage.
+  - "final_answer": the current evidence is already enough to answer the user.
+  - "replan": the previous approach should be revised.
+  - "recovery": the previous attempt failed and the runtime should recover.
+- task_family:
+  - "analysis": understand or explain the repo, code, architecture, or behavior.
+  - "question": answer a focused question without changing code.
+  - "implementation": create new code or implement a requested feature from scratch.
+  - "modification": update existing code that is already expected to exist.
+  - "debugging": investigate and fix a failure or broken behavior.
+  - "refactor": restructure code without changing the intended behavior.
+  - "validation": verify or check code that already exists.
+- stage:
+  - "understand": inspect repo-level evidence only; use this for grounding, not for asking the user clarifying questions.
+  - "analyze": inspect implementation details in the grounded working set.
+  - "implement": create the requested implementation in new or empty code areas.
+  - "modify": change existing files that should already exist.
+  - "verify": validate code changes or collect verification evidence.
+  - "recover": respond to a failed stage with a smaller or broader next move.
+
+Planning rules:
+- Use "understand" only for repository inspection and evidence gathering.
+- Do NOT choose "understand" just to ask the user clarifying questions; there is no user-clarification tool in this runtime.
+- If an implementation request is already concrete enough and the repository is empty or irrelevant, prefer "implement" directly.
+- If you still choose "understand" for an implementation request, keep it strictly repository-grounded: confirm whether relevant code exists, then hand off to "implement".
+- Use "implement" for file creation and new code. Use "modify" only when the target file or code is expected to exist already.
+- Keep validation work in "verify", not in "implement".
+- Prefer the smallest next step that closes the most important evidence gap.
+
+Return a JSON object with this shape:
+{
+  "decision_type": "stage_plan" | "final_answer" | "replan" | "recovery",
+  "task_family": "analysis" | "question" | "implementation" | "modification" | "debugging" | "refactor" | "validation",
+  "reason": "...",
+  "confidence": 0.0,
+  "stage": "understand" | "analyze" | "implement" | "modify" | "verify" | "recover",
+  "objective": "...",
+  "target_files": [],
+  "constraints": [],
+  "success_criteria": [],
+  "validation_required": true
+}
+
+If the task can be answered directly, use decision_type="final_answer".
+If it still needs work, use decision_type="stage_plan".
+"""
+
+    def __init__(self, llm_call: Callable[[list[dict[str, Any]]], Awaitable[Any]] | None = None, model: str = ""):
         self._understanding = TaskUnderstandingAnalyzer()
+        self._llm_call = llm_call
+        self._model = model
 
-    def think(self, state: GlobalTaskState) -> ThinkDecision:
-        understanding = self._understanding.understand(goal=state.user_request)
-        retrieval_family = self._understanding.infer_retrieval_family(understanding)
-        task_type = state.task_type or self._infer_task_type(state.user_request)
-        state.task_type = task_type
-
+    async def think(self, state: GlobalTaskState) -> ThinkDecision:
         assessment = self._assess_completion(
             state=state,
-            task_type=task_type,
-            retrieval_family=str(retrieval_family.value),
+            task_type=state.task_type or self._infer_task_type(state.user_request),
+            retrieval_family=str(self._understanding.infer_retrieval_family(
+                self._understanding.understand(goal=state.user_request)
+            ).value),
         )
+        contract = self._contract_for_family(state.task_family or "analysis")
 
-        if assessment.objective_satisfied and assessment.can_answer_now:
-            decision = ThinkDecision(
-                type="final_answer",
-                reason=assessment.reason or "current evidence is sufficient to answer",
-            )
-            self._debug_decision(state, decision, assessment)
-            return decision
+        planner_error = ""
+        raw_decision: dict[str, Any] = {}
+        source = "llm"
 
-        next_stage = self._choose_next_stage(assessment, task_type)
-        decision = ThinkDecision(
-            type="stage_plan",
-            stage_plan=self._build_stage_plan(next_stage, state, task_type),
-            reason=assessment.reason or f"missing evidence requires `{next_stage}`",
-        )
-        self._debug_decision(state, decision, assessment)
+        if self._llm_call is not None:
+            try:
+                raw_decision = await self._plan_with_llm(state, contract)
+                decision = self._decision_from_payload(state, raw_decision)
+                state.task_family = decision.task_family or state.task_family
+                if state.task_family:
+                    state.task_type = self._task_type_for_family(state.task_family)
+                contract = self._contract_for_family(state.task_family or "analysis")
+                if decision.type == "final_answer":
+                    gate = self._contract_gate(state, contract)
+                    self._debug_contract_gate(contract, gate)
+                    if not gate.allowed:
+                        blocked_reason = "final_answer blocked: " + ", ".join(gate.blocking_reasons)
+                        assessment.reason = blocked_reason
+                        decision = self._fallback_decision(state, assessment, blocked_reason, raw_decision)
+                self._debug_decision(state, decision, assessment, source=source)
+                return decision
+            except Exception as exc:
+                planner_error = f"{type(exc).__name__}: {exc}"
+                source = "fallback"
+
+        decision = self._fallback_decision(state, assessment, planner_error or assessment.reason, raw_decision)
+        self._debug_decision(state, decision, assessment, source=source)
         return decision
 
     def _debug_decision(
@@ -387,21 +489,279 @@ class ThinkEngine:
         state: GlobalTaskState,
         decision: ThinkDecision,
         assessment: CompletionAssessment | None = None,
+        source: str = "llm",
     ) -> None:
         _stage_debug(
             "ThinkEngine Decision",
             {
+                "source": source,
+                "model": self._model,
                 "user_request": state.user_request,
                 "task_type": state.task_type,
+                "task_family": state.task_family,
                 "completed_stages": [result.stage for result in state.execution_history if result.success],
                 "current_stage": state.current_stage,
                 "recent_failures": state.failures[-3:],
                 "completion_assessment": assessment,
                 "decision_type": decision.type,
+                "decision_confidence": decision.confidence,
                 "decision_reason": decision.reason,
+                "raw_decision": decision.raw_decision,
                 "stage_plan": decision.stage_plan,
             },
         )
+
+    async def _plan_with_llm(
+        self,
+        state: GlobalTaskState,
+        contract: CompletionContract,
+    ) -> dict[str, Any]:
+        if self._llm_call is None:
+            raise RuntimeError("ThinkEngine has no llm_call configured")
+
+        prompt = self._build_think_prompt(state, contract)
+        messages = [
+            {"role": "system", "content": self.THINK_PROMPT},
+            {"role": "user", "content": prompt},
+        ]
+        response = await self._llm_call(messages)
+        try:
+            return self._parse_decision_json(response.content)
+        except Exception:
+            repaired = await self._repair_decision(messages, response.content)
+            return self._parse_decision_json(repaired)
+
+    async def _repair_decision(
+        self,
+        original_messages: list[dict[str, Any]],
+        bad_content: str,
+    ) -> str:
+        if self._llm_call is None:
+            raise RuntimeError("ThinkEngine has no llm_call configured")
+        repair_messages = list(original_messages) + [
+            {"role": "assistant", "content": bad_content},
+            {
+                "role": "user",
+                "content": (
+                    "Your previous decision violated the schema or was not valid JSON.\n"
+                    "Return ONLY corrected JSON for the decision."
+                ),
+            },
+        ]
+        repair = await self._llm_call(repair_messages)
+        return repair.content
+
+    def _build_think_prompt(self, state: GlobalTaskState, contract: CompletionContract) -> str:
+        payload = {
+            "user_request": state.user_request,
+            "completed_stages": [plan.stage for plan in state.stage_history],
+            "current_stage": state.current_stage,
+            "task_family": state.task_family,
+            "active_files": state.active_files,
+            "target_files": state.target_files,
+            "changed_files": state.changed_files,
+            "validation_passed": state.validation_passed,
+            "recent_failures": state.failures[-5:],
+            "evidence_summary": self._summarize_evidence_for_planner(state.evidence_store),
+            "contract": {
+                "task_family": contract.task_family,
+                "requires_target_file": contract.requires_target_file,
+                "requires_code_change": contract.requires_code_change,
+                "requires_validation": contract.requires_validation,
+            },
+        }
+        return json.dumps(payload, ensure_ascii=False, indent=2, default=_json_default)
+
+    @staticmethod
+    def _summarize_evidence_for_planner(evidence_store: dict[str, Any]) -> dict[str, Any]:
+        summary: dict[str, Any] = {}
+        for key, value in evidence_store.items():
+            if isinstance(value, list):
+                summary[key] = value[:4]
+            elif isinstance(value, dict):
+                summary[key] = {k: v for k, v in list(value.items())[:6]}
+            else:
+                summary[key] = value
+        return summary
+
+    @staticmethod
+    def _parse_decision_json(text: str) -> dict[str, Any]:
+        raw = text.strip()
+        if "```json" in raw:
+            start = raw.index("```json") + len("```json")
+            end = raw.find("```", start)
+            if end > start:
+                raw = raw[start:end].strip()
+        elif raw.startswith("```"):
+            lines = raw.splitlines()
+            raw = "\n".join(lines[1:-1] if lines and lines[-1].strip() == "```" else lines[1:]).strip()
+
+        if not raw.startswith("{"):
+            brace_start = raw.find("{")
+            brace_end = raw.rfind("}")
+            if brace_start >= 0 and brace_end > brace_start:
+                raw = raw[brace_start:brace_end + 1]
+
+        data = json.loads(raw)
+        if not isinstance(data, dict):
+            raise ValueError("decision json must be an object")
+        return data
+
+    def _decision_from_payload(self, state: GlobalTaskState, payload: dict[str, Any]) -> ThinkDecision:
+        decision_type = str(payload.get("decision_type", "")).strip()
+        if decision_type not in {"stage_plan", "final_answer", "replan", "recovery"}:
+            raise ValueError(f"invalid decision_type: {decision_type}")
+
+        task_family = str(payload.get("task_family", "")).strip() or state.task_family or "analysis"
+        if task_family not in {"analysis", "question", "implementation", "modification", "debugging", "refactor", "validation"}:
+            raise ValueError(f"invalid task_family: {task_family}")
+
+        confidence = float(payload.get("confidence", 0.0) or 0.0)
+        reason = str(payload.get("reason", "")).strip() or "llm decision"
+
+        if decision_type == "final_answer":
+            return ThinkDecision(
+                type="final_answer",
+                reason=reason,
+                task_family=task_family,
+                confidence=confidence,
+                raw_decision=payload,
+            )
+
+        stage = str(payload.get("stage", "")).strip()
+        if stage == "recovery":
+            stage = "recover"
+        if stage == "validate":
+            stage = "verify"
+        if stage == "inspect":
+            stage = "analyze"
+        if stage not in {"understand", "analyze", "implement", "modify", "verify", "recover"}:
+            raise ValueError(f"invalid stage: {stage}")
+
+        plan = self._build_stage_plan(stage, state, self._task_type_for_family(task_family))
+        objective = str(payload.get("objective", "")).strip()
+        if objective and not (stage == "understand" and task_family == "implementation"):
+            plan.objective = objective
+        plan.target_files = list(dict.fromkeys(payload.get("target_files", []) or plan.target_files))[:8]
+
+        constraints = [str(c).strip() for c in payload.get("constraints", []) if str(c).strip()]
+        if constraints:
+            state.working_memory["constraints"] = constraints
+
+        success_criteria = [str(c).strip() for c in payload.get("success_criteria", []) if str(c).strip()]
+        if success_criteria:
+            plan.success_criteria = success_criteria
+
+        return ThinkDecision(
+            type="stage_plan",
+            stage_plan=plan,
+            reason=reason,
+            task_family=task_family,
+            confidence=confidence,
+            raw_decision=payload,
+        )
+
+    @staticmethod
+    def _task_type_for_family(task_family: str) -> str:
+        return {
+            "implementation": "code_change",
+            "modification": "code_change",
+            "debugging": "bug_fix",
+            "refactor": "refactor",
+            "validation": "analysis",
+            "question": "analysis",
+            "analysis": "analysis",
+        }.get(task_family, "analysis")
+
+    @staticmethod
+    def _contract_for_family(task_family: str) -> CompletionContract:
+        if task_family == "implementation":
+            return CompletionContract(task_family=task_family, requires_target_file=False, requires_code_change=True, requires_validation=True)
+        if task_family == "modification":
+            return CompletionContract(task_family=task_family, requires_target_file=True, requires_code_change=True, requires_validation=True)
+        if task_family == "debugging":
+            return CompletionContract(task_family=task_family, requires_code_change=True, requires_validation=True)
+        if task_family == "refactor":
+            return CompletionContract(task_family=task_family, requires_target_file=True, requires_code_change=True, requires_validation=True)
+        if task_family == "validation":
+            return CompletionContract(task_family=task_family, requires_validation=True)
+        return CompletionContract(task_family=task_family)
+
+    @staticmethod
+    def _contract_gate(state: GlobalTaskState, contract: CompletionContract) -> ContractGateResult:
+        reasons: list[str] = []
+        if contract.requires_target_file and not state.target_files and not state.active_files:
+            reasons.append("missing_target_file")
+        if contract.requires_code_change and not state.changed_files:
+            reasons.append("missing_code_change")
+        if contract.requires_validation and not state.validation_passed:
+            reasons.append("missing_validation")
+        return ContractGateResult(allowed=not reasons, blocking_reasons=reasons)
+
+    def _debug_contract_gate(self, contract: CompletionContract, result: ContractGateResult) -> None:
+        _stage_debug(
+            "ContractGate",
+            {
+                "task_family": contract.task_family,
+                "requires_target_file": contract.requires_target_file,
+                "requires_code_change": contract.requires_code_change,
+                "requires_validation": contract.requires_validation,
+                "result": "allowed" if result.allowed else "blocked",
+                "blocking_reasons": result.blocking_reasons,
+            },
+        )
+
+    def _fallback_decision(
+        self,
+        state: GlobalTaskState,
+        assessment: CompletionAssessment,
+        reason: str,
+        raw_decision: dict[str, Any],
+    ) -> ThinkDecision:
+        task_type = state.task_type or self._infer_task_type(state.user_request)
+        retrieval_family = str(self._understanding.infer_retrieval_family(
+            self._understanding.understand(goal=state.user_request)
+        ).value)
+        if not assessment.reason:
+            assessment = self._assess_completion(state=state, task_type=task_type, retrieval_family=retrieval_family)
+
+        task_family = state.task_family or self._family_from_task_type(task_type, retrieval_family)
+        state.task_family = task_family
+        state.task_type = self._task_type_for_family(task_family)
+        contract = self._contract_for_family(task_family)
+        gate = self._contract_gate(state, contract)
+        self._debug_contract_gate(contract, gate)
+
+        if assessment.objective_satisfied and assessment.can_answer_now and gate.allowed:
+            return ThinkDecision(
+                type="final_answer",
+                reason=reason or assessment.reason or "fallback determined current evidence is sufficient",
+                task_family=task_family,
+                confidence=0.0,
+                raw_decision=raw_decision,
+            )
+
+        next_stage = self._choose_next_stage(assessment, task_type)
+        return ThinkDecision(
+            type="stage_plan",
+            stage_plan=self._build_stage_plan(next_stage, state, task_type),
+            reason=reason or assessment.reason or f"fallback selected `{next_stage}`",
+            task_family=task_family,
+            confidence=0.0,
+            raw_decision=raw_decision,
+        )
+
+    @staticmethod
+    def _family_from_task_type(task_type: str, retrieval_family: str) -> str:
+        if task_type == "bug_fix":
+            return "debugging"
+        if task_type == "code_change":
+            return "implementation"
+        if task_type == "refactor":
+            return "refactor"
+        if retrieval_family == "question":
+            return "question"
+        return "analysis"
 
     def _build_stage_plan(self, stage: str, state: GlobalTaskState, task_type: str) -> StagePlan:
         target_files = list(dict.fromkeys(state.active_files + state.changed_files))[:8]
@@ -410,34 +770,18 @@ class ThinkEngine:
         if stage == "understand":
             return StagePlan(
                 stage=stage,
-                objective="Build enough repository understanding to ground the task.",
-                rationale="The current state does not yet contain enough high-level evidence to proceed confidently.",
+                objective="Build enough grounding to decide the next bounded move by inspecting the relevant repository evidence, files, or symbols.",
+                rationale="The current state does not yet contain enough grounded evidence to decide the next step confidently.",
                 target_files=target_files,
                 allowed_tools=DEFAULT_STAGE_TOOLSETS[stage],
-                retrieval_focus="project overview, entry points, architecture summaries",
+                retrieval_focus="grounding evidence: relevant files, entry points, symbols, and repository summaries",
                 context_policy=STAGE_CONTEXT_POLICIES[stage],
                 success_criteria=[
-                    "identify the main project goal or capability",
-                    "find entry points or core modules",
-                    "produce a concise project structure summary",
+                    "ground the request in the repository or confirm that no relevant code exists yet",
+                    "identify the most relevant files, entry points, or symbols when they exist",
+                    "produce enough evidence to choose the next bounded stage",
                 ],
-                exit_conditions=["overview established", "core modules identified"],
-            )
-        if stage == "locate":
-            return StagePlan(
-                stage=stage,
-                objective="Ground the task in the most relevant files, symbols, and paths.",
-                rationale="We need a narrower working set before deeper analysis or modification.",
-                target_files=target_files,
-                allowed_tools=DEFAULT_STAGE_TOOLSETS[stage],
-                retrieval_focus="symbols, file paths, dependency neighborhoods related to the request",
-                context_policy=STAGE_CONTEXT_POLICIES[stage],
-                success_criteria=[
-                    "identify candidate files or modules",
-                    "locate key classes, functions, or config entry points",
-                    "record the working set for follow-up analysis",
-                ],
-                exit_conditions=["identified target files", "located key symbols"],
+                exit_conditions=["next step grounded", "working set or absence of code confirmed"],
             )
         if stage == "analyze":
             return StagePlan(
@@ -454,6 +798,23 @@ class ThinkEngine:
                     "produce enough evidence for the next decision",
                 ],
                 exit_conditions=["implementation understood", "constraints captured"],
+            )
+        if stage == "implement":
+            return StagePlan(
+                stage=stage,
+                objective="Create the requested implementation in a new or empty code area.",
+                rationale="The task is an implementation request, so the runtime should create the required files and logic rather than assume an existing file must already be edited. Verification should be deferred to the verify stage.",
+                target_files=target_files,
+                allowed_tools=DEFAULT_STAGE_TOOLSETS[stage],
+                retrieval_focus="create the target implementation files and runnable logic",
+                context_policy=STAGE_CONTEXT_POLICIES[stage],
+                success_criteria=[
+                    "create the requested implementation",
+                    "record newly created or updated files",
+                    "keep the implementation bounded to the requested scope",
+                ],
+                exit_conditions=["requested implementation created", "changed files recorded"],
+                max_tool_steps=10,
             )
         if stage == "modify":
             return StagePlan(
@@ -540,8 +901,7 @@ class ThinkEngine:
             or any(result.stage == "understand" for result in successful)
             or bool(evidence_store.get("overview"))
         )
-        has_locate = any(result.stage == "locate" for result in successful)
-        has_grounded_files = bool(state.active_files or has_locate or evidence_store.get("target_files"))
+        has_grounded_files = bool(state.active_files or evidence_store.get("target_files"))
         has_analysis = any(result.stage == "analyze" for result in successful) or bool(evidence_store.get("implementation_notes"))
         has_modification = bool(state.changed_files) or any(result.stage == "modify" for result in successful)
         has_verification = any(result.stage == "verify" for result in successful) or bool(evidence_store.get("verification"))
@@ -638,11 +998,11 @@ class ThinkEngine:
         if assessment.missing_repository_understanding:
             return "understand"
         if assessment.missing_target_file:
-            return "locate"
+            return "understand"
         if assessment.missing_implementation_detail:
             return "analyze"
         if assessment.modification_required:
-            return "modify"
+            return "implement" if task_type == "code_change" else "modify"
         if assessment.validation_missing:
             return "verify"
         if task_type in {"code_change", "bug_fix", "feature_change", "refactor"}:
@@ -869,6 +1229,8 @@ class StageExecutor:
                 "target_files": stage_plan.target_files,
                 "retrieval_mode": "fresh" if retrieval_meta.get("used_retrieval") else "cached",
                 "retrieval_reason": retrieval_meta.get("reason", ""),
+                "user_message": user_message,
+                "state_updates": session_state_updates,
             },
         )
 
@@ -882,18 +1244,20 @@ class StageExecutor:
                 on_tool=on_tool,
                 on_event=on_event,
             )
-            changed_files = self._collect_changed_files()
-            tool_failures = self._collect_failures(trace.trace_steps)
+            changed_files = self._collect_changed_files(trace.trace_steps)
+            tool_failures = self._collect_failures(stage_plan, trace.trace_steps)
             needs_replan = bool(tool_failures)
             observations = self._derive_observations(stage_plan, trace, changed_files, session_state_updates)
             evidence = self._derive_evidence(stage_plan, observations, changed_files, session_state_updates, trace)
             summary = self._summarize_stage_output(stage_plan, observations, evidence)
             trace_preview = self._compress_trace(trace.trace_steps)
+            exit_conditions_satisfied = self._check_exit_conditions(stage_plan, observations, evidence, changed_files)
             _stage_debug(
                 "StageExecutor Output",
                 {
                     "stage": stage_plan.stage,
-                    "success": not needs_replan,
+                    "success": (not needs_replan) and exit_conditions_satisfied,
+                    "exit_conditions_satisfied": exit_conditions_satisfied,
                     "trace": trace_preview,
                     "observations": observations,
                     "evidence": evidence,
@@ -906,7 +1270,7 @@ class StageExecutor:
                 {
                     "type": "execute_complete",
                     "stage": stage_plan.stage,
-                    "success": not needs_replan,
+                    "success": (not needs_replan) and exit_conditions_satisfied,
                     "tool_count": len(trace_preview),
                     "observation_count": len(observations),
                     "evidence_count": len(evidence),
@@ -916,8 +1280,9 @@ class StageExecutor:
             )
             return ExecutionResult(
                 stage=stage_plan.stage,
-                success=not needs_replan,
+                success=(not needs_replan) and exit_conditions_satisfied,
                 stage_summary=summary,
+                exit_conditions_satisfied=exit_conditions_satisfied,
                 changed_files=changed_files,
                 trace=trace_preview,
                 observations=observations,
@@ -944,7 +1309,8 @@ class StageExecutor:
                 stage=stage_plan.stage,
                 success=False,
                 stage_summary=f"{stage_plan.stage} stage failed: {exc}",
-                changed_files=self._collect_changed_files(),
+                exit_conditions_satisfied=False,
+                changed_files=self._collect_changed_files([]),
                 observations=[],
                 evidence={"failure_kind": type(exc).__name__},
                 state_patch=session_state_updates,
@@ -969,7 +1335,8 @@ class StageExecutor:
                 stage=stage_plan.stage,
                 success=False,
                 stage_summary=f"{stage_plan.stage} stage failed: {type(exc).__name__}: {exc}",
-                changed_files=self._collect_changed_files(),
+                exit_conditions_satisfied=False,
+                changed_files=self._collect_changed_files([]),
                 observations=[],
                 evidence={"failure_kind": type(exc).__name__},
                 state_patch=session_state_updates,
@@ -1080,22 +1447,54 @@ class StageExecutor:
     def _stage_instruction_suffix(stage_plan: StagePlan) -> str:
         success = "\n".join(f"- {item}" for item in stage_plan.success_criteria)
         exit_conditions = "\n".join(f"- {item}" for item in stage_plan.exit_conditions)
+        guidance = ""
+        if stage_plan.stage == "understand":
+            guidance = (
+                "Execution guidance:\n"
+                "- Start with repo_info for grounding and repository structure.\n"
+                "- Read README.md and pyproject.toml before scanning source files when they exist.\n"
+                "- Use read_file and grep to ground the task in relevant files or symbols.\n"
+                "- If this is a concrete implementation request, use understand only to confirm whether relevant code already exists.\n"
+                "- Only inspect one or two likely files unless the current evidence is still insufficient.\n"
+                "- Do not write or edit files in this stage.\n"
+                "- Avoid broad source sweeps, directory-wide globbing, or frontend files unless they are necessary to answer the objective.\n"
+            )
+        elif stage_plan.stage == "implement":
+            guidance = (
+                "Execution guidance:\n"
+                "- Prefer creating or updating the target implementation files directly.\n"
+                "- If a target file does not exist, create it instead of repeatedly trying to read it.\n"
+                "- Keep this stage focused on implementation; leave runtime validation and broader testing to the verify stage.\n"
+            )
         return (
             "\n\n## Stage Contract\n"
             f"Rationale: {stage_plan.rationale}\n"
             f"Allowed tools: {', '.join(stage_plan.allowed_tools) or 'none'}\n"
             f"Success criteria:\n{success or '- complete the stage objective'}\n"
             f"Exit conditions:\n{exit_conditions or '- stop when objective is satisfied'}\n"
+            f"{guidance}"
             "Work only within this stage. Do not skip ahead to unrelated tasks."
         )
 
-    def _collect_changed_files(self) -> list[str]:
-        if self._agent is None:
-            return []
-        try:
-            return list(self._agent.changed_files)
-        except Exception:
-            return []
+    def _collect_changed_files(self, trace_steps: list[ExecutionTraceStep]) -> list[str]:
+        trace_changed: list[str] = []
+        for step in trace_steps:
+            if step.tool_name not in {"write_file", "edit_file"}:
+                continue
+            if step.tool_result.lower().startswith("error"):
+                continue
+            file_path = str(step.tool_args.get("file_path", "")).strip()
+            if file_path:
+                trace_changed.append(file_path)
+
+        agent_changed: list[str] = []
+        if self._agent is not None:
+            try:
+                agent_changed = list(self._agent.changed_files)
+            except Exception:
+                agent_changed = []
+
+        return list(dict.fromkeys(trace_changed + agent_changed))[:20]
 
     def _decide_retrieval(
         self,
@@ -1133,6 +1532,14 @@ class StageExecutor:
                 reuse_cache=True,
             )
 
+        if stage_plan.stage == "implement":
+            return RetrievalDecision(
+                should_retrieve=False,
+                reason="Creation task with proposed target files; existing file contents are optional and the runtime can proceed directly to implementation.",
+                focus_signature=focus_signature,
+                reuse_cache=True,
+            )
+
         if stage_plan.stage == "modify" and (stage_plan.target_files or global_state.changed_files):
             return RetrievalDecision(
                 should_retrieve=False,
@@ -1148,7 +1555,7 @@ class StageExecutor:
                 focus_signature=focus_signature,
             )
 
-        if recent_failures and stage_plan.stage in {"understand", "locate", "analyze"}:
+        if recent_failures and stage_plan.stage in {"understand", "analyze"}:
             return RetrievalDecision(
                 should_retrieve=True,
                 reason="Recent failures suggest the current evidence may be stale or insufficient.",
@@ -1163,7 +1570,7 @@ class StageExecutor:
                 reuse_cache=True,
             )
 
-        if stage_plan.stage in {"locate", "analyze"} and active_files and focus_signature == last_focus:
+        if stage_plan.stage in {"analyze"} and active_files and focus_signature == last_focus:
             return RetrievalDecision(
                 should_retrieve=False,
                 reason="The retrieval focus and active working set are stable, so we can reuse cached repo cognition.",
@@ -1171,7 +1578,7 @@ class StageExecutor:
                 reuse_cache=True,
             )
 
-        if stage_plan.stage in {"locate", "analyze"} and not active_files:
+        if stage_plan.stage in {"analyze"} and not active_files:
             return RetrievalDecision(
                 should_retrieve=True,
                 reason="The runtime still lacks grounded target files for this stage.",
@@ -1213,10 +1620,16 @@ class StageExecutor:
         }
 
     @staticmethod
-    def _collect_failures(trace_steps: list[ExecutionTraceStep]) -> list[str]:
+    def _collect_failures(stage_plan: StagePlan, trace_steps: list[ExecutionTraceStep]) -> list[str]:
         failures: list[str] = []
         for step in trace_steps:
             lowered = step.tool_result.lower()
+            if (
+                stage_plan.stage in {"implement", "understand"}
+                and step.tool_name == "read_file"
+                and "not found" in lowered
+            ):
+                continue
             if lowered.startswith("error") or "traceback" in lowered or "tests failed" in lowered:
                 preview = next((line.strip() for line in step.tool_result.splitlines() if line.strip()), "")[:240]
                 failures.append(f"{step.tool_name}: {preview or 'tool failed'}")
@@ -1246,6 +1659,13 @@ class StageExecutor:
             observations.append(
                 f"The overview focused on {', '.join(active_files[:5])}."
             )
+        if stage_plan.stage == "implement":
+            for step in trace.trace_steps:
+                if step.tool_name == "read_file" and "not found" in step.tool_result.lower():
+                    file_path = str(step.tool_args.get("file_path", "")).strip()
+                    if file_path:
+                        observations.append(f"{file_path} did not exist and needed to be created.")
+                        break
         if stage_plan.stage == "verify" and changed_files:
             observations.append(
                 f"Verification considered changed files: {', '.join(changed_files[:5])}."
@@ -1276,16 +1696,18 @@ class StageExecutor:
             evidence["overview"] = observations[0] if observations else "Repository overview captured."
             evidence["entry_points"] = [path for path in active_files if path.endswith(("README.md", "pyproject.toml", "cli.py", "main.py", "app.py"))][:5]
             evidence["core_modules"] = [path for path in active_files if path.endswith(".py") and path not in evidence["entry_points"]][:5]
-        elif stage_plan.stage == "locate":
-            evidence["target_files"] = active_files[:8]
-            evidence["located_symbols"] = list(session_state_updates.get("active_symbols", []))[:8]
         elif stage_plan.stage == "analyze":
             evidence["implementation_notes"] = observations[:4]
+        elif stage_plan.stage == "implement":
+            evidence["changed_files"] = changed_files[:8]
+            evidence["modification_notes"] = observations[:4]
         elif stage_plan.stage == "modify":
             evidence["changed_files"] = changed_files[:8]
             evidence["modification_notes"] = observations[:4]
+            evidence["validation_passed"] = self._detect_validation_passed(trace.trace_steps, observations)
         elif stage_plan.stage == "verify":
             evidence["verification"] = observations[0] if observations else "Verification completed."
+            evidence["validation_passed"] = self._detect_validation_passed(trace.trace_steps, observations)
         elif stage_plan.stage == "recover":
             evidence["risks"] = observations[:3]
 
@@ -1366,6 +1788,51 @@ class StageExecutor:
         return lead
 
     @staticmethod
+    def _detect_validation_passed(
+        trace_steps: list[ExecutionTraceStep],
+        observations: list[str],
+    ) -> bool:
+        for step in trace_steps:
+            if step.tool_name != "bash":
+                continue
+            lowered = step.tool_result.lower()
+            if lowered.startswith("error") or "[exit code:" in lowered or "traceback" in lowered:
+                return False
+            if any(token in lowered for token in ("syntax ok", "all tests pass", "tests pass", "passed", "ok")):
+                return True
+        for obs in observations:
+            lowered = obs.lower()
+            if any(token in lowered for token in ("all tests pass", "tests pass", "syntax ok")):
+                return True
+        return False
+
+    @staticmethod
+    def _check_exit_conditions(
+        stage_plan: StagePlan,
+        observations: list[str],
+        evidence: dict[str, Any],
+        changed_files: list[str],
+    ) -> bool:
+        if stage_plan.stage == "understand":
+            return bool(evidence.get("overview")) and bool(
+                evidence.get("entry_points")
+                or evidence.get("core_modules")
+                or evidence.get("target_files")
+                or observations
+            )
+        if stage_plan.stage == "analyze":
+            return bool(evidence.get("implementation_notes") or observations)
+        if stage_plan.stage == "implement":
+            return bool(changed_files or evidence.get("modification_notes"))
+        if stage_plan.stage == "modify":
+            return bool(changed_files or evidence.get("modification_notes"))
+        if stage_plan.stage == "verify":
+            return bool(evidence.get("verification") or observations)
+        if stage_plan.stage == "recover":
+            return bool(evidence.get("risks") or observations)
+        return bool(observations or evidence)
+
+    @staticmethod
     def _prioritize_overview_files(files: list[str]) -> list[str]:
         budget = OverviewBudget()
 
@@ -1425,6 +1892,12 @@ class GlobalStateManager:
         state.current_stage = stage_plan.stage
         state.stage_history.append(stage_plan)
         state.execution_history.append(execution_result)
+        state.target_files = list(dict.fromkeys(
+            list(execution_result.evidence.get("target_files", []))
+            + list(session_state_updates.get("active_files", []))
+            + list(stage_plan.target_files)
+            + list(state.target_files)
+        ))[:12]
 
         state.active_files = list(dict.fromkeys(
             list(session_state_updates.get("active_files", []))
@@ -1433,6 +1906,10 @@ class GlobalStateManager:
             + state.active_files
         ))[:12]
         state.changed_files = list(dict.fromkeys(state.changed_files + execution_result.changed_files))[:20]
+        if execution_result.stage in {"implement", "modify", "recover"} and execution_result.changed_files:
+            state.validation_passed = False
+        if execution_result.evidence.get("validation_passed") is True:
+            state.validation_passed = True
 
         state.stage_summaries.append(StageSummary(stage=execution_result.stage, text=execution_result.stage_summary))
         state.working_memory["last_observations"] = execution_result.observations[-6:]
@@ -1459,10 +1936,13 @@ class GlobalStateManager:
             {
                 "current_stage": state.current_stage,
                 "active_files": state.active_files,
+                "target_files": state.target_files,
                 "changed_files": state.changed_files,
+                "validation_passed": state.validation_passed,
                 "failures": state.failures[-5:],
                 "stage_summaries": [summary.text for summary in state.stage_summaries[-3:]],
                 "evidence_store": state.evidence_store,
+                "evidence_keys": sorted(state.evidence_store.keys()),
                 "stage_history": [plan.stage for plan in state.stage_history],
             },
         )
@@ -1549,7 +2029,9 @@ class StageEvaluator:
             {
                 "stage": execution_result.stage,
                 "success": True,
-                "done": False,
+                "stage_done": execution_result.success and execution_result.exit_conditions_satisfied,
+                "task_done": False,
+                "exit_conditions_satisfied": execution_result.exit_conditions_satisfied,
                 "needs_replan": False,
             },
         )
@@ -1604,11 +2086,24 @@ class AgentRuntime:
                 "completed_stages": [plan.stage for plan in state.stage_history],
                 "failures": list(state.failures[-3:]),
             })
-            decision = self.think_engine.think(state)
+            decision = await self.think_engine.think(state)
+            state.decision_history.append({
+                "type": decision.type,
+                "reason": decision.reason,
+                "task_family": decision.task_family,
+                "confidence": decision.confidence,
+                "raw_decision": decision.raw_decision,
+            })
+            if decision.raw_decision:
+                state.planner_history.append(decision.raw_decision)
+            if decision.task_family:
+                state.task_family = decision.task_family
             self._emit_event(on_event, {
                 "type": "think_complete",
                 "decision_type": decision.type,
                 "reason": decision.reason,
+                "task_family": decision.task_family,
+                "confidence": decision.confidence,
                 "stage": decision.stage_plan.stage if decision.stage_plan else None,
                 "objective": decision.stage_plan.objective if decision.stage_plan else None,
             })
@@ -1648,6 +2143,8 @@ class AgentRuntime:
                 "failures": list(state.failures[-3:]),
             })
             evaluation = self.evaluator.evaluate(state, execution_result)
+            if execution_result.stage == "verify" and not evaluation.needs_replan:
+                state.validation_passed = True
             self._emit_event(on_event, {
                 "type": "evaluation",
                 "done": evaluation.done,
@@ -1709,12 +2206,11 @@ class AgentRuntime:
 def stage_to_execution_state(stage: str) -> ExecutionState:
     mapping = {
         "understand": ExecutionState.PLANNING,
-        "locate": ExecutionState.EXPLORING,
         "analyze": ExecutionState.EXPLORING,
+        "implement": ExecutionState.CODING,
         "modify": ExecutionState.CODING,
         "verify": ExecutionState.VERIFYING,
         "recover": ExecutionState.DEBUGGING,
         "finalize": ExecutionState.VERIFYING,
     }
     return mapping.get(stage, ExecutionState.CODING)
-

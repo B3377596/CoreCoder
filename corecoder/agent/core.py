@@ -11,11 +11,11 @@ which means it's done working and ready to report back.
 Architecture (state-centric, NOT chat-history centric):
 
     SessionState
-      ????? persistent_history    real conversation only
-      ????? repo_summary          stable repository cognition
-      ????? active_files/symbols  current task scope
-      ????? working memory        completed steps, decisions (compactable)
-      ????? execution state       bounds, constraints, stop conditions
+        persistent_history    real conversation only
+        repo_summary          stable repository cognition
+        active_files/symbols  current task scope
+        working memory        completed steps, decisions (compactable)
+        execution state       bounds, constraints, stop conditions
 
     build_runtime_messages(state, system_prompt)
        [system] + [assistant(mem)] + [assistant(repo)] + [assistant(run)]
@@ -216,13 +216,16 @@ class Agent:
         on_event=None,
     ):
         """Run the agent with an outer Think-Execute loop and inner local ReAct stages."""
+        async def _think_llm_call(messages: list[dict]):
+            return await self.llm.chat(messages=messages, tools=None)
+
         stage_executor = StageExecutor(
             agent=self,
             context_orchestrator=context_orchestrator,
             working_dir=self.working_dir,
         )
         runtime = AgentRuntime(
-            think_engine=ThinkEngine(),
+            think_engine=ThinkEngine(llm_call=_think_llm_call, model=self.llm.model),
             stage_executor=stage_executor,
             state_manager=GlobalStateManager(),
             evaluator=StageEvaluator(agent=self, working_dir=self.working_dir),
@@ -285,7 +288,14 @@ class Agent:
 
     @property
     def changed_files(self) -> list[str]:
-        return self.shadow.changed_files()
+        files = self.shadow.changed_files()
+        filtered: list[str] = []
+        for path in files:
+            normalized = path.replace("\\", "/")
+            if normalized == ".corecoder" or normalized.startswith(".corecoder/"):
+                continue
+            filtered.append(path)
+        return filtered
 
     @property
     def last_diff(self) -> str:

@@ -126,6 +126,7 @@ class LLM:
         This enables the agent to start executing tools before the LLM
         finishes generating other tool calls or trailing text.
         """
+        print
         params = self._build_params(messages, tools)
         try:
             params["stream_options"] = {"include_usage": True}

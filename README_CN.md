@@ -1,27 +1,19 @@
 # CoreCoder
 
-> 一个可读、可懂、可 fork 的 AI 编程 Agent。从 Claude Code 逆向提取架构模式，用 Python 重建为 ~2,000 行代码库。
-
-[English](README.md) | 中文 | [Claude Code 源码深度导读（7 篇）](article/)
+> 原名 **NanoCoder**——为避免与 [Nano-Collective/nanocoder](https://github.com/Nano-Collective/nanocoder) 混淆而更名。
 
 [![PyPI](https://img.shields.io/pypi/v/corecoder)](https://pypi.org/project/corecoder/)
 [![Python](https://img.shields.io/badge/python-3.10+-blue)](https://python.org)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
----
+**Claude Code 核心架构的极简 Python 复刻——约 2000 行源码，完整可运行。**
 
-## 两种运行模式
-
-CoreCoder 支持两种互补的运行模式：
-
-### 普通模式（REPL）
-
-交互式对话循环，跟 Claude Code 类似的体验。每轮对话自动注入仓库概览作为上下文。
+CoreCoder 不是另一个 AI 编程工具。它是一个**教学蓝图**，类比于 [nanoGPT](https://github.com/karpathy/nanoGPT)，是 AI coding agent 领域的最小可读实现。阅读它，魔改它，构建你自己的 agent。
 
 ```
-$ corecoder -m deepseek-chat
+$ corecoder -m kimi-k2.5
 
-You > 读一下 main.py，修掉拼错的 import
+You > 读一下 main.py，修好那个坏掉的 import
 
   > read_file(file_path='main.py')
   > edit_file(file_path='main.py', ...)
@@ -31,354 +23,398 @@ You > 读一下 main.py，修掉拼错的 import
 @@ -1 +1 @@
 -from utils import halper
 +from utils import helper
-```
 
-### Plan 模式（DAG 编排）
-
-输入一个高层目标，LLM Planner 自动拆解为带依赖关系的任务图，Scheduler 按拓扑顺序逐个执行。每个任务带有 **允许/禁止/停止条件** 的边界约束，防止 agent 越界。
-
-```
-You > /plan 给这个项目加一个前端页面调用计算器
-
-Plan: 给这个项目加一个简单的前端页面  [0/5]
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  [  ] 安装 Flask Web 框架
-    [  ] 创建 REST API 端点
-      [  ] 构建前端页面
-        [  ] 集成服务器启动到主入口
-          [  ] 端到端验证
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-[>>] 安装 Flask Web 框架
-  > bash(command='cd test && uv add flask')
-[OK] 安装 Flask Web 框架 [22.3s]
-[>>] 创建 REST API 端点
-  > write_file(file_path='test/api.py', ...)
-[OK] 创建 REST API 端点 [15.1s]
-...
+修好了：halper → helper。
 ```
 
 ---
 
-## 架构
+## 架构概览
 
-### 整体分层
-
-```
-用户输入
-  │
-  ├─ 普通模式 ──→ Agent.chat() ──→ ReAct 循环 ──→ LLM
-  │
-  └─ Plan 模式 ──→ Orchestrator
-                    ├─ LLMPlanner        ← 目标 → 任务图
-                    ├─ Scheduler         ← DAG 拓扑调度
-                    │   └─ Executor      ← 调用 Agent.chat()
-                    │       ├─ ContextOrchestrator  ← 动态上下文组装
-                    │       └─ Verifier             ← 验证执行结果
-                    └─ RecoveryManager   ← 重试/回滚
-```
-
-### State-Centric 运行时（核心设计）
-
-**旧架构**（chat-history centric）：所有上下文（repo 摘要、约束、工作记忆）被永久追加到对话历史中——这是错误的。
-
-**新架构**（state-centric）：上下文在每次 LLM 推理前从 `SessionState` **动态重建**为 ephemeral 消息前缀，不污染持久对话历史。
+CoreCoder 精炼了 Claude Code 的 **7 个关键架构模式**，全部在 ~2000 行 Python 中完整实现：
 
 ```
-build_runtime_messages(state) =
-  [system]              ← 稳定规则（来自 prompt.py）
-  [assistant(memory)]   ← 已完成步骤 + 关键决策（ephemeral）
-  [assistant(repo)]     ← 仓库结构认知（ephemeral）
-  [assistant(runtime)]  ← 执行边界：ALLOWED/FORBIDDEN/STOP WHEN（ephemeral）
-  [user]                ← 当前任务指令
-  ... persistent_history ← 仅真实对话：user/assistant/tool 消息
+入口: cli.py（CLI 参数解析 + REPL / 单次 / Plan 三种运行模式）
+  └─ Agent（agent/core.py）── 核心 ReAct 循环 + Think-Execute 外层
+       ├─ LLM（llm/client.py）            ── OpenAI / LiteLLM 双后端，SSE 流式
+       ├─ Runtime（agent/runtime/）        ── State-Centric 状态管理 + 动态消息组装
+       ├─ Tools（tools/）                  ── 8 个内置工具
+       ├─ Context（context/）              ── 3 层上下文压缩 + 动态编排
+       ├─ Shadow Git（codebase/shadow.py） ── 独立 git 仓库做 checkpoint / undo / diff
+       ├─ RepoIndex（codebase/indexing/）  ── AST 符号提取 + 依赖分析
+       ├─ Retrieval（retrieval/）          ── 零 Embedding 的符号化仓库检索
+       ├─ Workflow（agent/workflow/）      ── DAG 任务编排（Plan 模式）
+       └─ MCP（mcp/client.py）            ── MCP 协议支持（JSON-RPC over stdio）
 ```
 
-**为什么这样做？**
-- Ephemeral 前缀不会被压缩进对话摘要（避免把 repo 文件列表总结成无意义文本）
-- 仓库上下文可以在发现变化时刷新，而不是永远看旧信息
-- 持久历史只保留真实对话，undo/checkpoint 精确作用在对话边界上
-
-### 项目结构
-
-```
-corecoder/
-├── agent.py                    # ReAct 循环（State-Centric）
-├── cli.py                      # CLI REPL + Plan 模式入口
-├── config.py                   # 配置（环境变量 → 模型/API）
-├── prompt.py                   # 系统提示词
-│
-├── runtime/                    # 运行时状态管理 ★新增
-│   ├── state.py                # SessionState 数据类
-│   └── assembler.py            # 动态消息组装器
-│
-├── llm/                        # LLM 接口层
-│   ├── types.py                # ToolCall, LLMResponse, SSEEvent
-│   └── client.py               # LLM（OpenAI 兼容）+ LiteLLM（多厂商）
-│
-├── repo/                       # 仓库智能
-│   ├── index.py                # RepoIndex 符号/依赖索引
-│   └── shadow.py               # ShadowGit 影子仓库（checkpoint/undo/diff）
-│
-├── history/                    # 对话历史管理
-│   ├── compression.py          # ContextManager 三层压缩（snip→summarize→collapse）
-│   └── session.py              # 会话存续（支持 v1/v2 格式）
-│
-├── tools/                      # 工具实现
-│   ├── bash.py                 # Shell 命令（含危险命令拦截）
-│   ├── read.py / write.py      # 文件读写
-│   ├── edit.py                 # 搜索替换编辑（唯一匹配保证）
-│   ├── glob_tool.py            # 文件匹配（自动过滤噪声目录）
-│   ├── grep.py                 # 内容搜索
-│   ├── repo_info.py            # 仓库结构化索引查询
-│   └── agent.py                # 子 Agent 工具
-│
-└── orchestration/              # DAG 编排层
-    ├── orchestrator.py         # 顶层 Orchestrator
-    ├── storage.py              # 持久化
-    ├── observability.py        # 结构化日志
-    ├── viz.py                  # 图可视化
-    │
-    ├── dag/                    # 图结构与状态
-    │   ├── models.py           # TaskNode, ExecutionResult
-    │   ├── graph.py            # TaskGraph（DAG）
-    │   ├── memory.py           # WorkingMemory + MemoryInjector
-    │   └── recovery.py         # RecoveryManager 重试/回滚
-    │
-    ├── engine/                 # 执行引擎
-    │   ├── scheduler.py        # 依赖感知调度器
-    │   ├── planner.py          # Planner（Static + LLM）
-    │   ├── executor.py         # Executor（包装 ReAct 循环）
-    │   └── verifier.py         # 验证层（文件创建/内容/补丁分析）
-    │
-    ├── context/                # 上下文编排
-    │   ├── orchestrator.py     # ContextOrchestrator 主入口
-    │   ├── models.py           # ContextFragment, TokenBudget
-    │   ├── layers.py           # 6 个上下文层（Task/WorkingMemory/Failure/Constraint/ExecutionPolicy/System）
-    │   ├── pipeline.py         # 分阶段流水线（rank→dedup→compress→budget）
-    │   ├── ranker.py           # 多信号相关性排序
-    │   ├── retriever.py        # 图感知仓库检索
-    │   └── policies.py         # 7 种执行状态策略
-    │
-    └── retrieval/              # 符号级仓库检索
-        ├── models.py           # RankedFile, FileSummary
-        ├── symbol_index.py     # SymbolOwnershipGraph 符号→文件双向索引
-        ├── summaries.py        # FileSummaryManager（启发式 + LLM 可选）
-        ├── task_intent.py      # TaskIntentAnalyzer 任务意图分类
-        ├── query_planner.py    # RetrievalQueryPlanner 查询扩展
-        ├── dependency_graph.py # BidirectionalDepGraph 依赖邻域扩展
-        └── ranker.py           # StructuredRanker 多因素排序
-```
-
-### SessionState — 运行时认知中心
-
-```python
-@dataclass
-class SessionState:
-    persistent_history: list[dict]   # 仅真实对话（user/assistant/tool）
-    repo_summary: str = ""           # 仓库结构摘要（session-long）
-    active_files: list[str]          # 当前任务相关文件（task-long）
-    completed_steps: list[str]       # 已完成步骤（compactable）
-    important_decisions: list[str]   # 关键决策（compactable）
-    constraints: list[str]           # 约束条件（task-long）
-    failures: list[str]              # 失败记录（capped at 10）
-    allowed_actions: list[str]       # 允许操作（execution-long）
-    forbidden_actions: list[str]     # 禁止操作（execution-long）
-    stop_conditions: str             # 停止条件（execution-long）
-```
-
-### 上下文组装管道
-
-```
-ContextRequest（from Scheduler）
-  │
-  ├─ ContextLayer 各层 produce()
-  │   ├─ TaskContextLayer         → 当前任务描述
-  │   ├─ WorkingMemoryContextLayer→ 已完成工作
-  │   ├─ FailureMemoryContextLayer→ 历史失败
-  │   ├─ ConstraintContextLayer   → 约束条件
-  │   └─ ExecutionPolicyContextLayer → ALLOWED/FORBIDDEN/STOP WHEN
-  │
-  ├─ RepositoryContextRetriever.retrieve()
-  │   ├─ TaskIntentAnalyzer       → 分类任务类型
-  │   ├─ RetrievalQueryPlanner   → 扩展查询
-  │   ├─ SymbolOwnershipGraph     → 符号→文件路由
-  │   ├─ BidirectionalDepGraph    → 依赖邻域扩展
-  │   ├─ FileSummaryManager       → 语义摘要匹配
-  │   └─ StructuredRanker         → 多因素排序
-  │
-  ├─ Pipeline: rank → deduplicate → compress → budget
-  │
-  ├─ _assemble_user_message()     → Goal + Task（用户指令）
-  ├─ _assemble_context_message()  → 所有非 TASK 内容（观察/日志用）
-  └─ _extract_state_updates()     → SessionState 字段 dict
-```
-
-### 上下文压缩（三层）
-
-压缩**仅作用于 persistent_history**（真实对话），ephemeral 前缀不在压缩范围内：
-
-| 层 | 触发阈值 | 策略 |
-|---|---|---|
-| Layer 1 (snip) | 50% token 上限 | 截断 >1500 字符的 tool 输出 |
-| Layer 2 (summarize) | 70% token 上限 | LLM 总结旧对话，保留后 8 条消息 |
-| Layer 3 (collapse) | 90% token 上限 | 硬重置：保留后 4 条 + 摘要 |
+| 模式 | Claude Code 源码规模 | CoreCoder 实现 |
+|------|---------------------|----------------|
+| Search-and-Replace 编辑（唯一匹配 + diff） | FileEditTool | `tools/edit.py`——70 行 |
+| 并行工具执行 | StreamingToolExecutor | `agent/core.py`——asyncio.gather |
+| 3 层上下文压缩 | HISTORY_SNIP → Microcompact → CONTEXT_COLLAPSE | `context/compression.py`——145 行 |
+| 子智能体隔离上下文 | AgentTool（1397 行） | `tools/agent.py`——50 行 |
+| 危险命令拦截 | BashTool（1143 行） | `tools/bash.py`——95 行 |
+| 会话持久化 | QueryEngine（1295 行） | `context/session.py`——65 行 |
+| 动态系统提示词构建 | prompts.ts（914 行） | `prompt.py`——35 行 |
 
 ---
 
-## 安装与使用
-
-### 安装
+## 安装
 
 ```bash
 pip install corecoder
 ```
 
-### 配置模型
-
-支持任意 OpenAI 兼容 API。环境变量或项目 `.env` 文件均可：
+可选依赖：
 
 ```bash
+pip install corecoder[litellm]    # 100+ 非 OpenAI 提供商支持
+pip install corecoder[tiktoken]   # 精确 token 计数
+pip install corecoder[dev]        # 测试框架
+```
+
+---
+
+## 快速开始
+
+任意兼容 OpenAI API 的模型均可使用。通过环境变量或项目根目录的 `.env` 文件配置：
+
+```bash
+# Kimi K2.5
+export OPENAI_API_KEY=your-key OPENAI_BASE_URL=https://api.moonshot.ai/v1
+corecoder -m kimi-k2.5
+
+# Claude Opus 4.6（通过 OpenRouter）
+export OPENAI_API_KEY=your-key OPENAI_BASE_URL=https://openrouter.ai/api/v1
+corecoder -m anthropic/claude-opus-4-6
+
+# GPT-5
+export OPENAI_API_KEY=sk-...
+corecoder -m gpt-5
+
 # DeepSeek V3
 export OPENAI_API_KEY=sk-... OPENAI_BASE_URL=https://api.deepseek.com
 corecoder -m deepseek-chat
 
-# Kimi K2.5
-export OPENAI_API_KEY=你的key OPENAI_BASE_URL=https://api.moonshot.ai/v1
-corecoder -m kimi-k2.5
+# Qwen 3.5
+export OPENAI_API_KEY=sk-... OPENAI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+corecoder -m qwen-max
 
-# Claude（通过 OpenRouter）
-export OPENAI_API_KEY=你的key OPENAI_BASE_URL=https://openrouter.ai/api/v1
-corecoder -m anthropic/claude-opus-4-6
-
-# OpenAI GPT-5
-export OPENAI_API_KEY=sk-...
-corecoder -m gpt-5
-
-# 本地 Ollama
-export OPENAI_API_KEY=ollama OPENAI_BASE_URL=http://localhost:11434/v1
-corecoder -m qwen3:32b
-
-# 单次模式（不进入 REPL）
-corecoder -p "给 parse_config() 加上错误处理"
+# Ollama（本地模型）
+export OPENAI_API_KEY=ollama OPENAI_BASE_URL=http://localhost:11434/v1 CORECODER_MODEL=qwen2.5-coder
+corecoder
 ```
 
-### REPL 命令
-
-| 命令 | 作用 |
-|------|------|
-| `/plan <目标>` | 进入 Plan 模式：LLM 拆解目标为任务图并执行 |
-| `/model` | 查看当前模型 |
-| `/model <名称>` | 切换模型 |
-| `/compact` | 手动压缩对话历史 |
-| `/tokens` | 查看 token 用量和费用估算 |
-| `/diff` | 查看本次会话修改的文件 |
-| `/undo` | 撤销上一次用户对话（恢复文件和对话状态） |
-| `/save` | 保存会话到 `~/.corecoder/sessions/` |
-| `/sessions` | 列出已保存的会话 |
-| `/resume <id>` | 恢复已保存的会话 |
-| `/reset` | 清空对话历史 |
-| `quit` | 退出 |
-
-### 会话恢复
+三种运行模式：
 
 ```bash
-# 列出已保存的会话
-corecoder --list-sessions
-
-# 恢复指定会话
-corecoder --resume session_20260527_143000_a1b2c3d4
+corecoder                          # 交互式 REPL（默认）
+corecoder -p "修好 main.py 的 bug" # 单次执行
+corecoder -P "实现用户登录功能"     # Plan 模式（LLM 制定计划 → DAG 执行）
+corecoder -r <session-id>          # 恢复之前的会话
 ```
 
 ---
 
-## 作为库使用
+## 核心设计
+
+### 1. State-Centric 运行时（而非 Chat-History-Centric）
+
+这是 CoreCoder 最关键的架构决策。传统 coding agent 把所有信息（仓库结构、工作记忆、执行约束）直接塞进聊天历史，导致三个问题：压缩破坏上下文、undo 困难、LLM 混乱。
+
+CoreCoder 的方案：**运行时认知走 SessionState 命名字段，瞬态上下文每次 turn 重新组装**。
+
+`SessionState`（`agent/runtime/state.py`）按生命周期分四层：
+
+| 层级 | 字段 | 生命周期 |
+|------|------|---------|
+| 持久对话 | `persistent_history` | 整个会话 |
+| 仓库认知 | `repo_summary` | 整个会话，惰性刷新 |
+| 任务上下文 | `active_files`, `active_symbols`, `current_task`, `current_goal` | 每个任务重置 |
+| 工作记忆 | `completed_steps`, `important_decisions`, `failures`, `constraints` | 每个任务，可压缩 |
+| 执行边界 | `allowed_actions`, `forbidden_actions`, `stop_conditions` | 每次执行重置 |
+
+每轮 LLM 调用前，`assembler`（`agent/runtime/assembler.py`）从零构建消息列表：
+
+```
+[system]              ← 稳定的系统提示词
+[assistant(memory)]   ← [WORKING MEMORY] 已完成步骤 + 关键决策
+[assistant(repo)]     ← [REPOSITORY CONTEXT] 仓库结构 + 活跃文件
+[assistant(runtime)]  ← [EXECUTION CONSTRAINTS] 允许/禁止/停止条件
+... persistent_history（仅真实对话）
+```
+
+瞬态前缀**绝不写入 persistent_history**。这个分离保证了压缩只触真实对话，checkpoint/undo 只操作对话边界。
+
+### 2. ReAct 循环（agent/core.py）
+
+`Agent.chat()` 的核心流程：
+
+1. 用户消息追加到 `persistent_history`
+2. ShadowGit 做快照 checkpoint
+3. 估算瞬态前缀 token 开销，必要时压缩
+4. 最多 50 轮的 ReAct 循环：
+   - 调用 LLM（SSE 流式）
+   - 如果 LLM 返回纯文本 → 结束，返回给用户
+   - 如果 LLM 返回工具调用 → 并行执行，结果追加到 persistent_history
+   - 回到循环
+5. 重建 RepoIndex（文件可能已被修改）
+
+SSE 模式下，工具调用一旦 JSON 参数完整到达，立刻 `asyncio.create_task` 启动后台执行，与 LLM 剩余输出流重叠——减少总延迟。
+
+### 3. Think-Execute 外层循环（agent/runtime/staged.py）
+
+在基础 ReAct 循环之上，CoreCoder 实现了一个 **Think-Execute 双层结构**：
+
+```
+外层 (Think-Execute):  ThinkEngine → StagePlan → StageExecutor → Evaluation → 状态更新
+内层 (ReAct):         现有 Agent.chat() 约束在单个 Stage 内
+```
+
+每个阶段有独立的**工具白名单**和**步骤预算**：
+
+| 阶段 | 可用工具 | 最大步骤 | 用途 |
+|------|---------|---------|------|
+| `understand` | repo_info, glob, grep, read_file | 8 | 建立仓库高层理解 |
+| `locate` | repo_info, glob, grep, read_file | 8 | 定位相关文件/符号 |
+| `analyze` | read_file, grep, glob, repo_info | 8 | 理解实现细节 |
+| `modify` | read_file, edit_file, write_file, grep, bash | 10 | 执行代码修改 |
+| `verify` | read_file, grep, bash | 6 | 验证修改结果 |
+| `recover` | repo_info, glob, grep, read_file, bash | 8 | 从失败中恢复/换方案 |
+| `finalize` | 无工具 | 1 | 生成最终答案 |
+
+`ThinkEngine` 在每个阶段开始前评估当前证据是否足够："我有没有理解仓库结构？有没有找到目标文件？有没有看到实现细节？"如果还缺，就规划下一个需要的阶段；如果都齐了，进入 finalize。
+
+### 4. 工具系统
+
+所有工具继承 `Tool` 抽象基类（`tools/base.py`），需要提供 `name`、`description`、`parameters`（JSON Schema）和 `execute()` 方法。
+
+**8 个内置工具**（`tools/__init__.py`）：
+
+| 工具 | 文件 | 核心功能 |
+|------|------|---------|
+| `bash` | `bash.py` 95 行 | Shell 执行 + 危险命令拦截（9 条正则）+ 超时 + cd 跟踪 |
+| `read_file` | `read.py` | 按行号读取文件，支持 offset/limit |
+| `write_file` | `write.py` | 创建或覆盖文件 |
+| `edit_file` | `edit.py` 70 行 | **Search-and-Replace**：old_string 在文件中必须出现恰好一次 |
+| `glob` | `glob_tool.py` | 文件名模式匹配，过滤噪音目录 |
+| `grep` | `grep.py` | 正则内容搜索，200 匹配上限 |
+| `repo_info` | `repo_info.py` | 对仓库索引的结构化查询（符号、导入、依赖） |
+| `agent` | `agent.py` 50 行 | 创建独立的子智能体，有隔离的上下文窗口 |
+
+**edit_file 的原理**（Claude Code 的核心创新）：不是让 LLM 输出整个文件，而是指定 `old_string`（要替换的原文）和 `new_string`（新内容）。工具验证 `old_string` 在文件中出现次数：
+
+- `count == 0` → 报错："文件中找不到这段文字"
+- `count > 1` → 报错："这段文字出现了 N 次，请包含更多上下文使其唯一"
+- `count == 1` → 执行替换，返回 unified diff
+
+### 5. 三层上下文压缩（context/compression.py）
+
+只压缩 `persistent_history`，瞬态前缀通过 `estimate_ephemeral_tokens()` 计入阈值但本身不参与压缩。
+
+| 层级 | 触发阈值（占 max_context_tokens） | 策略 |
+|------|--------------------------------|------|
+| Layer 1 "snip" | 50% | 超过 1500 字符的工具输出截断为首尾各 3 行 |
+| Layer 2 "summarize" | 70% + 消息数 > 10 | LLM 摘要旧对话，保留最近 8 条完整 |
+| Layer 3 "collapse" | 90% + 消息数 > 4 | 紧急模式：保留最后 4 条 + 硬摘要 |
+
+Token 计数优先使用 `tiktoken`（`cl100k_base` 编码器），fallback 到 `len(text) // 3` 估算。
+
+### 6. Shadow Git（codebase/shadow.py）
+
+在 `~/.corecoder/shadow/<project-md5-hash>/` 维护一个**独立的 git 仓库**。核心技巧：
 
 ```python
-from corecoder import Agent, LLM
-
-llm = LLM(
-    model="deepseek-chat",
-    api_key="sk-...",
-    base_url="https://api.deepseek.com",
-)
-agent = Agent(llm=llm)
-
-# 普通对话
-response = await agent.chat("找出项目里所有的 TODO 注释")
-
-# 带结构化状态更新（编排模式）
-response = await agent.chat(
-    "实现 /calculate 端点",
-    state_updates={
-        "current_goal": "给项目加前端页面",
-        "current_task": "创建 REST API 端点",
-        "repo_summary": "## Project Files\n- calculator.py: 计算逻辑\n- api.py: Flask 路由",
-        "allowed_actions": ["修改 api.py", "导入 calculator"],
-        "forbidden_actions": ["修改 calculator.py 逻辑"],
-        "stop_conditions": "api.py 包含 /calculate 路由",
-    },
-)
-
-# 查看状态
-print(agent.state.persistent_history)  # 真实对话
-print(agent.state.completed_steps)     # 工作记忆
+env["GIT_DIR"] = self.shadow_dir       # git 对象存储在此
+env["GIT_WORK_TREE"] = self.work_tree  # 操作的是真实项目文件
 ```
 
-### 添加自定义工具
+这样 checkpoint/undo/diff 完全不影响用户的 `.git`。每次用户 turn 前自动 `git add -A` + `git commit`，undo 时 `git reset --hard` 恢复文件 + 截断 `persistent_history`。
 
-```python
-from corecoder.tools.base import Tool
+### 7. 仓库索引（codebase/indexing/index.py）
 
-class HttpTool(Tool):
-    name = "http"
-    description = "发起 HTTP GET 请求并返回响应体。"
-    parameters = {
-        "type": "object",
-        "properties": {"url": {"type": "string"}},
-        "required": ["url"],
-    }
+`RepoIndex` 在 `<project>/.corecoder/` 下构建项目结构知识：
 
-    def execute(self, url: str) -> str:
-        import urllib.request
-        return urllib.request.urlopen(url).read().decode()[:5000]
+- **符号提取**：AST 解析类、函数、方法及其签名
+- **依赖分析**：解析 `pyproject.toml` / `requirements.txt` / `package.json` 的外部依赖 + 文件间 import 关系
+- **框架检测**：自动识别 FastAPI、Flask、Django、React 等
+- **增量更新**：基于文件 mtime 变化检测，有改动才重建
 
-# 注入自定义工具
-agent = Agent(llm=llm, tools=[HttpTool(), *agent.tools])
+### 8. 零 Embedding 的符号化检索（retrieval/）
+
+不依赖 embedding 模型，通过 **AST 符号索引** + **依赖图** + **启发式文件摘要** 做仓库理解：
+
+- `SymbolOwnershipGraph`：符号 ↔ 文件 双向索引，支持模糊匹配
+- `FileSummaryManager`：启发式文件用途分类（入口点/配置/测试等），可选 LLM 生成摘要
+- `StructuredRanker`：多因素文件评分——编辑距离、所有权分数、依赖深度、摘要匹配、最近修改时间、任务对齐
+
+---
+
+## CLI 命令参考
+
+进入 REPL 后（默认模式），支持以下命令：
+
+| 命令 | 功能 |
+|------|------|
+| `/help` | 显示帮助 |
+| `/plan <目标>` | 进入 Plan 模式：LLM 制定任务图 → DAG 编排执行 |
+| `/reset` | 清空对话历史和 checkpoint |
+| `/undo` | 撤销上一次用户 turn（ShadowGit reset + 截断历史） |
+| `/model` | 显示当前模型 |
+| `/model <名称>` | 运行时切换模型 |
+| `/tokens` | 查看累计 token 使用量和估算费用 |
+| `/compact` | 手动触发上下文压缩 |
+| `/diff` | 查看本次会话修改的文件及 diff |
+| `/save` | 保存当前会话到磁盘 |
+| `/sessions` | 列出所有已保存会话 |
+| `quit` / `exit` | 退出 |
+
+输入技巧：
+- `Enter` 提交消息
+- `Esc + Enter` 插入换行（粘贴代码时使用）
+
+---
+
+## 配置
+
+配置加载优先级（后者覆盖前者）：
+
+1. `Config` dataclass 默认值（`config.py`）
+2. `~/.corecoder/.env`（全局用户配置）
+3. 从当前目录向上逐级查找 `.env`（项目级配置）
+4. 环境变量（最高优先级）
+
+| 环境变量 | 默认值 | 说明 |
+|---------|-------|------|
+| `CORECODER_MODEL` | `gpt-4o` | 模型名称 |
+| `CORECODER_API_KEY` | — | API Key（优先于 OPENAI_API_KEY） |
+| `OPENAI_API_KEY` | — | OpenAI 兼容 API Key |
+| `DEEPSEEK_API_KEY` | — | DeepSeek API Key（最低优先级） |
+| `OPENAI_BASE_URL` | — | API 基础 URL |
+| `CORECODER_BASE_URL` | — | API 基础 URL（备用） |
+| `CORECODER_MAX_TOKENS` | `4096` | 单次 LLM 回复的最大 token 数 |
+| `CORECODER_TEMPERATURE` | `0` | 生成温度 |
+| `CORECODER_MAX_CONTEXT` | `128000` | 上下文窗口大小（决定压缩阈值） |
+| `CORECODER_PROVIDER` | `openai` | 设为 `litellm` 使用 LiteLLM 后端 |
+| `CORECODER_DEBUG` | `false` | 启用调试日志 |
+
+---
+
+## Plan 模式（DAG 任务编排）
+
+通过 `/plan <目标>` 或 `-P` 参数启动。完整流水线：
+
+```
+用户输入 Goal
+  → LLMPlanner：LLM 将目标分解为 TaskGraph（有向无环图，加边时在线环检测）
+    → 展示任务图给用户
+      → Orchestrator：协调整个流水线
+        → Scheduler：拓扑排序，找到就绪任务（依赖全完成）
+          → MemoryInjector：为每个任务构建工作记忆（目标/依赖/失败/约束）
+            → Executor：对每个任务调用 Agent.chat()
+              → Verifier：检查 patch、文件存在性
+                → RecoveryManager：失败时决定 retry / skip / replan / abort
+    → 完成
+```
+
+`RecoveryManager` 恢复策略：
+- **Retry**（指数退避 1s→2s→4s→8s…max 60s）：网络超时、工具执行临时失败
+- **Skip**：该任务可选，或下游任务能容忍它失败
+- **Replan**：多个任务连续失败，让 LLM 重新规划
+- **Abort**：不可恢复错误，终止流水线
+
+---
+
+## MCP 支持
+
+通过 JSON-RPC over stdio 连接 MCP 服务器，自动发现其工具并包装为 CoreCoder `Tool` 实例。配置文件路径：`~/.corecoder/mcp.json`。
+
+---
+
+## 项目结构
+
+```
+corecoder/
+├── __init__.py               # 惰性导入，暴露 Agent / LLM / Config / ALL_TOOLS
+├── __main__.py               # python -m corecoder 入口
+├── cli.py                    # CLI 参数解析 + REPL + Plan + 单次 三种模式
+├── config.py                 # 从环境变量和 .env 文件加载配置
+├── prompt.py                 # 系统提示词生成
+│
+├── agent/
+│   ├── core.py               # Agent 类——ReAct 循环 + SSE 执行 + undo
+│   ├── runtime/
+│   │   ├── state.py          # SessionState dataclass（所有运行时认知）
+│   │   ├── assembler.py      # 动态消息组装（瞬态前缀 + persistent_history）
+│   │   └── staged.py         # Think-Execute 双层运行时（~1700 行，最复杂的模块）
+│   ├── workflow/
+│   │   ├── orchestrator.py   # Orchestrator——顶层 DAG 流水线协调器
+│   │   ├── planner.py        # LLMPlanner / StaticPlanner
+│   │   ├── scheduler.py      # Scheduler——依赖感知的任务调度
+│   │   ├── executor.py       # Executor——Agent 包装器，桥接 任务节点 ↔ ReAct
+│   │   └── verifier.py       # 验证层（PatchAnalysis + VerificationPolicyEngine）
+│   └── dag/
+│       ├── models.py         # TaskNode / ExecutionResult / RetryPolicy / TaskStatus
+│       ├── graph.py          # TaskGraph——有向无环图 + 在线环检测
+│       ├── memory.py         # WorkingMemory + MemoryInjector
+│       └── recovery.py       # RecoveryManager（retry / skip / replan / abort）
+│
+├── llm/
+│   ├── types.py              # ToolCall / LLMResponse / SSEEvent 数据结构
+│   └── client.py             # LLM（OpenAI 兼容）+ LiteLLM（100+ 提供商）
+│
+├── tools/
+│   ├── base.py               # Tool 抽象基类
+│   ├── __init__.py           # ALL_TOOLS 注册表 + get_tool() 查找
+│   ├── bash.py               # Shell 执行 + 危险命令拦截 + cd 跟踪
+│   ├── read.py               # 按行号读取文件
+│   ├── write.py              # 创建/覆盖文件
+│   ├── edit.py               # Search-and-Replace 编辑（唯一性约束）
+│   ├── glob_tool.py          # 文件模式匹配
+│   ├── grep.py               # 正则内容搜索
+│   ├── repo_info.py          # 仓库索引结构化查询
+│   └── agent.py              # 子智能体 spawn
+│
+├── context/
+│   ├── models.py             # ContextFragment / ContextBundle / ContextRequest
+│   ├── orchestrator.py       # ContextOrchestrator——动态上下文组装引擎
+│   ├── compression.py        # 3 层压缩（snip → summarize → collapse）
+│   ├── session.py            # 会话持久化（save / load / list）
+│   └── retriever.py          # RepositoryContextRetriever
+│
+├── retrieval/                # 零 Embedding 符号化仓库检索
+│   ├── models.py             # SymbolInfo / FileSummary / RankedFile
+│   ├── symbol_index.py       # SymbolOwnershipGraph（符号↔文件双向索引）
+│   ├── summaries.py          # FileSummaryManager（启发式 + LLM 摘要）
+│   ├── task_understanding.py # TaskUnderstandingAnalyzer
+│   └── ranker.py             # StructuredRanker——多因素文件评分
+│
+├── codebase/
+│   ├── shadow.py             # ShadowGit——独立 git 仓库做 checkpoint/undo/diff
+│   └── indexing/
+│       └── index.py          # RepoIndex——AST 符号提取 + 依赖分析
+│
+├── mcp/
+│   └── client.py             # MCP 客户端（JSON-RPC over stdio）
+│
+└── infra/                    # 基础设施
+    ├── storage.py            # JSONStorage 图持久化
+    ├── observability.py      # 带类型的工序日志
+    └── viz.py                # 终端任务图可视化
 ```
 
 ---
 
-## 核心设计模式
+## 设计原则
 
-| 设计模式 | 实现位置 | 说明 |
-|---|---|---|
-| **State-Centric 运行时** | `runtime/state.py`, `runtime/assembler.py` | SessionState 替代 chat-history accumulation；ephemeral 上下文每轮动态重建 |
-| **搜索替换编辑** | `tools/edit.py` | old_string 在文件中唯一匹配才执行，防止误修改 |
-| **并行工具执行** | `agent.py` — `asyncio.gather` | 单轮多个 tool_call 并发执行 |
-| **三层上下文压缩** | `history/compression.py` | snip → summarize → collapse，仅压缩真实对话 |
-| **子 Agent 隔离** | `tools/agent.py` | 子 Agent 有独立上下文窗口 |
-| **危险命令拦截** | `tools/bash.py` | 拦截 `rm -rf`、fork bomb、curl pipe 等 |
-| **ShadowGit 影子仓库** | `repo/shadow.py` | checkpoint/undo/diff 用真实 git snapshot，不触碰用户 .git |
-| **符号级仓库检索** | `orchestration/retrieval/` | 无 embedding：符号→文件路由 + 依赖扩展 + 多因素排序 |
-| **DAG 任务编排** | `orchestration/` | LLM Planner 拆解目标 → Scheduler 调度 → Executor 执行 → Verifier 验证 |
+- **Less is more**：每个模块只保留核心逻辑，删掉装饰代码
+- **可读性优先于性能**：代码是给人读的，不是给机器优化的
+- **瞬态与持久分离**：上下文注入和真实对话严格分开
+- **零魔法**：没有复杂的元编程、没有隐式依赖注入、没有魔法常量
+- **可魔改**：每个模块足够独立，可以单独替换而不影响其他模块
 
 ---
 
-## FAQ
+## 许可证
 
-**CoreCoder 支持 Skill / MCP / Hook 吗？**
-
-不支持，这是刻意的。CoreCoder 只保留可运行的最小核心。Skill、MCP、Hook 是 Claude Code 在上层加的特性；如果你想加，参考 [架构导读系列](article/)。
-
----
-
-## License
-
-MIT。Fork，改造，造你自己的东西。
-
----
-
-作者 **[何宇峰](https://github.com/he-yufeng)** · Agentic AI Researcher @ Moonshot AI (Kimi)
-
-[Claude Code 源码分析（知乎 17 万阅读，6000 收藏）](https://zhuanlan.zhihu.com/p/1898797658343862272)
+MIT License
