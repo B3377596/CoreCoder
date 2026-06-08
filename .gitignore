@@ -27,3 +27,5 @@ node_modules/
 
 tests/
 .claude/*
+
+corecoder_interview_qa.md
